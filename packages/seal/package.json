@@ -1,0 +1,59 @@
+{
+  "name": "@ternent/seal-cli",
+  "version": "0.3.10",
+  "description": "Deterministic artifact signing for Seal",
+  "keywords": [
+    "cli",
+    "integrity",
+    "manifest",
+    "seal",
+    "signature"
+  ],
+  "homepage": "https://github.com/samternent/home/tree/main/packages/seal-cli",
+  "bugs": {
+    "url": "https://github.com/samternent/home/issues"
+  },
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samternent/home.git",
+    "directory": "packages/seal-cli"
+  },
+  "bin": {
+    "seal": "bin/seal"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./proof": "./dist/proof.js",
+    "./artifact": "./dist/artifact.js",
+    "./manifest": "./dist/manifest.js",
+    "./crypto": "./dist/crypto.js",
+    "./errors": "./dist/errors.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build:proof": "vite build --mode proof-only",
+    "build": "pnpm --filter @ternent/rage build && vite build",
+    "test": "pnpm --filter @ternent/rage build && vitest run"
+  },
+  "dependencies": {
+    "@ternent/armour": "workspace:*",
+    "@ternent/identity": "workspace:*",
+    "ternent-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^2.9.18",
+    "vitest": "^1.6.0"
+  }
+}

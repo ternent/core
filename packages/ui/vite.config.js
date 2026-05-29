@@ -1,0 +1,35 @@
+import { resolve } from "path";
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import tailwindcss from "@tailwindcss/vite";
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  output: {
+    exports: "named",
+  },
+  build: {
+    lib: {
+      entry: {
+        primitives: resolve(__dirname, "src/primitives/index.ts"),
+        patterns: resolve(__dirname, "src/patterns/index.ts"),
+      },
+    },
+
+    rollupOptions: {
+      external: ["vue", "@vueuse/core", "luxon"],
+    },
+    target: "esnext",
+  },
+  plugins: [vue(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "./src"),
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    include: ["src/**/*.test.ts"],
+  },
+});

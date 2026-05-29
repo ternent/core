@@ -1,0 +1,81 @@
+# ternent-utils
+
+## 1.1.3
+
+### Patch Changes
+
+- [`ad1b704fb8ba54b12d6140ffbed0fee66adcb6fd`](https://github.com/samternent/home/commit/ad1b704fb8ba54b12d6140ffbed0fee66adcb6fd) Thanks [@samternent](https://github.com/samternent)! - Prepare the PixPax beta release with v2 redeem and swaps flow support, local auth fixes, unique-card pack issuance, and build/deploy hardening.
+
+## 1.1.2
+
+### Patch Changes
+
+- [`4932df0ce286521f874ffd670ca022592f7d3462`](https://github.com/samternent/home/commit/4932df0ce286521f874ffd670ca022592f7d3462) Thanks [@samternent](https://github.com/samternent)! - Prepare the PixPax beta release with v2 redeem and swaps flow support, local auth fixes, and unique-card pack issuance.
+
+## 1.1.1
+
+### Patch Changes
+
+- [`36dd9bfac417eba61b8e81756cf15a3d3ac7a216`](https://github.com/samternent/home/commit/36dd9bfac417eba61b8e81756cf15a3d3ac7a216) Thanks [@samternent](https://github.com/samternent)! - Adds cli and GHA
+
+## 1.1.0
+
+### Minor Changes
+
+- [#508](https://github.com/samternent/home/pull/508) [`b35c163b4c4d3c084591ca8512b2d43083eb40ce`](https://github.com/samternent/home/commit/b35c163b4c4d3c084591ca8512b2d43083eb40ce) Thanks [@samternent](https://github.com/samternent)! - Add shared UI primitives (`SDisclosure`, `SRadioGroup`, `STextarea`) and align proof app usage with `ternent-ui`.
+
+  Add `hashBytes` utility for deterministic raw-byte hashing in browser signing/verification flows.
+
+## 1.0.9
+
+### Patch Changes
+
+- [`5a320441c98148501448363e96f2de42313e141b`](https://github.com/samternent/home/commit/5a320441c98148501448363e96f2de42313e141b) Thanks [@samternent](https://github.com/samternent)! - Update demos
+
+## 1.0.8
+
+### Patch Changes
+
+- [`90b078e2e6ac4adbbb97c571219e61ae6b8bd191`](https://github.com/samternent/home/commit/90b078e2e6ac4adbbb97c571219e61ae6b8bd191) Thanks [@samternent](https://github.com/samternent)! - Adds unit tests
+
+## 1.0.7
+
+### Patch Changes
+
+- [`cdc9b62`](https://github.com/samternent/home/commit/cdc9b62e722e06fb9da061a67566cbfed688be5c) Thanks [@samternent](https://github.com/samternent)! - util updates
+
+## 1.0.6
+
+### Patch Changes
+
+- [`0163e3c`](https://github.com/samternent/home/commit/0163e3c02abf4bc0a05e026db3c7bf3c1b1e8e57) Thanks [@samternent](https://github.com/samternent)! - Update readme
+
+## 1.0.5
+
+### Patch Changes
+
+- [`3a3d156`](https://github.com/samternent/home/commit/3a3d156030ec4f5acd3575a0df41b8eab6858627) Thanks [@samternent](https://github.com/samternent)! - Updates action
+
+## 1.0.4
+
+### Patch Changes
+
+- [`c96d01b`](https://github.com/samternent/home/commit/c96d01bd3cbce2064ba6549950a6096a30d9eaca) Thanks [@samternent](https://github.com/samternent)! - Updating utiols package
+
+## 1.0.3
+
+### Patch Changes
+
+- [`4da712b`](https://github.com/samternent/home/commit/4da712b1ffa7d134f664886b1a99d4771d2c04c6) Thanks [@samternent](https://github.com/samternent)! - bump all packages
+
+## 1.0.2
+
+### Patch Changes
+
+- [`4b3b09a`](https://github.com/samternent/home/commit/4b3b09a759b54a4d861ac22d64df70e54161501b) Thanks [@samternent](https://github.com/samternent)! - Hopefully fixing actions and triggering an everything release
+
+## 1.0.1
+
+### Patch Changes
+
+- [`25d53b1`](https://github.com/samternent/home/commit/25d53b1ca03ebe7905b94f69c05c30409b28a444) Thanks [@samternent](https://github.com/samternent)! - Adds CI publishing to all packages

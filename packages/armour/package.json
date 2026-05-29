@@ -1,0 +1,41 @@
+{
+  "name": "@ternent/armour",
+  "version": "0.1.5",
+  "description": "Opinionated identity-aware encryption bridge over @ternent/rage",
+  "license": "ISC",
+  "files": [
+    "dist",
+    "README.md",
+    "SPEC.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "pnpm --filter @ternent/rage build && vite build",
+    "test": "pnpm --filter @ternent/rage build && vitest run"
+  },
+  "dependencies": {
+    "@ternent/identity": "workspace:*",
+    "@ternent/rage": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.6.3",
+    "vite": "^4.5.3",
+    "vite-plugin-dts": "^1.7.3",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,0 +1,339 @@
+# ternent-ui
+
+## 0.4.15
+
+### Patch Changes
+
+- [`f1499a5ba7980ae9d33fed6bcdb710f7b398f1c3`](https://github.com/samternent/home/commit/f1499a5ba7980ae9d33fed6bcdb710f7b398f1c3) Thanks [@samternent](https://github.com/samternent)! - Overhaul landing page
+
+## 0.4.14
+
+### Patch Changes
+
+- [`9141d333ba1f6da7295f55661fcaa309c14af4e6`](https://github.com/samternent/home/commit/9141d333ba1f6da7295f55661fcaa309c14af4e6) Thanks [@samternent](https://github.com/samternent)! - Update loading states
+
+## 0.4.13
+
+### Patch Changes
+
+- [`13540fde40ad2158e5c873f539fdecb4160c48d8`](https://github.com/samternent/home/commit/13540fde40ad2158e5c873f539fdecb4160c48d8) Thanks [@samternent](https://github.com/samternent)! - Update layout and copy
+
+## 0.4.12
+
+### Patch Changes
+
+- [`a7c7e3c9f61300396fb11caf364d10e721b078ec`](https://github.com/samternent/home/commit/a7c7e3c9f61300396fb11caf364d10e721b078ec) Thanks [@samternent](https://github.com/samternent)! - Update seal theme and concord copy
+
+## 0.4.11
+
+### Patch Changes
+
+- [`69de6bfe65a37ac88be939a00b82480f5f62334f`](https://github.com/samternent/home/commit/69de6bfe65a37ac88be939a00b82480f5f62334f) Thanks [@samternent](https://github.com/samternent)! - Fix footer and theme toggle
+
+## 0.4.10
+
+### Patch Changes
+
+- [`cd973e5413f67670371efe25835c3b5cabe63edb`](https://github.com/samternent/home/commit/cd973e5413f67670371efe25835c3b5cabe63edb) Thanks [@samternent](https://github.com/samternent)! - Cocnord theme
+
+## 0.4.9
+
+### Patch Changes
+
+- [`92050833da54cacbd6fe33349d9b8fb66754d82c`](https://github.com/samternent/home/commit/92050833da54cacbd6fe33349d9b8fb66754d82c) Thanks [@samternent](https://github.com/samternent)! - Concord library migration
+
+## 0.4.8
+
+### Patch Changes
+
+- [`f52fa81d8adac2176f0578a01a3486e787d43083`](https://github.com/samternent/home/commit/f52fa81d8adac2176f0578a01a3486e787d43083) Thanks [@samternent](https://github.com/samternent)! - Update teh landing page on seal
+
+## 0.4.7
+
+### Patch Changes
+
+- [`e694239710abbe9ab15bd386901f34334f7692e5`](https://github.com/samternent/home/commit/e694239710abbe9ab15bd386901f34334f7692e5) Thanks [@samternent](https://github.com/samternent)! - code deletion and renaming
+
+## 0.4.6
+
+### Patch Changes
+
+- [`0d44f4eb18ec74b394018a709d0dc78c9e1fd520`](https://github.com/samternent/home/commit/0d44f4eb18ec74b394018a709d0dc78c9e1fd520) Thanks [@samternent](https://github.com/samternent)! - consuming template updates
+
+## 0.4.5
+
+### Patch Changes
+
+- [`3016b41acffdf9664b01afd9f32f76f3b2880303`](https://github.com/samternent/home/commit/3016b41acffdf9664b01afd9f32f76f3b2880303) Thanks [@samternent](https://github.com/samternent)! - Updates definition blocks
+
+- [`80c1a8e095299c23af67358ddcc074a431d079b8`](https://github.com/samternent/home/commit/80c1a8e095299c23af67358ddcc074a431d079b8) Thanks [@samternent](https://github.com/samternent)! - Update to use template
+
+## 0.4.4
+
+### Patch Changes
+
+- [`6845ce703aa2fb677b74786de02ce1d22ec98aa9`](https://github.com/samternent/home/commit/6845ce703aa2fb677b74786de02ce1d22ec98aa9) Thanks [@samternent](https://github.com/samternent)! - Updates verification
+
+## 0.4.3
+
+### Patch Changes
+
+- [`346a6cf11407bb3e94bf1e553683769d50112616`](https://github.com/samternent/home/commit/346a6cf11407bb3e94bf1e553683769d50112616) Thanks [@samternent](https://github.com/samternent)! - Updates it to seal
+
+## 0.4.2
+
+### Patch Changes
+
+- [`8427fb06e4ee9a14197e89dc34d26b6894654eaf`](https://github.com/samternent/home/commit/8427fb06e4ee9a14197e89dc34d26b6894654eaf) Thanks [@samternent](https://github.com/samternent)! - UUpdate landing
+
+## 0.4.1
+
+### Patch Changes
+
+- [`a9b21ff9ca09718b824ef6e665e1d79d29fdeb69`](https://github.com/samternent/home/commit/a9b21ff9ca09718b824ef6e665e1d79d29fdeb69) Thanks [@samternent](https://github.com/samternent)! - Adfds action and slight tweak
+
+## 0.4.0
+
+### Minor Changes
+
+- [#508](https://github.com/samternent/home/pull/508) [`b35c163b4c4d3c084591ca8512b2d43083eb40ce`](https://github.com/samternent/home/commit/b35c163b4c4d3c084591ca8512b2d43083eb40ce) Thanks [@samternent](https://github.com/samternent)! - Add shared UI primitives (`SDisclosure`, `SRadioGroup`, `STextarea`) and align proof app usage with `ternent-ui`.
+
+  Add `hashBytes` utility for deterministic raw-byte hashing in browser signing/verification flows.
+
+## 0.3.5
+
+### Patch Changes
+
+- [`de32160374bb34fb3968b4c755c52dc6c1fe8e3f`](https://github.com/samternent/home/commit/de32160374bb34fb3968b4c755c52dc6c1fe8e3f) Thanks [@samternent](https://github.com/samternent)! - some styles and theme
+
+## 0.3.4
+
+### Patch Changes
+
+- [`05930613e323b1a121bcadc1afc458b81100d9c0`](https://github.com/samternent/home/commit/05930613e323b1a121bcadc1afc458b81100d9c0) Thanks [@samternent](https://github.com/samternent)! - Partial permissions and 404
+
+## 0.3.3
+
+### Patch Changes
+
+- [`f32fc4ad99cdc4966b66956b4665ceba1d485698`](https://github.com/samternent/home/commit/f32fc4ad99cdc4966b66956b4665ceba1d485698) Thanks [@samternent](https://github.com/samternent)! - Update whitepaper
+
+## 0.3.2
+
+### Patch Changes
+
+- [#396](https://github.com/samternent/home/pull/396) [`9d0a9664d6d2e71fd9f31540d52fd3dc98c54307`](https://github.com/samternent/home/commit/9d0a9664d6d2e71fd9f31540d52fd3dc98c54307) Thanks [@samternent](https://github.com/samternent)! - Consolidate styles
+
+## 0.3.1
+
+### Patch Changes
+
+- [`636f8a0491193a83166a2dd796cc351c57fe5cc5`](https://github.com/samternent/home/commit/636f8a0491193a83166a2dd796cc351c57fe5cc5) Thanks [@samternent](https://github.com/samternent)! - Fix some copy and vercel config
+
+## 0.3.0
+
+### Minor Changes
+
+- [`d8807ea4a3c40f2d58e4c9784c2374088b9dc745`](https://github.com/samternent/home/commit/d8807ea4a3c40f2d58e4c9784c2374088b9dc745) Thanks [@samternent](https://github.com/samternent)! - Complete rework of the app. AI driven
+
+## 0.1.18
+
+### Patch Changes
+
+- [`ffbadc602da814226cf74dc7a8667b8770ac3f2b`](https://github.com/samternent/home/commit/ffbadc602da814226cf74dc7a8667b8770ac3f2b) Thanks [@samternent](https://github.com/samternent)! - Adds a bit more from the other day
+
+## 0.1.17
+
+### Patch Changes
+
+- [`078d2f8585fed6fa13f587217c5cfbaa45357793`](https://github.com/samternent/home/commit/078d2f8585fed6fa13f587217c5cfbaa45357793) Thanks [@samternent](https://github.com/samternent)! - Remove proof of work, update some tabs and add new routes
+
+## 0.1.16
+
+### Patch Changes
+
+- [`5a88278372830d5f24e7fcc12cf430560f93ad13`](https://github.com/samternent/home/commit/5a88278372830d5f24e7fcc12cf430560f93ad13) Thanks [@samternent](https://github.com/samternent)! - Updates ledger and tabs
+
+## 0.1.15
+
+### Patch Changes
+
+- [#375](https://github.com/samternent/home/pull/375) [`4dbe5c228213d174b670a3faf544b89c51eb4e71`](https://github.com/samternent/home/commit/4dbe5c228213d174b670a3faf544b89c51eb4e71) Thanks [@samternent](https://github.com/samternent)! - Updates SResizers
+
+- [#375](https://github.com/samternent/home/pull/375) [`906c84e95a7b82f6e124ba04a680990c3b1df14a`](https://github.com/samternent/home/commit/906c84e95a7b82f6e124ba04a680990c3b1df14a) Thanks [@samternent](https://github.com/samternent)! - Adds new themes
+
+## 0.1.14
+
+### Patch Changes
+
+- [`edb639cff3654fdd3250f48ef05350154ab09ca0`](https://github.com/samternent/home/commit/edb639cff3654fdd3250f48ef05350154ab09ca0) Thanks [@samternent](https://github.com/samternent)! - A few more nice tweaks
+
+## 0.1.13
+
+### Patch Changes
+
+- [`30e4e7b9752544c3ff8deb7b1453618101cfadfc`](https://github.com/samternent/home/commit/30e4e7b9752544c3ff8deb7b1453618101cfadfc) Thanks [@samternent](https://github.com/samternent)! - Some menu and repsonsive tweaks
+
+## 0.1.12
+
+### Patch Changes
+
+- [`39e4521fa018b7706ac00b8d1dd8fb3eebf63395`](https://github.com/samternent/home/commit/39e4521fa018b7706ac00b8d1dd8fb3eebf63395) Thanks [@samternent](https://github.com/samternent)! - Theme and layout changes
+
+## 0.1.11
+
+### Patch Changes
+
+- 98ce971: Updates many styles
+
+## 0.1.10
+
+### Patch Changes
+
+- [`a301948d8d49e1d6ec2a2448578c1479bbba6644`](https://github.com/samternent/home/commit/a301948d8d49e1d6ec2a2448578c1479bbba6644) Thanks [@samternent](https://github.com/samternent)! - Remove unused code
+
+## 0.1.9
+
+### Patch Changes
+
+- [`60286f07aaab9fd281e61c3f98260d3589e1eaf6`](https://github.com/samternent/home/commit/60286f07aaab9fd281e61c3f98260d3589e1eaf6) Thanks [@samternent](https://github.com/samternent)! - Updates ternentdotdev content
+
+## 0.1.8
+
+### Patch Changes
+
+- [`b578f6f06c90fe327d8ff084764dafd7c6fd8ec9`](https://github.com/samternent/home/commit/b578f6f06c90fe327d8ff084764dafd7c6fd8ec9) Thanks [@samternent](https://github.com/samternent)! - Improve theming
+
+## 0.1.7
+
+### Patch Changes
+
+- [`20cf93fc3e2fd25b7463cc5bd66e42d74413fc92`](https://github.com/samternent/home/commit/20cf93fc3e2fd25b7463cc5bd66e42d74413fc92) Thanks [@samternent](https://github.com/samternent)! - Adds themes and landing page
+
+## 0.1.6
+
+### Patch Changes
+
+- [`0263ee49bbd5bcd82d4ddd142dbf0bd72294a48a`](https://github.com/samternent/home/commit/0263ee49bbd5bcd82d4ddd142dbf0bd72294a48a) Thanks [@samternent](https://github.com/samternent)! - Adds teamwork theme
+
+## 0.1.5
+
+### Patch Changes
+
+- [`f8a222fb97d95038f940503d1bbd6427b4cfb0ee`](https://github.com/samternent/home/commit/f8a222fb97d95038f940503d1bbd6427b4cfb0ee) Thanks [@samternent](https://github.com/samternent)! - Update white label themes
+
+## 0.1.4
+
+### Patch Changes
+
+- [`f4afb11f20f27b23599f45d83c7b7a3419afb1b7`](https://github.com/samternent/home/commit/f4afb11f20f27b23599f45d83c7b7a3419afb1b7) Thanks [@samternent](https://github.com/samternent)! - Adds basic whitelabling
+
+## 0.1.3
+
+### Patch Changes
+
+- [`7435a4dc0feb608720f58c878c30635b809fd36e`](https://github.com/samternent/home/commit/7435a4dc0feb608720f58c878c30635b809fd36e) Thanks [@samternent](https://github.com/samternent)! - Update home p age feel
+
+## 0.1.2
+
+### Patch Changes
+
+- [`0bc405a1277d88bf868980aa9b25eab044937715`](https://github.com/samternent/home/commit/0bc405a1277d88bf868980aa9b25eab044937715) Thanks [@samternent](https://github.com/samternent)! - Adds gamewek navigation
+
+## 0.1.1
+
+### Patch Changes
+
+- [`4dbe84d678340adfec62721ca1aea8755d88717e`](https://github.com/samternent/home/commit/4dbe84d678340adfec62721ca1aea8755d88717e) Thanks [@samternent](https://github.com/samternent)! - Adjust small font sizes and player links
+
+## 0.1.0
+
+### Minor Changes
+
+- [`1f3ad0d2b7052f3b8359e94f1edb20ef4b40c73a`](https://github.com/samternent/home/commit/1f3ad0d2b7052f3b8359e94f1edb20ef4b40c73a) Thanks [@samternent](https://github.com/samternent)! - Remove 401 block
+
+## 0.0.14
+
+### Patch Changes
+
+- [`e9b74d04d15b0bf4f74c47f58ec7558e9a86e991`](https://github.com/samternent/home/commit/e9b74d04d15b0bf4f74c47f58ec7558e9a86e991) Thanks [@samternent](https://github.com/samternent)! - Add new font and style sizes
+
+## 0.0.13
+
+### Patch Changes
+
+- [`299229c0af7dc84f698062c48a1d8e24bb721ae1`](https://github.com/samternent/home/commit/299229c0af7dc84f698062c48a1d8e24bb721ae1) Thanks [@samternent](https://github.com/samternent)! - Minor component and theme tweaks
+
+## 0.0.12
+
+### Patch Changes
+
+- [`ba650644b361ca55b8b46cceb550bc384e997433`](https://github.com/samternent/home/commit/ba650644b361ca55b8b46cceb550bc384e997433) Thanks [@samternent](https://github.com/samternent)! - Adds base varient to tabs
+
+## 0.0.11
+
+### Patch Changes
+
+- [`f80141b83a9cc857d0a9c7e7bccaac9b0fd04d70`](https://github.com/samternent/home/commit/f80141b83a9cc857d0a9c7e7bccaac9b0fd04d70) Thanks [@samternent](https://github.com/samternent)! - Adds greener theme
+
+## 0.0.10
+
+### Patch Changes
+
+- [`765c387249dbd62441490a5083b8d4d30af46369`](https://github.com/samternent/home/commit/765c387249dbd62441490a5083b8d4d30af46369) Thanks [@samternent](https://github.com/samternent)! - Adds concords themes
+
+## 0.0.9
+
+### Patch Changes
+
+- [`d464a231ac93035bd252e67d1f278d1fb59f9e09`](https://github.com/samternent/home/commit/d464a231ac93035bd252e67d1f278d1fb59f9e09) Thanks [@samternent](https://github.com/samternent)! - Update ternentdotdev theme and some styles
+
+## 0.0.8
+
+### Patch Changes
+
+- [`383c709f107fc869a19430a9565f2b84c8ddc9cf`](https://github.com/samternent/home/commit/383c709f107fc869a19430a9565f2b84c8ddc9cf) Thanks [@samternent](https://github.com/samternent)! - Adds game
+
+## 0.0.7
+
+### Patch Changes
+
+- [`bb82d84026eb26dfc8e048e5d35d2bebb918c664`](https://github.com/samternent/home/commit/bb82d84026eb26dfc8e048e5d35d2bebb918c664) Thanks [@samternent](https://github.com/samternent)! - Update theme and home page
+
+## 0.0.6
+
+### Patch Changes
+
+- [`dfb7156622931290d861583139e0d16b8711fdc1`](https://github.com/samternent/home/commit/dfb7156622931290d861583139e0d16b8711fdc1) Thanks [@samternent](https://github.com/samternent)! - Remove content and tweak tabs
+
+## 0.0.5
+
+### Patch Changes
+
+- [`9dcad6a68edb8012b34dfc30d2f652114db085d4`](https://github.com/samternent/home/commit/9dcad6a68edb8012b34dfc30d2f652114db085d4) Thanks [@samternent](https://github.com/samternent)! - Updates responsiveness of things
+
+## 0.0.4
+
+### Patch Changes
+
+- [`f8abac1f83db402de41970b39677d0c045a210c0`](https://github.com/samternent/home/commit/f8abac1f83db402de41970b39677d0c045a210c0) Thanks [@samternent](https://github.com/samternent)! - Close nav on navigate
+
+## 0.0.3
+
+### Patch Changes
+
+- [`2393ddcb514083518aac92c9de0cbc4c4518048b`](https://github.com/samternent/home/commit/2393ddcb514083518aac92c9de0cbc4c4518048b) Thanks [@samternent](https://github.com/samternent)! - Adds breakpoints to nav
+
+- [`df81b8fd87ae1e906c9da463d1d2fe37610eb1c7`](https://github.com/samternent/home/commit/df81b8fd87ae1e906c9da463d1d2fe37610eb1c7) Thanks [@samternent](https://github.com/samternent)! - Update UI nav
+
+## 0.0.2
+
+### Patch Changes
+
+- [`0d7ddc5753740017962335661e9a169093edebb4`](https://github.com/samternent/home/commit/0d7ddc5753740017962335661e9a169093edebb4) Thanks [@samternent](https://github.com/samternent)! - Testing package bump
+
+## 0.0.1
+
+### Patch Changes
+
+- [`e6bbb9f04034a9510b06c8b992937379221587db`](https://github.com/samternent/home/commit/e6bbb9f04034a9510b06c8b992937379221587db) Thanks [@samternent](https://github.com/samternent)! - Expose ternent-ui

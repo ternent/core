@@ -1,0 +1,55 @@
+name: Create Release
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PNPM_CACHE_PATH: ~/.pnpm-store
+  PNPM_CACHE_NAME: pnpm-store-cache
+
+jobs:
+  release:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Get branch name
+        id: branch
+        run: |
+          echo "branch_name=$(echo ${GITHUB_REF#refs/heads/} | tr / -)" >> $GITHUB_ENV
+
+      - name: Get node version
+        id: nvmrc
+        run: echo ::set-output name=NODE_VERSION::$(cat .nvmrc)
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          always-auth: true
+          node-version-file: ".nvmrc"
+          registry-url: https://registry.npmjs.org
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create release pull request
+        id: changesets
+        uses: changesets/action@v1.4.1
+        with:
+          title: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}

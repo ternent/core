@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.0
+
+### Minor Changes
+
+- [`20732cf`](https://github.com/ternent/core/commit/20732cf77acd279e07fa3f7601ea9c02f1e85564) Thanks [@samternent](https://github.com/samternent)! - Move @ternent/ui
+
 ## 0.4.15
 
 ### Patch Changes

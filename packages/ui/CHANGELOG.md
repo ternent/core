@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.2
+
+### Patch Changes
+
+- [`6e35115`](https://github.com/ternent/core/commit/6e35115fd8b7225292d9666da5f26184786b5785) Thanks [@samternent](https://github.com/samternent)! - Updates deploy action
+
 ## 0.5.1
 
 ### Patch Changes

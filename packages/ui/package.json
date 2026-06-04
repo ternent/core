@@ -7,7 +7,7 @@
     ".": "./dist/components.js",
     "./primitives": "./dist/primitives.js",
     "./patterns": "./dist/patterns.js",
-    "./styles.css": "./dist/ternent-ui.css",
+    "./styles.css": "./dist/ui.css",
     "./themes/print.css": "./src/themes/print.css",
     "./themes/neon-noir.css": "./src/themes/neon-noir.css",
     "./themes/spruce-ink.css": "./src/themes/spruce-ink.css",

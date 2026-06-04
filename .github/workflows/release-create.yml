@@ -9,6 +9,10 @@ env:
   PNPM_CACHE_PATH: ~/.pnpm-store
   PNPM_CACHE_NAME: pnpm-store-cache
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   release:
     name: Deploy

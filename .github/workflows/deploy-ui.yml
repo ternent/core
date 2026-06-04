@@ -1,37 +1,53 @@
-name: Production Tag Deployment
-env:
-  PNPM_CACHE_PATH: ~/.pnpm-store
-  PNPM_CACHE_NAME: pnpm-store-cache
+name: Deploy UI Package
+
 on:
   push:
     tags:
       - "@ternent/ui-*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
-  Deploy-Production:
+  publish:
+    name: Publish @ternent/ui
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup PNPM
-        uses: pnpm/action-setup@v2
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          always-auth: true
           node-version-file: ".nvmrc"
-          registry-url: https://registry.npmjs.org
           cache: "pnpm"
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Debug npm auth state
+        run: |
+          echo "npm version: $(npm --version)"
+          echo "node version: $(node --version)"
+          echo "pnpm version: $(pnpm --version)"
+          echo "registry: $(npm config get registry)"
+          echo "userconfig: $(npm config get userconfig)"
+          echo "NODE_AUTH_TOKEN set? ${NODE_AUTH_TOKEN:+yes}"
+          echo "NPM_TOKEN set? ${NPM_TOKEN:+yes}"
+          npm config list
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
+      - name: Build @ternent/ui
         run: pnpm --filter @ternent/ui build
 
-      - name: Publish npm
+      - name: Publish @ternent/ui
         run: pnpm --filter @ternent/ui publish --no-git-checks --access public --provenance

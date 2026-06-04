@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.3
+
+### Patch Changes
+
+- [`c07a829`](https://github.com/ternent/core/commit/c07a8296d3316099e6cfce2955b9a8289e342c33) Thanks [@samternent](https://github.com/samternent)! - Fix css exports and deploy file
+
 ## 0.5.2
 
 ### Patch Changes

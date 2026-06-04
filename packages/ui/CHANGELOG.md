@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.1
+
+### Patch Changes
+
+- [`9c434fd`](https://github.com/ternent/core/commit/9c434fd7f880bb9fa6400adbefdc1cc28e72461c) Thanks [@samternent](https://github.com/samternent)! - Update export css names
+
 ## 0.5.0
 
 ### Minor Changes

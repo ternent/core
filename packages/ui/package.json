@@ -1,6 +1,6 @@
 {
   "name": "@ternent/ui",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "A collection of Vue components and themes for ternent applications",
   "repository": {
     "type": "git",

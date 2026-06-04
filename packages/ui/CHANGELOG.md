@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.4
+
+### Patch Changes
+
+- [`9e4db22`](https://github.com/ternent/core/commit/9e4db2281ba076ae3c20db6d42944c3aff786b91) Thanks [@samternent](https://github.com/samternent)! - Debug action
+
 ## 0.5.3
 
 ### Patch Changes

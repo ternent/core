@@ -2,4 +2,4 @@
 "@ternent/ui": patch
 ---
 
-Debug action
+Fix package file

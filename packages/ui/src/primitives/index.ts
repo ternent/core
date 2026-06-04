@@ -1,5 +1,4 @@
-import "../design-system/tokens.css";
-import "../design-system/base.css";
+import "../style.css";
 
 export { default as Button } from "./Button/Button.vue";
 export { default as Accordion } from "./Accordion/Accordion.vue";

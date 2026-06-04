@@ -1,5 +1,4 @@
-import "../design-system/tokens.css";
-import "../design-system/base.css";
+import "../style.css";
 
 export { default as FeatureCard } from "./FeatureCard/FeatureCard.vue";
 export { default as FormField } from "./FormField/FormField.vue";

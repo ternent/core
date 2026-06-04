@@ -6,27 +6,14 @@ on:
   push:
     tags:
       - "@ternent/ui-*.*.*"
-
 jobs:
   Deploy-Production:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v3
-      - name: Checkout repo
-        uses: actions/checkout@master
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Get branch name
-        id: branch
-        run: |
-          echo "branch_name=$(echo ${GITHUB_REF#refs/heads/} | tr / -)" >> $GITHUB_ENV
-
-      - name: Get node version
-        id: nvmrc
-        run: echo ::set-output name=NODE_VERSION::$(cat .nvmrc)
-
       - name: Setup PNPM
         uses: pnpm/action-setup@v2
         with:
@@ -47,4 +34,4 @@ jobs:
         run: pnpm --filter @ternent/ui build
 
       - name: Publish npm
-        run: pnpm --filter @ternent/ui publish --no-git-checks --access public
+        run: pnpm --filter @ternent/ui publish --no-git-checks --access public --provenance

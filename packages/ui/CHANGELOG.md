@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.7
+
+### Patch Changes
+
+- [`a297fd0`](https://github.com/ternent/core/commit/a297fd06ec4f98262534b19f05c1e8722b016aa8) Thanks [@samternent](https://github.com/samternent)! - fix missed export
+
 ## 0.5.6
 
 ### Patch Changes

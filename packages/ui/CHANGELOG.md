@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.6
+
+### Patch Changes
+
+- [`f721f3a`](https://github.com/ternent/core/commit/f721f3af081f93b1e4b8f6d3f8f3e7a2f8ea8ea9) Thanks [@samternent](https://github.com/samternent)! - Adds identity patterns
+
 ## 0.5.5
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.5.5
+
+### Patch Changes
+
+- Fix package file
+
 ## 0.5.4
 
 ### Patch Changes

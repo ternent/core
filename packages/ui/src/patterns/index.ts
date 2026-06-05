@@ -11,3 +11,4 @@ export { default as SectionIntro } from "./SectionIntro/SectionIntro.vue";
 export { default as StepList } from "./StepList/StepList.vue";
 export type * from "./LandingPage/LandingPage.types";
 export * from "./Verification";
+export * from "./IdentityGlyph";

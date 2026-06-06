@@ -32,17 +32,6 @@ jobs:
       - name: Upgrade npm
         run: npm install -g npm@latest
 
-      - name: Debug npm auth state
-        run: |
-          echo "npm version: $(npm --version)"
-          echo "node version: $(node --version)"
-          echo "pnpm version: $(pnpm --version)"
-          echo "registry: $(npm config get registry)"
-          echo "userconfig: $(npm config get userconfig)"
-          echo "NODE_AUTH_TOKEN set? ${NODE_AUTH_TOKEN:+yes}"
-          echo "NPM_TOKEN set? ${NPM_TOKEN:+yes}"
-          npm config list
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

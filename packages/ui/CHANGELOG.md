@@ -1,5 +1,11 @@
 # ternent-ui
 
+## 0.6.0
+
+### Minor Changes
+
+- [`70ecb82`](https://github.com/ternent/core/commit/70ecb824f0863dc1b4cb79b1eeeed0b93a45891d) Thanks [@samternent](https://github.com/samternent)! - add sidebar and workspace layout patterns to `@ternent/ui`
+
 ## 0.5.7
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @ternent/seal-cli
 
+## 0.4.0
+
+### Minor Changes
+
+- [`b79d16d`](https://github.com/ternent/core/commit/b79d16d13b55e292065a6779c42faeafc2da50d1) Thanks [@samternent](https://github.com/samternent)! - Migrate seal
+
 ## 0.3.10
 
 ### Patch Changes

@@ -3,6 +3,11 @@
   "version": "0.4.2",
   "description": "Seed-based Ed25519 identity primitives with X25519 bridge helpers",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ternent/core.git",
+    "directory": "packages/identity"
+  },
   "files": [
     "dist",
     "README.md"

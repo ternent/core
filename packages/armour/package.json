@@ -3,6 +3,11 @@
   "version": "0.1.5",
   "description": "Opinionated identity-aware encryption bridge over @ternent/rage",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ternent/core.git",
+    "directory": "packages/armour"
+  },
   "files": [
     "dist",
     "README.md",

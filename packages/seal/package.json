@@ -1,5 +1,5 @@
 {
-  "name": "@ternent/seal-cli",
+  "name": "@ternent/seal",
   "version": "0.3.10",
   "description": "Deterministic artifact signing for Seal",
   "keywords": [
@@ -9,15 +9,15 @@
     "seal",
     "signature"
   ],
-  "homepage": "https://github.com/samternent/home/tree/main/packages/seal-cli",
+  "homepage": "https://github.com/ternent/core/tree/main/packages/seal",
   "bugs": {
-    "url": "https://github.com/samternent/home/issues"
+    "url": "https://github.com/ternent/core/issues"
   },
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/samternent/home.git",
-    "directory": "packages/seal-cli"
+    "url": "git+https://github.com/ternent/core.git",
+    "directory": "packages/seal"
   },
   "bin": {
     "seal": "bin/seal"

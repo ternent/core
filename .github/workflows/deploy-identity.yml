@@ -1,0 +1,42 @@
+name: Deploy Identity Package
+
+on:
+  push:
+    tags:
+      - "@ternent/identity-*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @ternent/identity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @ternent/identity
+        run: pnpm --filter @ternent/identity build
+
+      - name: Publish @ternent/identity
+        run: pnpm --filter @ternent/identity publish --no-git-checks --access public --provenance

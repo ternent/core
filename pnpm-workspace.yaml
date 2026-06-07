@@ -1,2 +1,8 @@
 packages:
+  # - "packages/armour"
+  # - "packages/concord"
+  - "packages/identity"
+  # - "packages/ledger"
+  # - "packages/seal"
   - "packages/ui"
+  - "packages/utils"

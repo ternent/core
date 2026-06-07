@@ -8,7 +8,7 @@ import type {
   LedgerSealContract,
   LedgerStorageAdapter,
   LedgerVerificationResult,
-} from "../../ledger/dist";
+} from "@ternent/ledger";
 
 import type { SerializedIdentity } from "@ternent/identity";
 
@@ -96,7 +96,7 @@ export type ConcordReplayPlugin<TState = unknown> = {
 };
 
 export type ConcordAppOptions = {
-  identity: SerializedIdentity;
+  identity?: SerializedIdentity;
   storage?: LedgerStorageAdapter;
   plugins: ConcordReplayPlugin[];
   now?: () => string;

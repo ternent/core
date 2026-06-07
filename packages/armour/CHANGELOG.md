@@ -1,5 +1,11 @@
 # @ternent/armour
 
+## 0.2.2
+
+### Patch Changes
+
+- [`e6f7d70`](https://github.com/ternent/core/commit/e6f7d70e7d94bf7d6e6730c228f3f06c250da621) Thanks [@samternent](https://github.com/samternent)! - Publuish armour
+
 ## 0.2.1
 
 ### Patch Changes

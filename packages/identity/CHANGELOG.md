@@ -1,5 +1,11 @@
 # @ternent/identity
 
+## 0.4.2
+
+### Patch Changes
+
+- [`9aa260e`](https://github.com/ternent/core/commit/9aa260e70bf5750a01369404cdc29340f1bf3d39) Thanks [@samternent](https://github.com/samternent)! - fix builds
+
 ## 0.4.1
 
 ### Patch Changes

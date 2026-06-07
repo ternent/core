@@ -1,5 +1,11 @@
 # ternent-utils
 
+## 1.2.0
+
+### Minor Changes
+
+- [`b85f1eb`](https://github.com/ternent/core/commit/b85f1ebc2e47199e6259e5102e3cc16e1db279f6) Thanks [@samternent](https://github.com/samternent)! - Migrate to ternent org
+
 ## 1.1.3
 
 ### Patch Changes

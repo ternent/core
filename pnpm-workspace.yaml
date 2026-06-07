@@ -3,6 +3,6 @@ packages:
   # - "packages/concord"
   - "packages/identity"
   # - "packages/ledger"
-  # - "packages/seal"
+  - "packages/seal"
   - "packages/ui"
   - "packages/utils"

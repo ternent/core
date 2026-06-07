@@ -1,0 +1,42 @@
+name: Deploy Seal Package
+
+on:
+  push:
+    tags:
+      - "@ternent/seal-*.*.*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @ternent/seal
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @ternent/seal
+        run: pnpm --filter @ternent/utils --filter @ternent/identity --filter @ternent/armour --filter @ternent/seal build
+
+      - name: Publish @ternent/seal
+        run: pnpm --filter @ternent/seal publish --no-git-checks --access public --provenance

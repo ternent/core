@@ -1,5 +1,11 @@
 # ternent-utils
 
+## 1.3.1
+
+### Patch Changes
+
+- [`6aad549`](https://github.com/ternent/core/commit/6aad54935afdc6291c3a859c6a12a8d481bdd4c8) Thanks [@samternent](https://github.com/samternent)! - Utils package info
+
 ## 1.3.0
 
 ### Minor Changes

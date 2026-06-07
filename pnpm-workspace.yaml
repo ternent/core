@@ -1,5 +1,5 @@
 packages:
-  # - "packages/armour"
+  - "packages/armour"
   # - "packages/concord"
   - "packages/identity"
   # - "packages/ledger"

@@ -162,13 +162,18 @@ export function decode(data: Uint8Array): string {
   return new TextDecoder("utf-8").decode(new Uint8Array(data));
 }
 
+function toCryptoBuffer(data: Uint8Array | ArrayBuffer): ArrayBuffer {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  return Uint8Array.from(bytes).buffer;
+}
+
 /**
  * getHashBuffer function - TODO: Add description
  * @param TODO - Add parameters
  * @returns TODO - Add return type description
  */
 export function getHashBuffer(data: string | object | number): Promise<ArrayBuffer> {
-  return crypto.subtle.digest("SHA-256", encode(data));
+  return crypto.subtle.digest("SHA-256", toCryptoBuffer(encode(data)));
 }
 
 /**
@@ -248,8 +253,7 @@ export async function hashData(data: string | object | number): Promise<string> 
 }
 
 export async function hashBytes(input: Uint8Array | ArrayBuffer): Promise<string> {
-  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", toCryptoBuffer(input));
   return getHashHex(getHashArray(hashBuffer));
 }
 

@@ -3,6 +3,7 @@ import shell from "shelljs";
 const packagesToPublish = [
   "../packages/armour",
   "../packages/identity",
+  "../packages/seal",
   "../packages/ui",
   "../packages/utils",
 ];

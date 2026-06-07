@@ -1,5 +1,11 @@
 # @ternent/identity
 
+## 0.5.0
+
+### Minor Changes
+
+- [`89ed4d7`](https://github.com/ternent/core/commit/89ed4d73d016d1d3b7b2905298cf22977b7f26be) Thanks [@samternent](https://github.com/samternent)! - fix package formats
+
 ## 0.4.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # ternent-utils
 
+## 1.2.1
+
+### Patch Changes
+
+- [`46c60f6`](https://github.com/ternent/core/commit/46c60f6407ba8ac659aee5254bc5e74936989a61) Thanks [@samternent](https://github.com/samternent)! - Fix publish script
+
 ## 1.2.0
 
 ### Minor Changes

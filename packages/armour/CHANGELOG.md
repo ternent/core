@@ -1,5 +1,11 @@
 # @ternent/armour
 
+## 0.2.3
+
+### Patch Changes
+
+- [`4c4a1c8`](https://github.com/ternent/core/commit/4c4a1c83f1f8d0ebe354f0589159ba84d60ab8f3) Thanks [@samternent](https://github.com/samternent)! - Adds armour workflow
+
 ## 0.2.2
 
 ### Patch Changes

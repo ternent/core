@@ -1,6 +1,11 @@
 import shell from "shelljs";
 
-const packagesToPublish = ["../packages/identity", "../packages/ui", "../packages/utils"];
+const packagesToPublish = [
+  "../packages/armour",
+  "../packages/identity",
+  "../packages/ui",
+  "../packages/utils",
+];
 
 let i = 0;
 for (; i < packagesToPublish.length; i++) {

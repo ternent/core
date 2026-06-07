@@ -1,10 +1,15 @@
 {
   "name": "@ternent/utils",
   "version": "1.3.0",
-  "description": "",
+  "description": "Utility functions for the Ternent ecosystem",
   "keywords": [],
   "license": "ISC",
-  "author": "",
+  "author": "sam@ternent.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ternent/core.git",
+    "directory": "packages/utils"
+  },
   "type": "module",
   "main": "dist/utils.es.js",
   "module": "dist/utils.es.js",

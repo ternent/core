@@ -4,6 +4,7 @@ export {
   createConcordLocalStorageAdapter,
   type LocalStorageLike,
 } from "./runtime/storage";
+export * from "./workspaceLifecycle";
 export {
   createRuntimePrivacyService,
   type RuntimeAudienceActor,

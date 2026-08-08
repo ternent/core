@@ -6,6 +6,7 @@ const packagesToPublish = [
   "../packages/seal",
   "../packages/ui",
   "../packages/utils",
+  "../packages/workspace",
 ];
 
 let i = 0;

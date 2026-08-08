@@ -32,9 +32,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ternent/armour": "^0.2.4",
+    "@ternent/armour": "^0.2.3",
     "@ternent/concord": "^0.2.9",
-    "@ternent/identity": "^0.5.1",
+    "@ternent/identity": "^0.5.0",
     "@ternent/ledger": "^0.1.8"
   },
   "devDependencies": {

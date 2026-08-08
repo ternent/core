@@ -4,8 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createIdentity } from "@ternent/identity";
 import type { LedgerContainer } from "@ternent/ledger";
 import {
+  buildWorkspaceExportFile,
   createConcordLocalStorageAdapter,
+  createLocalWorkspace,
   createRuntimeCore,
+  parseWorkspaceImportJson,
+  readWorkspaceSummary,
+  reopenCurrentWorkspace,
   type AppProjectionPlugin,
   type LocalStorageLike,
 } from "../src";
@@ -161,6 +166,48 @@ describe("@ternent/workspace runtime core", () => {
     await core.command("probe.increment", {});
 
     expect(core.select<number>("probe", "count")).toBe(1);
+  });
+
+  it("keeps workspace lifecycle helpers package-owned and runtime-native", async () => {
+    const storage = createMemoryStorage();
+    const core = createRuntimeCore({
+      identity: await createIdentity("2026-07-08T10:07:00.000Z"),
+      storage: createConcordLocalStorageAdapter({
+        storage,
+        storageKey: "test/workspace-runtime/lifecycle-helpers",
+      }),
+    });
+
+    await core.load();
+    await createLocalWorkspace(core, {
+      source: "workspace-package-test",
+    });
+    await core.commit();
+
+    const summary = await readWorkspaceSummary(core);
+    expect(summary.providerId).toBe("local");
+    expect(summary.entryCount).toBeGreaterThan(0);
+    expect(summary.head).toBeTruthy();
+
+    const exported = await core.exportLedger();
+    const exportedFile = buildWorkspaceExportFile(exported, "workspace-runtime");
+    const reparsed = parseWorkspaceImportJson(exportedFile.content);
+    expect(reparsed.head).toBe(exported.head);
+
+    await core.command("permission.create", {
+      title: "Discard on reopen",
+      actor: {
+        memberId: core.getActiveIdentity()!.identityKey,
+        memberLabel: core.getActiveIdentity()!.label,
+      },
+    });
+    expect(core.getState().stagedCount).toBeGreaterThan(0);
+
+    await reopenCurrentWorkspace(core);
+
+    expect(core.getState().stagedCount).toBe(0);
+    const reopened = await core.exportLedger();
+    expect(reopened.head).toBe(exported.head);
   });
 
   it("publishes snapshot updates and keeps vue out of the extracted package", async () => {

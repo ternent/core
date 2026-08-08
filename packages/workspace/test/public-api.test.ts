@@ -13,4 +13,13 @@ describe("@ternent/workspace public api", () => {
     expect(typeof workspace.createPermissionsPlugin).toBe("function");
     expect(typeof workspace.createRuntimePrivacyService).toBe("function");
   });
+
+  it("exports workspace lifecycle helpers from the package root", () => {
+    expect(typeof workspace.readWorkspaceSummary).toBe("function");
+    expect(typeof workspace.createLocalWorkspace).toBe("function");
+    expect(typeof workspace.reopenCurrentWorkspace).toBe("function");
+    expect(typeof workspace.buildWorkspaceExportFile).toBe("function");
+    expect(typeof workspace.parseWorkspaceImportJson).toBe("function");
+    expect(typeof workspace.shortWorkspaceHead).toBe("function");
+  });
 });

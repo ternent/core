@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+
+### Patch Changes
+
+- [`8f78367`](https://github.com/ternent/core/commit/8f783675d8ae75de4ee383e81effdb9c86607565) Thanks [@samternent](https://github.com/samternent)! - update package versions
+
 ## 0.1.3
 
 ### Patch Changes

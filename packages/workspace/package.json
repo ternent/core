@@ -1,6 +1,6 @@
 {
   "name": "@ternent/workspace",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Framework-agnostic secure runtime for Ternent and Concord applications.",
   "license": "ISC",
   "repository": {

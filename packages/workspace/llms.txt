@@ -1,0 +1,19 @@
+# `@ternent/workspace`
+
+Framework-agnostic secure runtime for Ternent and Concord applications.
+
+Use:
+
+```ts
+import { createRuntimeCore } from "@ternent/workspace";
+```
+
+The runtime owns:
+
+- identity bootstrap, unlock, recovery, and lock
+- Concord load, command, commit, discard, and replay
+- ledger create, export, and import
+- native `users` and `permissions`
+- plugin registration, selectors, and subscriptions
+
+Framework adapters do not belong in this package.

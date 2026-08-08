@@ -161,6 +161,34 @@ importers:
         specifier: ^2.9.18
         version: 2.9.18
 
+  packages/workspace:
+    dependencies:
+      '@ternent/armour':
+        specifier: ^0.2.3
+        version: 0.2.3
+      '@ternent/concord':
+        specifier: ^0.2.9
+        version: 0.2.9(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+      '@ternent/identity':
+        specifier: ^0.5.0
+        version: 0.5.0
+      '@ternent/ledger':
+        specifier: ^0.1.8
+        version: 0.1.8(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^24.12.4
+        version: 24.12.4
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^2.9.18
+        version: 2.9.18
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+
 packages:
 
   '@ark-ui/vue@5.37.0':
@@ -1235,8 +1263,33 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
+  '@ternent/armour@0.1.5':
+    resolution: {integrity: sha512-5C0ApwZX3EK9jv+69ncSBDJBPhf5LX0iUKQvGgG78N7BRlJuqsXXGKES3ONm39JtedfSId5tFdjbPoZ/vC7Uzg==}
+
+  '@ternent/armour@0.2.3':
+    resolution: {integrity: sha512-+a+o3ToIcevgeuAH+E4kLKjgJrhg8HnAzcHb/hl9hPpum20iUWf0ue3RjHu6wemwGdbehFLqOT+2rqEKAmZV4g==}
+
+  '@ternent/concord-protocol@0.1.1':
+    resolution: {integrity: sha512-X6zk0dToIY95xC6Hfvz3yLgx0Iqnlr6OnPbN06Xw9pOuhcm7qK49hT819JuEkclpr5xo2ZJmWxyyb3TiBnFgrw==}
+
+  '@ternent/concord@0.2.9':
+    resolution: {integrity: sha512-ifj4Kz6yxaaKoqYMZ+rKualgp3EOlcks8Er8md+6MFn/8SK4V6Ya5EPK8jhIWknnqi/ZO8L5HTYFyc3rkRlJTA==}
+
+  '@ternent/identity@0.3.1':
+    resolution: {integrity: sha512-zqbxKXzIyUuktSa9qEJN18VbFHdWYNvQQoK3SW69LYU4OXNUpVuYxp/dLGlFR4QtDgMREPdnW992bNCZ8ds2Jw==}
+
+  '@ternent/identity@0.5.0':
+    resolution: {integrity: sha512-ti+h0pW7qP1aPhj/HYK8QJhnyDhzXEfUMJ7eACysXlghL6nvB2zWXUpPVO6V3HdcPKcZBxNB8SmV2+anQmVbAQ==}
+
+  '@ternent/ledger@0.1.8':
+    resolution: {integrity: sha512-IPUrUJIcyxnqfe57A7dipGmByfme/rXgNeMHQsAO5gP22YoxeyOZeIqiY8+IgiS7CUzh1AxZh7ZAe8RmE4fKhA==}
+
   '@ternent/rage@0.1.3':
     resolution: {integrity: sha512-jObsf6SIKxeXftEMaqsIA1Nh/M6l4Gsk3WBqSOIQOLdUN5hpxhTvrxJtNnwp/82yEHYspNlc6wYpxs36Wno1vQ==}
+
+  '@ternent/seal-cli@0.3.10':
+    resolution: {integrity: sha512-YU1yMy92O+qiZrusGQpMQ13AyEZiOywpu4V1LGUWNLrD4g+Eu8OmpgFZuAm+9XJhJjPctbTvDjhIWxAO0g3mCw==}
+    hasBin: true
 
   '@ts-morph/common@0.18.1':
     resolution: {integrity: sha512-RVE+zSRICWRsfrkAw5qCAK+4ZH9kwEFv5h0+/YeHTLieWP7F4wWq4JsKFuNWG+fYh/KF+8rAtgdj5zb2mm+DVA==}
@@ -2921,6 +2974,9 @@ packages:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
 
+  ternent-utils@1.1.3:
+    resolution: {integrity: sha512-ShxOphtBmlhl8VmS48/KrY44B64863T7acwxVI/VIWvMWCGchF7m2FUhXtOZw+TFiogyPgn3/oWDVe3+y8ULFg==}
+
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
@@ -4181,7 +4237,112 @@ snapshots:
       tailwindcss: 4.3.0
       vite: 7.3.3(@types/node@24.12.4)(jiti@2.7.0)(lightningcss@1.32.0)
 
+  '@ternent/armour@0.1.5':
+    dependencies:
+      '@ternent/identity': 0.3.1
+      '@ternent/rage': 0.1.3
+
+  '@ternent/armour@0.2.3':
+    dependencies:
+      '@ternent/identity': 0.5.0
+      '@ternent/rage': 0.1.3
+
+  '@ternent/concord-protocol@0.1.1(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)':
+    dependencies:
+      '@swc/helpers': 0.4.37
+      regenerator-runtime: 0.13.11
+      vitest: 1.6.1(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+    transitivePeerDependencies:
+      - '@edge-runtime/vm'
+      - '@types/node'
+      - '@vitest/browser'
+      - '@vitest/ui'
+      - happy-dom
+      - jsdom
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+
+  '@ternent/concord@0.2.9(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)':
+    dependencies:
+      '@ternent/ledger': 0.1.8(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+    transitivePeerDependencies:
+      - '@edge-runtime/vm'
+      - '@types/node'
+      - '@vitest/browser'
+      - '@vitest/ui'
+      - happy-dom
+      - jsdom
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+
+  '@ternent/identity@0.3.1':
+    dependencies:
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
+      '@scure/bip39': 2.2.0
+
+  '@ternent/identity@0.5.0':
+    dependencies:
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
+      '@scure/bip39': 2.2.0
+
+  '@ternent/ledger@0.1.8(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)':
+    dependencies:
+      '@ternent/armour': 0.1.5
+      '@ternent/concord-protocol': 0.1.1(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+      '@ternent/identity': 0.3.1
+      '@ternent/seal-cli': 0.3.10(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+    transitivePeerDependencies:
+      - '@edge-runtime/vm'
+      - '@types/node'
+      - '@vitest/browser'
+      - '@vitest/ui'
+      - happy-dom
+      - jsdom
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+
   '@ternent/rage@0.1.3': {}
+
+  '@ternent/seal-cli@0.3.10(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)':
+    dependencies:
+      '@ternent/armour': 0.1.5
+      '@ternent/identity': 0.3.1
+      ternent-utils: 1.1.3(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+    transitivePeerDependencies:
+      - '@edge-runtime/vm'
+      - '@types/node'
+      - '@vitest/browser'
+      - '@vitest/ui'
+      - happy-dom
+      - jsdom
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
 
   '@ts-morph/common@0.18.1':
     dependencies:
@@ -6179,6 +6340,27 @@ snapshots:
   tapable@2.3.3: {}
 
   term-size@2.2.1: {}
+
+  ternent-utils@1.1.3(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0):
+    dependencies:
+      '@swc/helpers': 0.4.37
+      regenerator-runtime: 0.13.11
+      vitest: 1.6.1(@types/node@24.12.4)(jsdom@24.1.3)(lightningcss@1.32.0)
+    transitivePeerDependencies:
+      - '@edge-runtime/vm'
+      - '@types/node'
+      - '@vitest/browser'
+      - '@vitest/ui'
+      - happy-dom
+      - jsdom
+      - less
+      - lightningcss
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
 
   tinybench@2.9.0: {}
 

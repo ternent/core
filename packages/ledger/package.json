@@ -3,6 +3,11 @@
   "version": "0.1.8",
   "description": "Append-only state engine for Concord",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ternent/core.git",
+    "directory": "packages/ledger"
+  },
   "files": [
     "dist",
     "SPEC.md"
@@ -28,8 +33,7 @@
     "access": "public"
   },
   "scripts": {
-    "build:browser": "pnpm --filter @ternent/armour build && vite build -c vite.browser.config.ts",
-    "build": "pnpm --filter @ternent/armour build && vite build && vite build -c vite.browser.config.ts",
+    "build": "vite build && vite build -c vite.browser.config.ts",
     "test": "pnpm run build && vitest run"
   },
   "dependencies": {

@@ -1,0 +1,46 @@
+{
+  "name": "@ternent/workspace",
+  "version": "0.1.0",
+  "description": "Framework-agnostic secure runtime for Ternent and Concord applications.",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ternent/core.git",
+    "directory": "packages/workspace"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ternent/armour": "^0.2.3",
+    "@ternent/concord": "^0.2.9",
+    "@ternent/identity": "^0.5.0",
+    "@ternent/ledger": "^0.1.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.4",
+    "typescript": "^5.9.3",
+    "vite": "^2.9.18",
+    "vitest": "^1.6.0"
+  }
+}

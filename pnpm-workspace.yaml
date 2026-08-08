@@ -6,3 +6,4 @@ packages:
   - "packages/seal"
   - "packages/ui"
   - "packages/utils"
+  - "packages/workspace"

@@ -1,5 +1,16 @@
 # @ternent/seal-cli
 
+## 0.4.1
+
+### Patch Changes
+
+- [`4aa5e00`](https://github.com/ternent/core/commit/4aa5e001cecf61cb702414be2e63209002a521ca) Thanks [@samternent](https://github.com/samternent)! - Update deploys
+
+- Updated dependencies [[`4aa5e00`](https://github.com/ternent/core/commit/4aa5e001cecf61cb702414be2e63209002a521ca)]:
+  - @ternent/armour@0.2.4
+  - @ternent/identity@0.5.1
+  - @ternent/utils@1.3.2
+
 ## 0.4.0
 
 ### Minor Changes

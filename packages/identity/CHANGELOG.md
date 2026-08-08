@@ -1,5 +1,11 @@
 # @ternent/identity
 
+## 0.5.1
+
+### Patch Changes
+
+- [`4aa5e00`](https://github.com/ternent/core/commit/4aa5e001cecf61cb702414be2e63209002a521ca) Thanks [@samternent](https://github.com/samternent)! - Update deploys
+
 ## 0.5.0
 
 ### Minor Changes

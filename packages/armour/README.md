@@ -1,103 +1,54 @@
-# `@ternent/armour`
+# @ternent/armour
 
-`@ternent/armour` is the opinionated bridge between `@ternent/identity` and `@ternent/rage`.
-
-It exists to:
-
-- derive age-compatible recipients and secret keys from `@ternent/identity`
-- expose explicit recipient-mode and passphrase-mode encryption APIs
-- keep browser-facing helpers async and environment-safe
-
-It is not:
-
-- a crypto engine
-- a signing library
-- a storage layer
-- a mode-detecting convenience wrapper
-- a transport artifact format
-
-`@ternent/rage` owns encryption and decryption.
-`@ternent/identity` owns seed-backed identity parsing and age derivation.
-`@ternent/armour` composes those two layers without inventing new cryptography.
-Portable artifacts and sealed containers belong to `@ternent/seal`.
-
-## Initialization
-
-All operational APIs are async. Initialize Armour before encrypting or decrypting:
+Identity-aware age encryption, backed by the pinned pure TypeScript `age-encryption`
+engine. No runtime WASM initialization or command-line process is required.
 
 ```ts
-import { initArmour } from "@ternent/armour";
-
-await initArmour();
+import { generateIdentity, encryptAge } from "@ternent/armour";
+const created = await generateIdentity();
+if (!created.ok) throw new Error(created.error.code);
+const identity = created.value; // public identity, exact-byte sign, decryptAge
 ```
 
-## Identity-based encryption
+`identityFromSeed(seed)` copies the private root through Identity's signer factory.
+`withAgeDecryption(base)` synchronously composes an existing base signer without
+moving private identity ownership into Armour. `identityFromSeed` and
+`generateIdentity` return structured primitive results; `withAgeDecryption` returns
+the composed capability directly.
+`encryptAge({ recipients, plaintext })` accepts X25519 recipients and returns binary age.
+`decryptAgeWithSecret({ secret, ciphertext })` accepts a raw 32-byte X25519 scalar.
+These operations have no init step and support an empty plaintext.
+
+All operations work immediately after import. There is no `initArmour` API or
+global initialization state. Text, recipient, passphrase and binary conveniences
+use the same TypeScript engine as the capability interface.
+
+| Input/output need                                     | Public helpers                                                                                                          |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Serialized identities or age recipients, byte payload | `encryptForIdentities`, `encryptForRecipients`, `decryptWithIdentity`, `decryptWithSecretKey`                           |
+| Passphrase, byte payload                              | `encryptWithPassphrase`, `decryptWithPassphrase`                                                                        |
+| UTF-8 text                                            | `encryptTextForIdentities`, `decryptTextWithIdentity`, `encryptTextWithPassphrase`, `decryptTextWithPassphrase`         |
+| Blob/File/ArrayBuffer/Uint8Array                      | `encryptBinaryForIdentities`, `decryptBinaryWithIdentity`, `encryptBinaryWithPassphrase`, `decryptBinaryWithPassphrase` |
+| Host identity resolution and recipient derivation     | `resolveIdentity`, `recipientFromIdentity`, `secretKeyFromIdentity`, `recipientsFromIdentities`                         |
+
+Convenience encryption defaults to ASCII armor; byte/binary helpers accept
+`output: "binary"` explicitly. Decryption accepts the supported binary/armor form
+and returns bytes, except text helpers return UTF-8 strings. Convenience helpers
+reject with `ArmourValidationError`, `ArmourIdentityError`, `ArmourEncryptionError`
+or `ArmourDecryptionError`, all derived from `ArmourError` with a structured code.
+They require nonempty payloads, with a 64 MiB engine limit; the low-level
+`encryptAge` interface supports empty plaintext and returns `PrimitiveResult`.
 
 ```ts
 import { createIdentity } from "@ternent/identity";
-import { decryptTextWithIdentity, encryptTextForIdentities, initArmour } from "@ternent/armour";
-
-await initArmour();
-
+import { encryptTextForIdentities, decryptTextWithIdentity } from "@ternent/armour";
 const identity = await createIdentity();
-const ciphertext = await encryptTextForIdentities({
-  identities: [identity],
-  text: "hello world",
-});
-
-const plaintext = await decryptTextWithIdentity({
-  identity,
-  data: ciphertext,
-});
+const encrypted = await encryptTextForIdentities({ identities: [identity], text: "hello" });
+const text = await decryptTextWithIdentity({ identity, data: encrypted });
 ```
 
-## Multi-recipient encryption
+Original sources/configuration are retained in `legacy/` and are not published.
 
-```ts
-import { createIdentity } from "@ternent/identity";
-import { decryptWithIdentity, encryptForIdentities, initArmour } from "@ternent/armour";
-
-await initArmour();
-
-const alice = await createIdentity();
-const bob = await createIdentity();
-
-const ciphertext = await encryptForIdentities({
-  identities: [alice, bob],
-  data: new TextEncoder().encode("shared secret"),
-  output: "binary",
-});
-
-const plaintext = await decryptWithIdentity({
-  identity: bob,
-  data: ciphertext,
-});
-```
-
-## Passphrase encryption
-
-```ts
-import { decryptTextWithPassphrase, encryptTextWithPassphrase, initArmour } from "@ternent/armour";
-
-await initArmour();
-
-const ciphertext = await encryptTextWithPassphrase({
-  passphrase: "correct horse battery staple",
-  text: "secret",
-});
-
-const plaintext = await decryptTextWithPassphrase({
-  passphrase: "correct horse battery staple",
-  data: ciphertext,
-});
-```
-
-## Relationship to the lower layers
-
-- `@ternent/identity` defines the identity model and deterministic age derivation
-- `@ternent/rage` performs age-compatible encryption and decryption
-- `@ternent/armour` keeps recipient mode and passphrase mode explicit
-- `@ternent/seal` owns portable artifact formats and signing
-
-Encryption is not signing.
-This package does not imply authenticity, signer identity, or origin integrity.
+Armour owns neither signing semantics, document envelopes, authorization nor storage.
+Identity owns key derivation. Concord owns its signed history and private system profile.
+Native age interop and the fixed independent ciphertexts are required tests.

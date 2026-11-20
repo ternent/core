@@ -1,7 +1,6 @@
 import {
   decryptWithIdentity,
   encryptForRecipients,
-  initArmour,
   type ArmourIdentityInput,
 } from "@ternent/armour";
 import { canonicalStringify } from "ternent-utils";
@@ -109,8 +108,6 @@ export async function createSealArtifact(input: {
   const plaintext = normalizeBytes(input.payload);
 
   try {
-    await initArmour();
-
     const ciphertext = await encryptForRecipients({
       recipients: input.recipients,
       data: plaintext,
@@ -369,7 +366,6 @@ export async function decryptSealArtifactPayload(input: {
   }
 
   try {
-    await initArmour();
     return await decryptWithIdentity({
       identity: input.identity,
       data: utf8Encoder.encode(input.artifact.payload.data),

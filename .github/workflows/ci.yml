@@ -1,0 +1,60 @@
+name: Concord checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tooling-pilot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      NPM_CONFIG_USERCONFIG: /dev/null
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.18.0
+      - name: Record supported consumer runtime
+        run: echo "CONCORD_NODE22=$(command -v node)" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4; packageManager pin
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install the locked workspace
+        run: pnpm install --frozen-lockfile
+      - name: Install the independent age reference
+        run: |
+          curl --fail --silent --show-error --location https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz --output "$RUNNER_TEMP/age.tar.gz"
+          printf '%s  %s\n' bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377 "$RUNNER_TEMP/age.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/age.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
+      - name: Install the pinned browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Verify packages, tooling and consumers
+        run: pnpm check
+      - name: Retain acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tooling-pilot-evidence
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            artifacts/pilot-check.json
+            artifacts/pilot-consumers.json
+            artifacts/pilot-browser.png
+            artifacts/pilot-candidates-*/*.tgz

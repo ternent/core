@@ -16,3 +16,10 @@ node_modules
 
 # Ignore Vite's cache directory
 .vite   
+
+# Reproducible tooling pilot outputs.
+.pnpm-store/
+artifacts/
+.vitepress/cache/
+playwright-report/
+test-results/

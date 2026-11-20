@@ -1,9 +1,21 @@
+# Active product migrations plus the tooling profile fixtures.
 packages:
-  - "packages/armour"
-  # - "packages/concord"
-  - "packages/identity"
-  # - "packages/ledger"
-  - "packages/seal"
-  - "packages/ui"
-  - "packages/utils"
-  - "packages/workspace"
+  - packages/identity
+  - packages/armour
+  - packages/concord
+  - apps/handshake
+  - tooling/*
+  - fixtures/tooling-profiles/*
+
+onlyBuiltDependencies:
+  - esbuild
+
+overrides:
+  "@types/node": "24.3.0"
+patchedDependencies:
+  vitepress@1.6.4: patches/vitepress@1.6.4.patch
+
+# The core alias carries the Vite+ distribution version; vp reports Vite 8.3.4.
+peerDependencyRules:
+  allowedVersions:
+    vite: "1.3.0"

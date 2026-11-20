@@ -2,9 +2,8 @@ import {
   RageDecryptionError,
   RageEncryptionError,
   RageError,
-  RageInitError,
   RageValidationError,
-} from "@ternent/rage";
+} from "./engine.js";
 import type { ArmourErrorCode } from "./types.js";
 
 export class ArmourError extends Error {
@@ -21,7 +20,6 @@ export class ArmourError extends Error {
   }
 }
 
-export class ArmourInitError extends ArmourError {}
 export class ArmourValidationError extends ArmourError {}
 export class ArmourIdentityError extends ArmourError {}
 export class ArmourEncryptionError extends ArmourError {}
@@ -32,13 +30,6 @@ function getMessage(error: unknown): string {
     return error.message;
   }
   return String(error);
-}
-
-export function toArmourInitError(error: unknown): ArmourInitError {
-  if (error instanceof ArmourInitError) {
-    return error;
-  }
-  return new ArmourInitError("ARMOUR_INIT_FAILED", "Failed to initialize Armour.", error);
 }
 
 export function toArmourIdentityError(
@@ -56,14 +47,6 @@ export function toArmourIdentityError(
 export function toArmourEncryptionError(error: unknown): ArmourError {
   if (error instanceof ArmourError) {
     return error;
-  }
-
-  if (error instanceof RageInitError) {
-    return new ArmourInitError(
-      "ARMOUR_INIT_FAILED",
-      "Armour is not initialized. Call initArmour() before encrypting or decrypting.",
-      error,
-    );
   }
 
   if (error instanceof RageValidationError) {
@@ -113,14 +96,6 @@ export function toArmourEncryptionError(error: unknown): ArmourError {
 export function toArmourDecryptionError(error: unknown): ArmourError {
   if (error instanceof ArmourError) {
     return error;
-  }
-
-  if (error instanceof RageInitError) {
-    return new ArmourInitError(
-      "ARMOUR_INIT_FAILED",
-      "Armour is not initialized. Call initArmour() before encrypting or decrypting.",
-      error,
-    );
   }
 
   if (error instanceof RageValidationError) {

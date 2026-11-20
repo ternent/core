@@ -1,35 +1,9 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
-import dts from "vite-plugin-dts";
-import { createPackageExternal, resolvePackageDir } from "../../scripts/vite/package-lib-config";
-
-const configDir = dirname(fileURLToPath(import.meta.url));
-const external = createPackageExternal(resolvePackageDir(import.meta.url));
-
-export default defineConfig({
-  build: {
-    outDir: "dist",
-    sourcemap: true,
-    target: "es2020",
-    minify: false,
-    lib: {
-      entry: resolve(configDir, "src/index.ts"),
-      name: "ternentConcord",
-      fileName: "index",
-      formats: ["es"],
-    },
-    rollupOptions: {
-      external,
-      output: {
-        format: "es",
-        entryFileNames: "index.js",
-      },
-    },
+import { defineLibrary } from "@ternent/tooling/config";
+export default defineLibrary({
+  entry: {
+    index: "src/index.ts",
+    "protocol/index": "src/protocol/index.ts",
+    "system/index": "src/system/index.ts",
+    "testing/index": "src/testing/index.ts",
   },
-  plugins: [
-    dts({
-      tsConfigFilePath: resolve(configDir, "tsconfig.json"),
-    }),
-  ],
 });

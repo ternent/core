@@ -1,9 +1,7 @@
-# CLAUDE.md
+# Concord architecture
 
-`@ternent/concord` is the command/replay runtime over `@ternent/ledger`.
-
-- Do not add app-domain behavior here; keep this package runtime-generic.
-- Replay flow is entry-first: for each entry, every plugin runs `applyEntry` in plugin order.
-- Decrypt capability is identity-derived; plugins receive `plain`, `decrypted`, or `encrypted` replay payloads.
-- Keep integrity strict: invalid committed history must not produce trusted runtime state.
-- Preserve plugin contract stability (`reset/beginReplay/applyEntry/endReplay`).
+Protocol owns parsing, canonical bytes, IDs, signatures and linkage. Runtime owns
+lifecycle and atomic publication. Standard system owns authority and private replay.
+Models own application meaning. Do not reintroduce Ledger/Workspace, Seal proofs,
+plugin ordering, ambient reducer clocks, or storage into the runtime. Keep protocol
+imports independent of runtime, model and Armour. Original guidance is in legacy/.

@@ -1,7 +1,7 @@
 import {
   decryptWithPassphrase as rageDecryptWithPassphrase,
   encryptWithPassphrase as rageEncryptWithPassphrase,
-} from "@ternent/rage";
+} from "./engine.js";
 import { toArmourDecryptionError, toArmourEncryptionError } from "./errors.js";
 import type { DecryptWithPassphraseInput, EncryptWithPassphraseInput } from "./types.js";
 

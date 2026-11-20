@@ -1,146 +1,49 @@
-# `@ternent/concord`
+# @ternent/concord
 
-Command-driven replay runtime for building non-custodial applications on top of `@ternent/ledger`.
-
-Concord is replay-first:
-
-- ledger history is truth
-- replay is the primary abstraction
-- replay plugins are the only replay consumer type
-- state, reactivity, databases, and indexes are all projection
+Portable signed documents with verified private replay. The first alpha slice implements
+create → dispatch/commit → export → open → verify → replay → inspect.
 
 ```ts
-import { createConcordApp, type ConcordReplayPlugin } from "@ternent/concord";
-
-const todoPlugin: ConcordReplayPlugin<{
-  items: Record<string, { id: string; title: string; completed: boolean }>;
-}> = {
-  id: "todo",
-  initialState() {
-    return { items: {} };
-  },
-  commands: {
-    "todo.create-item": async (_ctx, input: { id: string; title: string }) => ({
-      kind: "todo.item.created",
-      payload: input,
-    }),
-  },
-  applyEntry(entry, ctx) {
-    if (entry.kind !== "todo.item.created" || entry.payload.type !== "plain") {
-      return;
-    }
-
-    const payload = entry.payload.data as { id: string; title: string };
-    ctx.setState((state) => ({
-      items: {
-        ...state.items,
-        [payload.id]: {
-          id: payload.id,
-          title: payload.title,
-          completed: false,
-        },
-      },
-    }));
-  },
-};
-
-const app = await createConcordApp({
-  identity,
-  storage,
-  plugins: [todoPlugin],
+import { createDocument, openDocument } from "@ternent/concord";
+import { createStandardSystemProfile } from "@ternent/concord/system";
+import { registerModel } from "@ternent/concord/testing";
+import { generateIdentity } from "@ternent/armour";
+const generated = await generateIdentity();
+if (!generated.ok) throw new Error(generated.error.code);
+const system = createStandardSystemProfile();
+const created = await createDocument({ model: registerModel, system, identity: generated.value });
+if (!created.ok) throw new Error(created.error.code);
+const committed = await created.value.dispatch("set", { value: "hello Concord" });
+if (!committed.ok) throw new Error(committed.error.code);
+const reopened = await openDocument({
+  bytes: created.value.export(),
+  model: registerModel,
+  system,
+  signer: generated.value,
 });
-
-await app.load();
-
-await app.command("todo.create-item", {
-  id: crypto.randomUUID(),
-  title: "Buy milk",
-});
-
-await app.commit({
-  metadata: {
-    message: "Create first todo",
-  },
-});
-
-const todoState = app.getReplayState("todo");
+const report = await reopened.verify();
+const replayed = await reopened.replay();
 ```
 
-## Identity
+Root exports the lifecycle, model definition helper, and their public types.
+`/protocol` verifies bytes without a model, runtime, decryption or age import.
+`/system` supplies the standard private profile, `setMember`, `removeMember`, and
+specialist types. Admission grants access to the document history. Removal rotates the
+audience key for later entries.
+`/testing` supplies the exact register model, literal model-conformance checks, and
+copied-buffer artifact storage. No test runner is a production dependency.
 
-Concord now supports two runtime modes:
+All mutation uses immediate commits, serialized per handle, with candidate verification
+and complete replay before publication. Read-only and inspection handles reject writes.
+Requesting draft mode returns `HOST_CONFIGURATION`. The standard profile rejects
+unknown system events with `UNSUPPORTED_SYSTEM_EVENT`. Inspection marks other
+recipients' decryptability as `unverified`.
 
-- read-only: omit `identity` and use Concord for load/import/verify/replay only
-- interactive: provide `identity` and use Concord for signed commands and commits
+Protocol and semantic failures are separate. Invalid, locked, incompatible and stale
+imports remain exportable inspection evidence. Projection is derived; storage is not
+trust. Ready exports are canonical; inspection exports retain original bytes.
 
-Interactive mode:
-
-```ts
-const app = await createConcordApp({
-  identity,
-  storage,
-  plugins,
-});
-```
-
-Concord derives author, signer, and decrypt capability internally. Command handlers receive the same high-level `SerializedIdentity` at `ctx.identity`. Ledger-facing identity adaptation stays private to Concord.
-
-Read-only mode:
-
-```ts
-const app = await createConcordApp({
-  storage,
-  plugins,
-});
-```
-
-In read-only mode:
-
-- `load`, `importLedger`, `verify`, `replay`, and `recompute` are allowed
-- `create`, `command`, `commit`, and `clearStaged` fail with `READ_ONLY_RUNTIME`
-- encrypted entries remain encrypted unless an identity is present for decrypt capability
-
-## Replay Plugins
-
-Replay plugins are the only replay consumer type.
-
-- a replay plugin may keep replay-derived state with `initialState()` and `ctx.setState(...)`
-- a replay plugin may materialize into external systems like Loki, Vue refs, React stores, or IndexedDB
-- commands remain typed entry producers
-
-`reset` has a narrow meaning:
-
-- `reset` prepares plugin-local replay workspace for a new replay pass
-- `reset` does not imply clearing previously published external surfaces
-- if a plugin needs external atomic swap behavior, that belongs to the plugin and usually happens in `endReplay`
-
-Concord only guarantees atomicity at the published Concord state boundary. External projection atomicity is plugin-owned.
-
-## Replay And Integrity
-
-The core lifecycle is:
-
-1. `command(...)` stages one or more entries
-2. local replay reflects committed truth plus staged truth
-3. `commit(...)` groups staged entries into a signed commit
-4. replay rebuilds published runtime state from that history
-
-Concord treats committed history as atomic truth. If any reachable committed byte is invalid, Concord does not present the runtime state as trustworthy.
-
-## Partial Replay
-
-Concord supports ranged replay options:
-
-```ts
-await app.replay({
-  fromEntryId: "entry_a",
-  toEntryId: "entry_b",
-});
-```
-
-Two distinctions matter:
-
-- replay of any ordered slice is deterministic
-- authoritative full-state reconstruction still requires replay from genesis or a valid checkpoint
-
-That distinction is intentional. Partial replay metadata exists so Concord stays compatible with future timeline scrubbing and replay-slider UX without redesigning the plugin contract.
+[The normative architecture](../../docs/concord/implementation-blueprint.md) defines
+schemas, errors and acceptance checks. [Migration evidence](../../docs/engineering/alpha-first-slice.md)
+records what was reused, replaced, checked and deferred. The previous Ledger/plugin
+implementation is retained in `legacy/`, excluded from the active module and npm files.

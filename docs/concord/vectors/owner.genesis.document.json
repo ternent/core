@@ -1,0 +1,69 @@
+{
+  "format": "concord",
+  "version": 1,
+  "documentId": "commit:9e465cf4516a581665238b2827aef61224c35086b29207af614645cd1cdac33e",
+  "head": "commit:9e465cf4516a581665238b2827aef61224c35086b29207af614645cd1cdac33e",
+  "commits": [
+    {
+      "id": "commit:9e465cf4516a581665238b2827aef61224c35086b29207af614645cd1cdac33e",
+      "subject": {
+        "version": 1,
+        "suite": "concord-25519-age-v1",
+        "parent": null,
+        "nonce": "AgICAgICAgICAgICAgICAg",
+        "signer": {
+          "version": 1,
+          "algorithm": "Ed25519",
+          "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+          "id": "identity:21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9"
+        },
+        "declaration": {
+          "system": {
+            "id": "concord.standard",
+            "version": 1
+          },
+          "model": {
+            "id": "concord.example.register",
+            "version": 1
+          }
+        },
+        "entryIds": ["entry:77c7e56ef6755cf8b66df2091d21f88bcdff83902823a92fb58ef386d7a4010b"],
+        "metadata": null
+      },
+      "signature": "ZlkQ1BaOf0RA8Fa5RVMd8w-L-K-SZMTzoaq8PsgPvBsn6EzJ3wr_lfm5p_YPlct7c3dRXMbvr-u3ntF9-rcOAg"
+    }
+  ],
+  "entries": [
+    {
+      "id": "entry:77c7e56ef6755cf8b66df2091d21f88bcdff83902823a92fb58ef386d7a4010b",
+      "subject": {
+        "version": 1,
+        "parent": null,
+        "nonce": "AQEBAQEBAQEBAQEBAQEBAQ",
+        "kind": "system",
+        "payload": {
+          "type": "system.init",
+          "version": 1,
+          "data": {
+            "audience": "document",
+            "epoch": 0,
+            "recipient": "age13aqvttdk3ujkyjh9kg2w5an6dmy5mq5a84a4uxk3hfhnugfc9p0sy5p2wh",
+            "owner": {
+              "version": 1,
+              "algorithm": "Ed25519",
+              "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+              "id": "identity:21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9"
+            },
+            "wraps": [
+              {
+                "identityId": "identity:21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+                "ciphertext": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0-IFgyNTUxOSBxbmxVekN5c2Y5bDRDVkphd3hKTk1VMFNTL0E3SzJieTc3ejBZenpCc0RrCmtaNkFCMStIRUVpTVBlcWo2NkJEYU1KZnArRTZLR2xBdWIzUmVScFNDNXcKLS0tIFB5Ri9jcHN1VEtkMmRkM1FPOTk3SWNNYnRoTG5sNGU0QVpQWmgrdDhNcDAKgXq1gkuX619OwyMlTXlenSdi2fTdyr_5TNA0C1bHgFZIiYLHOToGaNqFn4o79YpVM46h5qJ7KFPsXyvFmd1pQRfM_63OZKH1T5VSgnW1xm9Vd6SxeYwIhlm9MXvn3be47NcVnsgtiOmbDw8Ns8rX3RyuQ6WGawXHTSxLGMaPc3d0hgRAWPWtUjVh-jEmM2Bab7OHXgffcxnsOIorvwEWYFB9p4bJCY_UrXUSV59v-WvHd0OIEitfA1BMK6abezN2HevfKol19100TMBWzpTLBh8JjVMy_Kp6ruFP8oF_IE_JAgYcgTA3mHo4WCHCd4oJwC_5SncJqa51cltvC0nH7VkMdwOXL-zmE1UPmIOuqBl_zxc8lZeMpya5BiOM5HxNmsBHe_aPH2dhGDGv4_ZdoiYc_LAYFswL86VkG-Nmc9Sa2ZTan6PeLEzTSA8ZesM1b2ob1qkhN8119vq5_Sp71CjXd87ugaopawnU2QQ7E9Q"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "metadata": null
+}

@@ -68,9 +68,11 @@ bodies and public exports.
 Workspace is intentionally deferred until the libraries run smoothly and a substantial
 set of demos has been built. It is not live, and its migration, cleanup and existing
 working edits do not block the library release. Preserve it without further work for
-now. UI remains excluded pending its library migration; `scripts/vite` still supports
-that unmigrated build. These directories are not part of the new package checks or
-release candidates.
+now. UI is dropped from the v1 product scope under
+[ADR 0017](../adr/0017-drop-ui-from-the-library-release.md); its excluded sources
+and old `scripts/vite` build remain reference material. Neither directory is part
+of the new package checks or release candidates. Portable Vue fixtures remain
+tooling and browser regression consumers.
 
 Root README, contribution instructions and ISC license explain the actual setup.
 Dated planning documents remain evidence, with links to this implemented state;

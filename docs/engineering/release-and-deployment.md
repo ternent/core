@@ -1,5 +1,10 @@
 # npm release and Cloudflare deployment contract
 
+Scope amendment, 2026-11-21: [ADR 0017](../adr/0017-drop-ui-from-the-library-release.md)
+removes `@ternent/ui` from the release. Five products ship: Identity, Armour,
+Concord, Seal and Tooling. Any UI-product migration/release requirements below are
+superseded. Portable Vue profiles, browser fixtures and later demo UI remain useful.
+
 Status: target design, 2026-10-21. These are implementation instructions, not installed
 workflows or authorization to publish today's checkout. Applies to all profiles in the
 [repository architecture](repository-architecture.md). GitHub Actions owns production

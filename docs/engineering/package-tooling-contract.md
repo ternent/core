@@ -1,5 +1,10 @@
 # Package architecture and tooling contract
 
+Scope amendment, 2026-11-21: [ADR 0017](../adr/0017-drop-ui-from-the-library-release.md)
+removes `@ternent/ui` from the release. Five products ship: Identity, Armour,
+Concord, Seal and Tooling. Any UI-product migration/release requirements below are
+superseded. Portable Vue profiles, browser fixtures and later demo UI remain useful.
+
 Status: contract retained, concrete repository/tooling/release target selected 2026-10-21.
 The [repository architecture](repository-architecture.md) chooses Vite+ profiles and
 the clean replacement layout; [release and deployment](release-and-deployment.md)
@@ -154,7 +159,7 @@ build system. Start with three concrete profiles:
 | ------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | TypeScript library | Identity, Armour, Seal, Concord, and proven integrations | Declarations, public imports, explicit environment support                     |
 | Node CLI           | Seal's executable, alongside its library outputs         | Executable permissions/shebang, `bin` resolution, CLI smoke check              |
-| Vue library        | UI                                                       | Vue declarations, framework peer policy, CSS/theme assets and browser consumer |
+| Vue library        | Portable Vue fixture                                     | Vue declarations, framework peer policy, CSS/theme assets and browser consumer |
 
 One package can use library and CLI profiles. Browser distributables and WASM
 loading are capabilities to validate where needed, not assumptions applied to

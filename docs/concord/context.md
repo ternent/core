@@ -45,7 +45,10 @@ The copied legacy archives, retired Ledger and Utils products, and obsolete
 publish workflows were removed on 2026-11-21. Git retains their history.
 Workspace is intentionally deferred until the libraries are stable and a substantial
 set of demos has been built. It is not live and does not block library readiness.
-UI library migration remains B08–B10.
+UI is dropped from the v1 release; B08–B10 are cancelled under
+[ADR 0017](../adr/0017-drop-ui-from-the-library-release.md). The five release products
+are Identity, Armour, Concord, Seal and portable Tooling. Candidate-registry
+verification and publishing come next; demo UI choices follow actual demo needs.
 The migration evidence below is historical, including references to removed paths.
 
 ## Migration context
@@ -178,11 +181,12 @@ verified information explicitly. Inspection of readable but untrusted evidence m
 not imply a trusted application projection or permission to author. Removing membership
 does not justify claiming that historical data or keys already obtained are gone.
 
-The active workspace currently includes Identity, Armour, Concord and the handshake;
-Seal, UI and Utils remain outside it. A new `ci.yml` definition exists alongside legacy
-release and package-publisher definitions. The
-[delivery contract](../engineering/release-and-deployment.md) is the replacement target,
-not evidence that release/deployment automation is installed or has run successfully.
+The active workspace includes Identity, Armour, Concord, Seal, portable Tooling,
+the handshake and tooling-profile fixtures. UI is outside the v1 product scope;
+Workspace is deferred, and Ledger/Utils have been retired. One `ci.yml` verifies
+candidates; the old publishers have been removed. The
+[delivery contract](../engineering/release-and-deployment.md) describes the remaining
+verified-artifact publisher, not an installed or authorized npm publication path.
 
 ## Using this setup
 

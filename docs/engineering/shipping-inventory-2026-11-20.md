@@ -7,9 +7,12 @@ claim that the remaining migration or publication is complete.
 
 ## Release boundary and provenance
 
-Ship six independently consumable npm products: `@ternent/identity`,
-`@ternent/armour`, `@ternent/concord`, `@ternent/seal`, `@ternent/ui`, and
-`@ternent/tooling`. Keep the existing handshake and tooling-profile fixtures as
+Current scope, amended 2026-11-21 under
+[ADR 0017](../adr/0017-drop-ui-from-the-library-release.md): ship five independently
+consumable npm products: `@ternent/identity`, `@ternent/armour`, `@ternent/concord`,
+`@ternent/seal` and `@ternent/tooling`. `@ternent/ui` is dropped from v1; B08–B10
+are cancelled. Existing UI source is excluded reference material, not a migration
+or publishing prerequisite. Keep the existing handshake and tooling-profile fixtures as
 regression consumers. No new product app, Workspace product, hosted deployment,
 public Ledger, catch-all Utils, or replacement protocol project belongs to this
 release.
@@ -43,34 +46,34 @@ be written and reviewed in B01.
 All 26 direct `home/packages/*/package.json` manifests are accounted for below.
 References identify implementation or fixture evidence, not a demand to copy it.
 
-| Source directory / package                                           | Capability and evidence                                                                                                        | Target owner / disposition                                                                                                                                                                                                  |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `identity-v2` / `@ternent/identity`                                  | Seed identity, mnemonic/serialized helpers, signing, X25519/age derivation; `src/index.ts`, tests                              | **Retain useful behavior** in Identity. `src/serialized.ts` ports helpers; `src/strict.ts` supplies capability signing and strict validation. Audit the final public surface in B02.                                            |
-| `identity` / `ternent-identity`                                      | Older key import/export/signing; `src/index.ts` and referenced modules                                                         | **Replace** with Identity's seed/capability interface. Do not restore an older key representation solely for compatibility.                                                                                                 |
-| `armour` / `@ternent/armour`                                         | Recipient, identity, passphrase, text and binary encryption; `src/`, `test/`                                                   | **Retain** in Armour with the existing TypeScript age port. Keep one engine and Identity-owned conversion.                                                                                                                  |
-| `encrypt` / `ternent-encrypt`                                        | String encryption/decryption and key generation; `src/index.ts`                                                                | **Replace** with Armour operations; no second encryption wrapper product.                                                                                                                                                   |
-| `rage` / `@ternent/rage`                                             | Native/WASM age wrapper and Node/browser tests                                                                                 | **Replace engine**, not product: Armour uses pinned `age-encryption`. Reuse relevant interoperability/error cases, not WASM build infrastructure.                                                                           |
-| `ragejs` / `ternent-rage-wasm`                                       | Older WASM encryption bindings                                                                                                 | **Omit** bindings/runtime initialization. Armour owns required age behavior.                                                                                                                                                |
-| `concord-protocol` / `@ternent/concord-protocol`                     | Canonical subjects, chain traversal, hashing, validation; `src/{index,canonical,crypto,epochs}.ts`                             | **Consolidate** signed-history mechanics into `packages/concord/src/protocol/` and `/protocol`. Old format/epoch semantics are evidence, not a compatibility contract.                                                      |
-| `concord-protocol-wasm` / `concord-protocol-wasm`                    | Rust/WASM implementation/build                                                                                                 | **Omit** separate shipping artifact and Rust prerequisite. Language-neutral vectors remain useful; no new cross-language implementation required here.                                                                      |
-| `concord-test-vectors` / private `@ternent/concord-test-vectors`     | `vectors.json`, malformed-value token conventions                                                                              | **Retain applicable cases** under `docs/concord/vectors/` and protocol tests. Keep current independent alpha vectors authoritative; do not substitute legacy expected hashes.                                               |
-| `ledger-v2` / `@ternent/ledger`                                      | Signed container, staged entries, commits, replay/decryption; `src/{ledger,types}.ts`, tests                                   | **Consolidate** into Concord protocol/runtime/system. No public Ledger, no dependency from Concord to Seal CLI. Draft semantics remain a runtime gap.                                                                       |
-| `ledger` / `ternent-ledger`                                          | Earlier runtime, staged state, transforms, storage plugins; `src/ledger.ts`, `src/plugins/{indexedDB,loki}.ts`                 | **Reuse behavior evidence** for runtime/drafts/storage boundaries. Omit Loki projection persistence and old runtime product; storage remains outside trusted replay.                                                        |
-| `concord` / `@ternent/concord`                                       | Commands, replay plugins, read-only and partial replay; `src/{app,types,errors}.ts`                                            | **Replace architecture while retaining contracts** with typed models, explicit system pass and atomic runtime replay. No arbitrary plugin ordering or trusted partial reconstruction.                                       |
-| `concord-plugin-identity` / `@ternent/concord-plugin-identity`       | Principal records and identity replay; `src/{replay,schemas}.ts`, fixtures                                                     | **Split ownership**: Identity validates cryptographic identity; Concord system binds signer/authority. Profiles/names remain app data; omit standalone plugin.                                                              |
-| `concord-plugin-permissions` / `@ternent/concord-plugin-permissions` | Grants, scope/membership timing, authorization; `src/{auth,replay,schemas}.ts`, fixtures                                       | **Consolidate applicable cases** into Concord system. No independent package or wholesale import of legacy delegation/expiry policy. B01 must explicitly delimit retained capabilities.                                     |
-| `concord-plugin-encryption` / `@ternent/concord-plugin-encryption`   | Epoch rotation, wraps, decryption explanations; `src/{replay,resolution,schemas}.ts`, fixtures                                 | **Consolidate** audience/key-distribution behavior into Concord system; Armour encrypts. Retain useful malformed-wrap/rotation cases, not a parallel security registry.                                                     |
-| `concord-plugin-task` / `@ternent/concord-plugin-task`               | Task create/edit/status, validation and reducers; `src/plugin.ts`, `test/task-plugin.test.ts`                                  | **Application model evidence** only. No task package or board app in this release. Use a small test model where needed to prove group isolation and replay.                                                                 |
-| `concord-inspector` / `@concord/inspector`                           | Chain summary, semantic replay, cannot-grant/decrypt explanations; `src/{replay,explain}.ts`                                   | **Consolidate useful diagnostics** into runtime `inspect()` and system reports. No separate inspector package or UI security reimplementation.                                                                              |
-| `concord-cli` / `@concord/cli`                                       | Init/append/verify/inspect/identity/permission/encryption commands; `src/commands/`, README                                    | **Omit separate CLI product**. Its verification/error cases inform Concord tests; the release's CLI is Seal.                                                                                                                |
-| `seal-cli` / `@ternent/seal-cli`                                     | Proof/artifact/manifest APIs and Node CLI; `src/`, `bin/seal`, tests                                                           | **Migrate to `@ternent/seal`** in `packages/seal`. Retain standalone composition/offline verification; resolve Utils imports, declarations and package-name drift.                                                          |
-| `ternent-ui` / private `ternent-ui`                                  | Vue primitives/patterns, tokens/themes, older `S*` components; source barrels, tests, theme scripts                            | **Migrate intentional surface to `@ternent/ui`**. Preserve target design work; no blanket restoration of old components or app-specific themes. B08–B10.                                                                    |
-| `utils` / `ternent-utils`                                            | Byte/string encoding, hashes/canonicalization, old key/armor formatting, IDs, color helpers; `src/index.ts`, tests             | **Distribute to owning modules or omit**, as detailed below. No public Utils package.                                                                                                                                       |
-| `ternent-ledger-vue` / private `ternent-ledger-vue`                  | Vue composition around legacy Ledger; `src/index.ts` and modules                                                               | **Omit current adapter**. A framework adapter can follow a real new-runtime consumer later; no crypto/replay ownership in UI.                                                                                               |
-| `solid` / `@ternent/solid`                                           | Pod resource storage/access, wallet unlock/backup, profiles/people, app/workspace manager; `src/index.ts` and exported modules | **Defer integration package** outside six-product scope. Identity/Armour supply primitives; provider I/O stays adapter-owned; people/profiles/managers remain app composition. Do not pull Solid dependencies into Concord. |
-| `pixpax-core` / `@ternent/pixpax-core`                               | Catalog, deterministic issuance, transfer/claim validation/projection; `src/index.ts`                                          | **Defer application domain**. Do not migrate card/pack policy into Concord or Utils.                                                                                                                                        |
-| `pixpax-issuer` / `@ternent/pixpax-issuer`                           | Issuance/proof authoring; `src/{issuance,proofs}.ts`                                                                           | **Defer application domain**; useful as later independent Seal/Identity consumer.                                                                                                                                           |
-| `pixpax-concord` / `@ternent/pixpax-concord`                         | Pixbook command/replay plugin; `src/plugin.ts`                                                                                 | **Defer application model**; no new model product or migration app required for library shipping.                                                                                                                           |
+| Source directory / package                                           | Capability and evidence                                                                                                        | Target owner / disposition                                                                                                                                                                                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identity-v2` / `@ternent/identity`                                  | Seed identity, mnemonic/serialized helpers, signing, X25519/age derivation; `src/index.ts`, tests                              | **Retain useful behavior** in Identity. `src/serialized.ts` ports helpers; `src/strict.ts` supplies capability signing and strict validation. Audit the final public surface in B02.                                         |
+| `identity` / `ternent-identity`                                      | Older key import/export/signing; `src/index.ts` and referenced modules                                                         | **Replace** with Identity's seed/capability interface. Do not restore an older key representation solely for compatibility.                                                                                                  |
+| `armour` / `@ternent/armour`                                         | Recipient, identity, passphrase, text and binary encryption; `src/`, `test/`                                                   | **Retain** in Armour with the existing TypeScript age port. Keep one engine and Identity-owned conversion.                                                                                                                   |
+| `encrypt` / `ternent-encrypt`                                        | String encryption/decryption and key generation; `src/index.ts`                                                                | **Replace** with Armour operations; no second encryption wrapper product.                                                                                                                                                    |
+| `rage` / `@ternent/rage`                                             | Native/WASM age wrapper and Node/browser tests                                                                                 | **Replace engine**, not product: Armour uses pinned `age-encryption`. Reuse relevant interoperability/error cases, not WASM build infrastructure.                                                                            |
+| `ragejs` / `ternent-rage-wasm`                                       | Older WASM encryption bindings                                                                                                 | **Omit** bindings/runtime initialization. Armour owns required age behavior.                                                                                                                                                 |
+| `concord-protocol` / `@ternent/concord-protocol`                     | Canonical subjects, chain traversal, hashing, validation; `src/{index,canonical,crypto,epochs}.ts`                             | **Consolidate** signed-history mechanics into `packages/concord/src/protocol/` and `/protocol`. Old format/epoch semantics are evidence, not a compatibility contract.                                                       |
+| `concord-protocol-wasm` / `concord-protocol-wasm`                    | Rust/WASM implementation/build                                                                                                 | **Omit** separate shipping artifact and Rust prerequisite. Language-neutral vectors remain useful; no new cross-language implementation required here.                                                                       |
+| `concord-test-vectors` / private `@ternent/concord-test-vectors`     | `vectors.json`, malformed-value token conventions                                                                              | **Retain applicable cases** under `docs/concord/vectors/` and protocol tests. Keep current independent alpha vectors authoritative; do not substitute legacy expected hashes.                                                |
+| `ledger-v2` / `@ternent/ledger`                                      | Signed container, staged entries, commits, replay/decryption; `src/{ledger,types}.ts`, tests                                   | **Consolidate** into Concord protocol/runtime/system. No public Ledger, no dependency from Concord to Seal CLI. Draft semantics remain a runtime gap.                                                                        |
+| `ledger` / `ternent-ledger`                                          | Earlier runtime, staged state, transforms, storage plugins; `src/ledger.ts`, `src/plugins/{indexedDB,loki}.ts`                 | **Reuse behavior evidence** for runtime/drafts/storage boundaries. Omit Loki projection persistence and old runtime product; storage remains outside trusted replay.                                                         |
+| `concord` / `@ternent/concord`                                       | Commands, replay plugins, read-only and partial replay; `src/{app,types,errors}.ts`                                            | **Replace architecture while retaining contracts** with typed models, explicit system pass and atomic runtime replay. No arbitrary plugin ordering or trusted partial reconstruction.                                        |
+| `concord-plugin-identity` / `@ternent/concord-plugin-identity`       | Principal records and identity replay; `src/{replay,schemas}.ts`, fixtures                                                     | **Split ownership**: Identity validates cryptographic identity; Concord system binds signer/authority. Profiles/names remain app data; omit standalone plugin.                                                               |
+| `concord-plugin-permissions` / `@ternent/concord-plugin-permissions` | Grants, scope/membership timing, authorization; `src/{auth,replay,schemas}.ts`, fixtures                                       | **Consolidate applicable cases** into Concord system. No independent package or wholesale import of legacy delegation/expiry policy. B01 must explicitly delimit retained capabilities.                                      |
+| `concord-plugin-encryption` / `@ternent/concord-plugin-encryption`   | Epoch rotation, wraps, decryption explanations; `src/{replay,resolution,schemas}.ts`, fixtures                                 | **Consolidate** audience/key-distribution behavior into Concord system; Armour encrypts. Retain useful malformed-wrap/rotation cases, not a parallel security registry.                                                      |
+| `concord-plugin-task` / `@ternent/concord-plugin-task`               | Task create/edit/status, validation and reducers; `src/plugin.ts`, `test/task-plugin.test.ts`                                  | **Application model evidence** only. No task package or board app in this release. Use a small test model where needed to prove group isolation and replay.                                                                  |
+| `concord-inspector` / `@concord/inspector`                           | Chain summary, semantic replay, cannot-grant/decrypt explanations; `src/{replay,explain}.ts`                                   | **Consolidate useful diagnostics** into runtime `inspect()` and system reports. No separate inspector package or UI security reimplementation.                                                                               |
+| `concord-cli` / `@concord/cli`                                       | Init/append/verify/inspect/identity/permission/encryption commands; `src/commands/`, README                                    | **Omit separate CLI product**. Its verification/error cases inform Concord tests; the release's CLI is Seal.                                                                                                                 |
+| `seal-cli` / `@ternent/seal-cli`                                     | Proof/artifact/manifest APIs and Node CLI; `src/`, `bin/seal`, tests                                                           | **Migrate to `@ternent/seal`** in `packages/seal`. Retain standalone composition/offline verification; resolve Utils imports, declarations and package-name drift.                                                           |
+| `ternent-ui` / private `ternent-ui`                                  | Vue primitives/patterns, tokens/themes, older `S*` components; source barrels, tests, theme scripts                            | **Drop from v1** under ADR 0017. Keep excluded sources as reference; choose demo UI from actual needs. B08–B10 are cancelled.                                                                                                |
+| `utils` / `ternent-utils`                                            | Byte/string encoding, hashes/canonicalization, old key/armor formatting, IDs, color helpers; `src/index.ts`, tests             | **Distribute to owning modules or omit**, as detailed below. No public Utils package.                                                                                                                                        |
+| `ternent-ledger-vue` / private `ternent-ledger-vue`                  | Vue composition around legacy Ledger; `src/index.ts` and modules                                                               | **Omit current adapter**. A framework adapter can follow a real new-runtime consumer later; no crypto/replay ownership in UI.                                                                                                |
+| `solid` / `@ternent/solid`                                           | Pod resource storage/access, wallet unlock/backup, profiles/people, app/workspace manager; `src/index.ts` and exported modules | **Defer integration package** outside five-product scope. Identity/Armour supply primitives; provider I/O stays adapter-owned; people/profiles/managers remain app composition. Do not pull Solid dependencies into Concord. |
+| `pixpax-core` / `@ternent/pixpax-core`                               | Catalog, deterministic issuance, transfer/claim validation/projection; `src/index.ts`                                          | **Defer application domain**. Do not migrate card/pack policy into Concord or Utils.                                                                                                                                         |
+| `pixpax-issuer` / `@ternent/pixpax-issuer`                           | Issuance/proof authoring; `src/{issuance,proofs}.ts`                                                                           | **Defer application domain**; useful as later independent Seal/Identity consumer.                                                                                                                                            |
+| `pixpax-concord` / `@ternent/pixpax-concord`                         | Pixbook command/replay plugin; `src/plugin.ts`                                                                                 | **Defer application model**; no new model product or migration app required for library shipping.                                                                                                                            |
 
 `@ternent/tooling` has no corresponding portable source package in that manifest
 set. The implemented target `tooling/tooling` owns reusable dev-only profiles and
@@ -144,7 +147,7 @@ unverified. This documentation-only pass introduced no implementation failure.
 
 | Area                | Inspected implementation                                                                                                                                       | Remaining shipping gap                                                                                                                                                                                        |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity            | `src/index.ts` exports strict capabilities and helper implementation from `serialized.ts`; local profile/public ESM exports                                        | Decide which helper APIs remain useful host conveniences, verify Seal's actual needs; avoid compatibility-only exports. Preserve strict signature/key/encoding vectors and mnemonic behavior selected for v1. |
+| Identity            | `src/index.ts` exports strict capabilities and helper implementation from `serialized.ts`; local profile/public ESM exports                                    | Decide which helper APIs remain useful host conveniences, verify Seal's actual needs; avoid compatibility-only exports. Preserve strict signature/key/encoding vectors and mnemonic behavior selected for v1. |
 | Armour              | One TypeScript age engine; capability and convenience APIs; local Identity dependency                                                                          | Audit deliberate init/helper surface and errors. Description still says Rage. Preserve independent age interop, malformed input and unauthorized decryption checks.                                           |
 | Concord protocol    | Canonical signed history, independent `/protocol`, snapshot comparison                                                                                         | Keep existing vectors/negative cases; update only group envelope contract required by B01. Old and new format support must be explicit, without a compatibility mandate.                                      |
 | Concord system      | `ProtectedEvent.audience`, `ApplicationIntent.audience`, standard replay and runtime dispatch fix `"document"`                                                 | Independent groups, per-group epochs/rotation/history grants, writer-created groups and owner access only through an actual grant.                                                                            |
@@ -152,9 +155,9 @@ unverified. This documentation-only pass introduced no implementation failure.
 | Concord drafts      | `host()` rejects draft mode; `draft()` returns null; `commit()` returns `NO_DRAFT`                                                                             | Implement explicit grouped authoring with provisional preview and atomic failure retention. Immediate remains default.                                                                                        |
 | Storage             | `/testing` has copied-buffer memory store; runtime accepts/exports bytes                                                                                       | Expected-head proof and failure/conflict semantics belong outside runtime. Do not turn storage into trust or add transport/merge.                                                                             |
 | Seal                | Excluded workspace; proof/artifact/manifest import `ternent-utils`, manifest declares `@ternent/utils`; stale source aliases include absent `identity-v2`/Rage | Internal Utils ownership, real local public imports, shared library/CLI build, declarations and package docs. Existing tests do not establish packaged behavior.                                              |
-| UI                  | Excluded workspace; root points to `dist/components.js`, build entries are primitives/patterns; no declared types                                              | Real entry/declaration/CSS/theme outputs, Vue peer/externalization, lean exports, useful interaction checks.                                                                                                  |
-| UI ownership        | `IdentityGlyph/identityGlyph.types.ts` imports undeclared Identity; utils parse DID/base58/Ed25519                                                             | Presentation input and deterministic glyph rendering in UI; identity validation/conversion above UI.                                                                                                          |
-| Tooling/check scope | Existing profiles/fixtures work; root test globs and pilot scripts enumerate current slice                                                                     | Include Seal/UI intentionally; preserve UI `src/**/*.test.ts` discovery when adopting a profile whose default is `test/**/*.test.*`. Add targeted policy failures.                                            |
+| UI                  | Excluded workspace; root points to `dist/components.js`, build entries are primitives/patterns; no declared types                                              | Superseded by ADR 0017: no UI product migration in v1.                                                                                                                                                        |
+| UI ownership        | `IdentityGlyph/identityGlyph.types.ts` imports undeclared Identity; utils parse DID/base58/Ed25519                                                             | No v1 UI work; reference guidance for any later demo glyph.                                                                                                                                                   |
+| Tooling/check scope | Existing profiles/fixtures work; root test globs and pilot scripts enumerate current slice                                                                     | Current scope is five products; Seal is active and UI is dropped. Preserve portable Vue fixture coverage and targeted policy failures.                                                                        |
 | Packed consumers    | Pilot installs exact candidate tarballs using explicit sibling overrides                                                                                       | Good existing proof, but overrides can hide broken final sibling ranges. Final release requires isolated candidate registry resolution without those overrides.                                               |
 | Release             | CI plus legacy release/tag publishers coexist; `.changeset/config.json` uses restricted access; no target planner/publisher scripts                            | Single verified-artifact path, version intent, collision/retry tests, public access, OIDC/account setup, registry-installed consumers.                                                                        |
 
@@ -333,69 +336,34 @@ against the local candidate. See [the implementation note](seal-migration-2026-1
   codes work from a clean external directory. Browser proof import pulls no Node
   filesystem globals. Assert failures against wrong bytes/proof/key config.
 
-### B08 — Activate a lean typed UI package
+### B08–B10 — UI package, glyph and asset migration: cancelled
 
-- **Evidence:** `home/packages/ternent-ui/src/{primitives,patterns}/`, current
-  barrels/manifest/build; `fixtures/tooling-profiles/vue-library/`.
-- **Targets:** `packages/ui/package.json`, explicit root entry, profile-based
-  build/tsconfig, workspace/lock/root gates and README. **Depends on:** B11.
-- **Scope:** retain intentional target primitives/patterns, fix root entry,
-  generate Vue declarations, use external Vue as peer, separate build-only tools.
-  Proposed exclusions: old `S*` bundle, misspelled `Accordian` aliases, broken
-  `src/main.js` app scaffolding, unused compatibility exports. Inventory real usage
-  before pruning; source-only `concordos` theme is not a required port.
-- **Acceptance:** root/primitives/patterns import from installed tarball; prop/event
-  declarations accept correct usage and reject deliberate misuse; no duplicate
-  bundled Vue or dependency on checkout-relative config. All retained tests are
-  discovered; missing root output fails validation before publishing.
-
-### B09 — Keep identity glyphs presentational
-
-- **Evidence:** current `patterns/IdentityGlyph/` types and DID/base58 parser;
-  `home/packages/ternent-ui/src/patterns/IdentityGlyph/identityGlyph.utils.test.ts`.
-- **Targets:** UI glyph types/utils/components/barrels and applicable restored tests.
-  **Depends on:** B08.
-- **Scope:** consume stable presentation input, preserve deterministic visual
-  behavior/fallback/contrast; move identity parsing and validation to its owner or
-  the consuming adapter. No Identity/Armour/Concord type dependency in UI.
-- **Acceptance:** identical input produces identical glyph; fallback/palette tests
-  pass; generated declarations and runtime import graph have no domain package
-  coupling. Application code can pass canonical identity display data without a
-  second UI implementation of cryptographic validation.
-
-### B10 — Complete UI assets and observable behavior
-
-- **Evidence:** current design-system/theme/style sources and generation/check
-  scripts; retained primitive/pattern tests/specs; source glyph/interaction cases.
-- **Targets:** `packages/ui/src/{style.css,design-system,themes}/`, exports,
-  CSS side-effects policy, generation scripts and focused behavior/consumer tests.
-  **Depends on:** B08–B09.
-- **Scope:** deliberate CSS/theme exports and publication allowlist, deterministic
-  clean generation and Tailwind integration through the actual UI profile. Keep
-  existing target styling. Test meaningful labels, state updates, disabled controls,
-  focus/keyboard/overlay interactions for retained surfaces; no redesign/new app.
-- **Acceptance:** every exported asset exists in tarball; clean generation repeats
-  identically; a production consumer importing one component and explicit CSS has
-  correct computed styling after tree shaking and theme switching, without scanning
-  this checkout. Real interactions pass; source-text assertions alone do not count.
+Removed from v1 on 2026-11-21 under
+[ADR 0017](../adr/0017-drop-ui-from-the-library-release.md). A maintained
+`@ternent/ui` package is not required for the core libraries or demos. Existing
+UI sources remain excluded reference material. Retain portable Vue profiles and
+browser fixtures as tooling/consumer checks, without creating a public UI product.
+The former migration requirements are available in Git history.
 
 ### B11 — Expand package policy and the complete verification graph
 
-Partial, 2026-11-20: Seal now participates in workspace format/lint/types/behaviour/
-build/packed-consumer gates and is removed from the legacy-excluded list. UI
-activation and complete six-product validation remain pending.
+Updated 2026-11-21: all five release products participate in workspace
+format/lint/types/behaviour/build/packed-consumer gates. The hygiene pass derives
+checks from workspace selection and has passing Linux CI, including browser and
+deliberate failure checks. Finish release eligibility and complete candidate
+verification with B13; there is no UI activation requirement.
 
 - **Evidence:** root scripts/workspace/tsconfig, `scripts/verify/{contract,check,workspace}.mjs`,
-  tooling config/validator/tests, UI diagnostic and current CI.
+  tooling config/validator/tests and current CI.
 - **Targets:** those files plus `.github/workflows/ci.yml` and focused broken
   package fixtures. **Depends on:** inventory review; land alongside package activation.
-- **Scope:** explicitly classify six public products and private consumers; no
+- **Scope:** explicitly classify five public products and private consumers; no
   silent package omissions. Extend existing checks for Vue peers/CSS/types,
   declared dependencies/exports and publication contents. Preserve Oxfmt/Oxlint,
   authoritative TS/Vue checks and useful nonzero failures. Keep legacy exclusions
   explicit; do not include old workspaces merely by changing globs.
-- **Acceptance:** Seal/UI participate in separate format/lint/types/behavior/build/
-  consumer gates as activated; intentionally broken export/bin/type/CSS/peer or
+- **Acceptance:** all five public products participate in separate format/lint/types/
+  behavior/build/consumer gates; intentionally broken export/bin/type/CSS/peer or
   undeclared sibling fails. Existing fixture tests still establish portable
   profiles; fresh clone/frozen install requires no ignored generated input.
 
@@ -424,20 +392,21 @@ provider or cross-process update adapter is claimed.
 - **Evidence:** `scripts/verify/consumers.mjs`, text consumer fixtures, current
   exact-tarball override proof; release contract section 3.
 - **Targets:** existing harness or release consumer module and private fixtures.
-  **Depends on:** B02–B12.
+  **Depends on:** B02–B07, B11 and B12; B08–B10 are cancelled.
 - **Scope:** build topologically, pack each public candidate once; serve final
   names/versions from an isolated candidate registry so actual rewritten sibling
   ranges resolve without file overrides. Reuse the working Node 22/24, browser,
-  declaration, protocol-isolation, standalone tooling and CLI checks; add Seal/UI.
-- **Acceptance:** all six exact candidate digests exercised outside workspace;
+  declaration, protocol-isolation, standalone tooling and CLI checks, including Seal. Preserve Vue/CSS/interaction
+  fixture coverage as portable-tooling proof, not a public UI package gate.
+- **Acceptance:** all five public candidate digests exercised outside workspace;
   a deliberately wrong sibling range fails rather than resolving a predecessor.
-  All declared imports/assets/types/bin resolve. Browser crypto and production UI
-  CSS/interaction checks pass. Preserve immutable tarballs and gate evidence.
+  All declared imports/assets/types/bin resolve. Browser crypto and production Vue
+  fixture CSS/interaction checks pass. Preserve immutable tarballs and gate evidence.
 
 ### B14 — Implement release planning and retryable artifact publication
 
-- **Evidence:** release contract; `.changeset/config.json`, `.ops/publish.mjs`,
-  legacy release/tag workflows; no target scripts currently installed.
+- **Evidence:** release contract and `.changeset/config.json`; retired publishers
+  are available in Git history. No replacement publisher is installed.
 - **Targets:** `.github/scripts/{plan-release,publish-release}.mjs`, focused
   automation tests, Changesets dependency/config/prerelease state and release docs.
   **Depends on:** B11 for scaffolding; B13 for final artifact integration.
@@ -453,13 +422,14 @@ provider or cross-process update adapter is claimed.
 
 ### B15 — Install one CI/release workflow chain and setup instructions
 
-- **Evidence:** `.github/workflows/{ci,release-create,release-publish,deploy-*}.yml`
-  and release contract. **Targets:** shared setup action, `release-pr.yml`,
+- **Evidence:** current `.github/workflows/ci.yml`, retired publishers in Git
+  history and release contract. **Targets:** shared setup action, `release-pr.yml`,
   `publish.yml`, CI artifact handoff and `docs/engineering/deployment-setup.md`.
   **Depends on:** B14 and B13 before cutover.
 - **Scope:** exact pins/frozen setup, same-SHA eligible artifacts, least privilege,
   serialized retryable publisher, retained receipts/digests. Replace competing
-  old release/tag publishers together; exclude Utils/Workspace. Document GitHub
+  old release/tag publishers together (already retired); exclude Utils, Workspace
+  and UI. Do not publish private fixtures. Document GitHub
   App/event behavior and exact npm trusted-publisher identity. No hosted app deploy.
 - **Acceptance:** validation/dry-run fixtures prove trigger/plan selection and
   private exclusions; one active npm publication path remains. Remote checks and
@@ -479,23 +449,23 @@ provider or cross-process update adapter is claimed.
   in a clean external project; no workspace access or candidate overrides.
 - **Acceptance:** registry integrity matches each retained tarball; fresh consumers
   exercise Identity, Armour, Concord lifecycle/group/draft behavior, Seal CLI/library,
-  UI assets/types and portable tooling. Record exact versions, source/release IDs,
+  portable tooling and Vue/browser fixture consumption. Record exact versions, source/release IDs,
   receipts and any incomplete channel state. Never infer publication from a build.
 
 ## Dependency order and review points
 
-Start B01/B02 and B11. Once the group contract is settled, Concord follows
-B03 → B04 → B05 → B12. Seal follows B06 → B07; UI follows B08 → B09 → B10.
-These paths converge at B13. Release tooling B14 can develop against saved
-responses while packages migrate; real workflow cutover B15 and publication B16
-follow complete candidate verification.
+Current next step is B13: verify all five public candidates through an isolated
+candidate registry without sibling file overrides. B01–B07 and B12 have implemented
+library evidence; B08–B10 are cancelled. B11 policy and B13 consumer checks converge
+with B14 release planning, then B15 workflow integration and B16 authorized registry
+acceptance. UI migration is not a dependency of any release task.
 
-The material review is B01's concrete schema/authority/readable-view contract,
-B02's lean but useful helper surface, and the UI export/asset choices in B08/B10.
+Material review remains the concrete authority/readable-view contract and the lean
+public primitive surface. Demo UI components are chosen when building demos.
 Do not reopen accepted choices such as writer-created groups, full historical
 admission, owner access only by grant, explicit locked markers, system-first replay
 or no divergence merge. Keep v1 omissions above explicit; they are how the migration
-stays within six products rather than becoming a port of every historical app.
+stays within five products rather than becoming a port of every historical app.
 
 No new tracker tasks, external messages, implementation commits, remote workflow runs,
 account changes, npm publication or deployment were performed by this inventory.

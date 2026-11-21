@@ -11,9 +11,12 @@ the host owns its data and storage.
 | [Seal](packages/seal/README.md)         | Standalone proofs, encrypted artifacts, manifests and a Node CLI       |
 | [Tooling](tooling/tooling/README.md)    | Portable build profiles and package validation                         |
 
-These are local alpha candidates. UI migration, the verified-artifact publisher
-and registry acceptance remain on the [shipping backlog](docs/engineering/shipping-inventory-2026-11-20.md).
+These five packages are alpha candidates. Isolated candidate-registry verification,
+the verified-artifact publisher and registry acceptance remain on the
+[shipping backlog](docs/engineering/shipping-inventory-2026-11-20.md).
 The existing UI and Workspace directories are excluded from the active workspace.
+There is no maintained UI package in the v1 release; see
+[the UI scope decision](docs/adr/0017-drop-ui-from-the-library-release.md).
 Workspace work is deferred until the libraries are stable and a substantial set of
 demos has been built; it does not block the library release.
 

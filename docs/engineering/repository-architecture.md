@@ -1,5 +1,10 @@
 # Ternent repository architecture
 
+Scope amendment, 2026-11-21: [ADR 0017](../adr/0017-drop-ui-from-the-library-release.md)
+removes `@ternent/ui` from the release. Five products ship: Identity, Armour,
+Concord, Seal and Tooling. Any UI-product migration/release requirements below are
+superseded. Portable Vue profiles, browser fixtures and later demo UI remain useful.
+
 Current implementation: [repository hygiene](repository-hygiene.md).
 
 Status: accepted target design, 2026-10-21; R1 implementation is described in

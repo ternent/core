@@ -64,11 +64,61 @@ consumes Ledger's lifecycle and puts its framework records in this same containe
 it does not maintain a second signed container or commit engine. A Ledger reader
 requires no Concord declarations, model, permissions or group keys to verify history.
 
-The current migration implements portable JSON payloads and externally owned storage.
-The original standalone recipient-encryption convenience and staged-state persistence
-are still explicit retain/move/drop decisions; neither is established by the common
-container change. Committed `export()` is not a recovery format for staged work.
+## Optional payload codecs
+
+Ledger supports Armour integration through explicit payload composition. It has no
+Armour dependency, recipient configuration, key management or automatic decryption.
+`encodePayload(data, codec)` turns portable JSON into a versioned JSON envelope for
+the ordinary `append()` API. `decodePayload(data, codec?)` reads that envelope after
+replay. A codec is just an `id` and optional asynchronous byte `encode`/`decode`
+functions; there is no plugin registry or lifecycle to configure.
+
+```ts
+import { encodePayload, decodePayload } from "@ternent/ledger";
+import { ageRecipientFromPublicIdentity } from "@ternent/identity";
+import { createAgeCodec, withAgeDecryption } from "@ternent/armour";
+
+const identity = withAgeDecryption(signer.value);
+const recipient = ageRecipientFromPublicIdentity(identity.publicIdentity);
+if (!recipient.ok) throw new Error(recipient.error.code);
+const codec = createAgeCodec({ recipients: [recipient.value], reader: identity });
+
+await log.append({
+  kind: "private-note",
+  payload: await encodePayload({ text: "Only the recipients can read this" }, codec),
+});
+await log.commit();
+
+const entry = (await log.replay()).at(-1)!;
+const result = await decodePayload(entry.payload.data, codec);
+// { status: "decoded", data: { text: "Only the recipients can read this" } }
+const withoutKeys = await decodePayload(entry.payload.data);
+// { status: "locked", codec: "age" }
+```
+
+Plain JSON returns `{ status: "plain", data }`. A missing or different codec, an
+encode-only codec, or a decoder returning `null` produces a locked result. Armour
+returns `null` when its reader cannot authenticate/decrypt the ciphertext; this does
+not distinguish a wrong key from malformed ciphertext. Codec exceptions propagate.
+Invalid envelopes or decoded JSON reject. Encoding failures reject before append;
+there is no plaintext fallback. The helpers use Ledger's portable JSON rules and
+default byte/depth limits; their optional last argument accepts `maxBytes` and
+`maxDepth`. Limits apply to both decoded JSON and the encoded envelope.
+
+The envelope has exactly `format: "ledger-payload"`, `version: 1`, `codec` and
+canonical base64url `data`. This marker is reserved within payloads decoded by this
+helper. The log treats it as opaque JSON; verification, commits, export and raw
+replay require no codec. Decoding never modifies signed bytes or establishes their
+trust. Only payload data is encrypted: entry kind, author, timestamps, metadata and
+history structure remain visible. The host decides which decoded data to project;
+Ledger's synchronous projector continues to receive the recorded payload.
+
+Externally owned storage remains the migration contract. Staged-state persistence
+still requires an explicit retain/move/drop decision. Committed `export()` is not
+a recovery format for staged work.
 No historical `concord-ledger` or former Concord-alpha import adapter is included.
+
+## Container format
 
 The container has exactly `format: "ledger"`, `version: 1`, `documentId`, `head`,
 ordered `commits` and ordered `entries`. The genesis commit defines `documentId`;

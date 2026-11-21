@@ -49,6 +49,21 @@ const text = await decryptTextWithIdentity({ identity, data: encrypted });
 
 Historical implementations are available in Git.
 
+## Optional payload integration
+
+`createAgeCodec({ recipients?, reader? })` supplies an `id: "age"` byte codec for
+composing Armour with Ledger's `encodePayload`/`decodePayload` helpers. Armour does
+not import Ledger. Supplying recipients enables encoding; supplying a `decryptAge`
+reader capability enables decoding. Recipients are copied when the codec is created.
+An absent operation remains absent; it never falls back to plaintext.
+
+The codec uses the existing binary age operations. Its decoder returns `null` when
+the reader reports an authentication/decryption failure, covering both wrong keys
+and malformed ciphertext. Other reader failures reject; implementation exceptions propagate. The caller
+owns entry creation, signed history and interpretation of readable/locked results.
+See the [Ledger composition example](../ledger/README.md#optional-payload-codecs).
+
 Armour owns neither signing semantics, document envelopes, authorization nor storage.
-Identity owns key derivation. Concord owns its signed history and private system profile.
+Identity owns key derivation. Ledger owns signed history; Concord composes it with
+its private system profile.
 Native age interop and the fixed independent ciphertexts are required tests.

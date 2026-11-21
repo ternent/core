@@ -55,3 +55,5 @@ export {
   generateIdentity,
 } from "./age.js";
 export type { ReaderCapability, IdentityCapability } from "./age.js";
+export { createAgeCodec } from "./codec.js";
+export type { AgePayloadCodec } from "./codec.js";

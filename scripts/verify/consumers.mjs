@@ -169,6 +169,7 @@ try {
     join(consumer, "ledger-signed-log.json"),
   );
   put("ledger.mjs", readFileSync(resolve(root, "scripts/verify/ledger-consumer.txt"), "utf8"));
+  put("payload.mjs", readFileSync(resolve(root, "scripts/verify/payload-consumer.txt"), "utf8"));
   put("seal.mjs", readFileSync(resolve(root, "scripts/verify/seal-consumer.txt"), "utf8"));
   put(
     "seal-isolation.mjs",
@@ -206,6 +207,7 @@ try {
     .join(", ");
   for (const executable of runtimes) {
     console.log(execFileSync(executable, ["ledger.mjs"], { cwd: consumer, encoding: "utf8" }));
+    console.log(execFileSync(executable, ["payload.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["primitives.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["concord.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["groups.mjs"], { cwd: consumer, encoding: "utf8" }));
@@ -235,6 +237,9 @@ try {
   );
   checks.push(
     `Standalone Ledger lifecycle, fixed vectors, declarations and import isolation on ${versions}`,
+  );
+  checks.push(
+    `Optional Armour payload codec, keyless Ledger verification and locked/readable decoding on ${versions}`,
   );
   const output = execFileSync(
     process.execPath,

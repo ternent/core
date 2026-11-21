@@ -67,6 +67,8 @@ Keep these target responsibilities distinct:
 - Storage adapters: reading, writing, and any adapter-specific synchronization.
 - Identity, Armour, and Seal: independently usable identity, encryption, and proof
   primitives.
+- Armour integration with Ledger: explicit payload codecs; keep recipients, keys
+  and decryption outside Ledger's container and history lifecycle.
 - Framework adapters and UI: consumers above the runtime.
 
 Do not put application policy into the Concord runtime or system extensions, or

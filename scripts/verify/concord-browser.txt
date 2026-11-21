@@ -3,9 +3,9 @@ import { createSealArtifact, verifySealArtifact, decryptSealArtifactPayload } fr
 import { createDocument, openDocument, defineModel, type AudienceId, type ModelIssue, type Result } from "@ternent/concord";
 import { createGroup, createStandardSystemProfile, setMember } from "@ternent/concord/system";
 import { registerModel, createMemoryExpectedHeadStore } from "@ternent/concord/testing";
-import { generateIdentity, encryptForIdentities, decryptWithIdentity, recipientFromIdentity } from "@ternent/armour";
-import { createIdentity, generateSigner } from "@ternent/identity";
-import { createLedger } from "@ternent/ledger";
+import { createAgeCodec, generateIdentity, encryptForIdentities, decryptWithIdentity, recipientFromIdentity } from "@ternent/armour";
+import { ageRecipientFromPublicIdentity, createIdentity, generateSigner } from "@ternent/identity";
+import { createLedger, encodePayload, decodePayload } from "@ternent/ledger";
 export async function proveConcord() {
   const logSigner = await generateSigner(); if (!logSigner.ok) throw new Error(logSigner.error.code);
   const log = await createLedger({signer:logSigner.value});
@@ -21,6 +21,18 @@ export async function proveConcord() {
   const helperResult = await decryptWithIdentity({identity:hostIdentity,data:helperCiphertext});
   if (new TextDecoder().decode(helperResult) !== "browser helpers need no setup") throw new Error("browser helper roundtrip failed");
   const identity = await generateIdentity(); if (!identity.ok) throw new Error(identity.error.code);
+  const recipient = ageRecipientFromPublicIdentity(identity.value.publicIdentity); if (!recipient.ok) throw new Error(recipient.error.code);
+  const payloadCodec = createAgeCodec({recipients:[recipient.value],reader:identity.value});
+  await log.append({kind:"private",payload:await encodePayload({value:"private browser payload"},payloadCodec)});
+  await log.commit();
+  const raw = await log.export();
+  if (JSON.stringify(raw).includes("private browser payload")) throw new Error("private payload leaked");
+  await logReader.load(raw);
+  const privatePayload = (await logReader.replay())[1].payload.data;
+  const lockedPayload = await decodePayload(privatePayload), decodedPayload = await decodePayload(privatePayload,payloadCodec);
+  if (lockedPayload.status !== "locked" || decodedPayload.status !== "decoded" ||
+      JSON.stringify(decodedPayload.data) !== JSON.stringify({value:"private browser payload"}) ||
+      (await logReader.verify()).integrity !== "valid") throw new Error("optional Armour/Ledger composition failed");
   const system = createStandardSystemProfile();
   const created = await createDocument({model:registerModel,system,identity:identity.value});
   if (!created.ok) throw new Error(created.error.code);

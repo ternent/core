@@ -1,85 +1,104 @@
-# Repository hygiene
+# Repository guide
 
-Implemented 2026-11-21. This describes the working repository; the older
-[architecture proposal](repository-architecture.md) includes release and deployment
-work that is still on the [shipping backlog](shipping-inventory-2026-11-20.md).
+Current structure, 2026-11-21. [ADR 0020](../adr/0020-simplify-core-around-five-libraries.md)
+records the simplification; [CONTRIBUTING.md](../../CONTRIBUTING.md) owns setup and
+commands. This guide describes configured scope, not the outcome of an uncompleted
+check or a published release.
 
-## Toolchain
+## Ownership
 
-| Tool                      | Pin                                 | Reason                                                          |
-| ------------------------- | ----------------------------------- | --------------------------------------------------------------- |
-| Node                      | 26.13.1                             | Current LTS security release; development and CI                |
-| pnpm                      | 12.21.0                             | Exact root package manager; install policy in workspace YAML    |
-| Vite+                     | 1.7.0                               | Build, Oxfmt, typed Oxlint, tests and tasks                     |
-| TypeScript compiler API   | `npm:@typescript/typescript6@6.0.2` | Vue/Volar and declaration compatibility; explicit `tsc6` checks |
-| Vue / vue-tsc             | 3.5.46 / 3.3.14                     | Current compatible Vue toolchain                                |
-| Playwright                | 1.65.1                              | Installed-package production browser checks                     |
-| typage (`age-encryption`) | 0.3.1                               | Armour's TypeScript age implementation                          |
-| Noble curves / hashes     | 2.4.0 / 2.4.0                       | Identity cryptography; retained vectors verify compatibility    |
-| Scure base / bip39        | 2.4.0 / 2.4.0                       | Identity encoding and recovery phrases                          |
+The active workspace contains exactly five public ESM libraries:
 
-Vite+ uses its native TypeScript engine for typed lint. TypeScript 7's compiler API
-does not replace the TypeScript 6 API required by Volar; the alias makes that
-dependency explicit. VitePress remains on its latest stable 1.6.4, with the existing
-narrow recursive-token declaration patch. The old Vite+ distribution-version peer
-override is gone: the current core alias reports a compatible Vite 8 version.
+| Library  | Owns                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------ |
+| Identity | Identity validation, seed custody, signatures, recovery and key conversion                                   |
+| Armour   | age encryption/decryption and explicit payload codecs                                                        |
+| Ledger   | Common signed container, canonical bytes, IDs, signatures, staging, commits, verification and ordered replay |
+| Concord  | Command intents/previews, system authority and decryption, model replay and atomic publication above Ledger  |
+| Seal     | Its independent proof/artifact/manifest formats and separate Node CLI                                        |
 
-pnpm 12 reads install policy from `pnpm-workspace.yaml`; `.npmrc` only declares the
-registry. Build scripts are allowed for esbuild only. Exact Vue 3.5.46 packages
-are listed as release-age exceptions for this reviewed upgrade; other packages
-retain pnpm's default supply-chain policy.
+Ledger and Concord stage work in memory. Consumers own commit cadence, draft
+persistence and recovery; there is no missing library persistence layer to ship.
+[ADR 0019](../adr/0019-keep-draft-persistence-with-consumers.md) records that boundary.
+Storage publication remains external under the
+[storage contract](../concord/storage-boundary.md).
 
-## Structure and checks
+`packages/` holds the products, `scripts/verify/` holds small repository checks,
+and `docs/` holds contracts, vectors and decisions. `pnpm-workspace.yaml` is the
+package inventory. Root formatting, lint and test discovery derive their package
+scope from it; standard pnpm recursion builds dependencies before consumers.
 
-`pnpm-workspace.yaml` is the package inventory. Root test discovery, formatting and
-lint derive their package paths from pnpm's workspace inventory. Build and type
-checks recurse over the same selection. Portable profiles accept root test paths
-and the verification command rather than embedding Ternent package names.
+The portable tooling package, profile fixtures, handshake app and VitePress patch
+are removed. Ordinary `vite.config.base.ts` and `tsconfig.base.json` share defaults;
+explicit package configs own entry/output mappings and the Seal CLI environment.
+Do not rebuild a general profile framework inside repository scripts.
 
-Repository acceptance code lives in `scripts/verify/`. Explicit Node executable
-inputs replace the old assumption about NVM directory layout. Local packed checks
-always run the current runtime; CI additionally requires Node 22.18 and 24.21.
-The development tooling requires Node 26 while the product library minimum remains
-22.18. Chromium remains a required acceptance check.
+UI is outside the library release under [ADR 0017](../adr/0017-drop-ui-from-the-library-release.md).
+Workspace is deferred until the libraries are stable and substantial demos exist.
+Their excluded sources and existing edits remain outside active acceptance.
+Applications and demos should consume published libraries from separate projects.
 
-One read-only CI workflow installs the exact lockfile, age reference binary and
-browser, then retains check reports and candidate tarballs. Third-party actions
-are pinned to verified release commit SHAs. The old tag/package publishers and
-`.ops/publish.mjs` are removed. A verified-artifact release planner and publisher
-remain B14/B15; CI does not publish npm packages or deploy applications.
+## Toolchain and installation
 
-`renovate.json` configures reviewed dependency updates, including the runtime and
-action pins. Toolchain updates are grouped, and no updates merge automatically.
-The owner must enable Renovate on the repository for PR creation.
+| Tool       | Repository pin                      | Use                                                               |
+| ---------- | ----------------------------------- | ----------------------------------------------------------------- |
+| Node       | 26.13.1                             | Development and CI                                                |
+| pnpm       | 12.21.0                             | Frozen dependency installation and recursive builds               |
+| Vite+      | 1.7.0                               | Library build, Oxfmt, typed Oxlint and behavior tests             |
+| TypeScript | `npm:@typescript/typescript6@6.0.2` | Explicit `tsc6` checks and declaration/compiler API compatibility |
+| publint    | 0.3.25                              | Standard built-package and exact-tarball validation               |
+| Vue        | 3.5.46                              | Runtime in the temporary browser consumer                         |
+| Playwright | 1.65.1                              | Chromium execution against installed candidates                   |
 
-## Source cleanup
+Volar, vue-tsc, unplugin-vue and the Vue Vite plugin are no longer direct repository
+dependencies or explicit requirements. Declaration tooling may still resolve Vue
+typing peers transitively.
+The browser proof uses `createApp`, `h`, a button and CSS; no SFC or docs build is a
+release requirement. Product dependencies remain with the package that uses them.
+Armour uses typage (`age-encryption`); native age is an independent test oracle.
 
-Removed copied `legacy/` implementations under Identity, Armour and Concord, plus
-the retired Utils product and obsolete Ledger implementation. Ledger is now restored
-as a standalone public library with the common container used by Concord. The copied archives matched the committed
-review checkpoint before removal; Git retains the implementations. Useful Identity
-serialization/recovery helpers now live in `src/serialized.ts`. Armour's private
-engine and error names describe age rather than the removed Rage implementation.
+pnpm reads install policy from `pnpm-workspace.yaml`; `.npmrc` declares the registry.
+The workspace explicitly permits esbuild's install script and records the reviewed
+Vue release-age exceptions. The lockfile resolves transitive versions. Toolchain
+updates need the same source and installed-consumer checks as other packaging changes.
+No speed claim follows from switching tools without a measured comparison.
 
-Concord's private `runtime/` modules own host validation, result validation,
-system-output validation and model folding. The runtime retains command queues,
-drafts and atomic state publication together. This extraction preserves function
-bodies and public exports.
+## Acceptance boundaries
 
-Workspace is intentionally deferred until the libraries run smoothly and a substantial
-set of demos has been built. It is not live, and its migration, cleanup and existing
-working edits do not block the library release. Preserve it without further work for
-now. UI is dropped from the v1 product scope under
-[ADR 0017](../adr/0017-drop-ui-from-the-library-release.md); its excluded sources
-and old `scripts/vite` build remain reference material. Neither directory is part
-of the new package checks or release candidates. Portable Vue fixtures remain
-tooling and browser regression consumers.
+`pnpm check` runs eight separate gates: project contract, read-only formatting,
+recursive build, typed lint, root types, package types, behavior and packed consumers.
+The small contract check enforces five-library membership, public ESM metadata,
+required scripts and workspace dependency policy. Standard publint validates package
+artifacts; it does not replace behavior, declaration or browser checks.
 
-The five public products are Identity, Armour, Ledger, Concord and Seal. Tooling is
-private infrastructure pending simplification; profile fixtures, apps and overlapping
-planning documents remain cleanup work. Original Ledger protection conveniences and
-staged-state persistence still need explicit treatment.
+The consumer harness packs each library once, records SHA-256, runs strict publint
+on those bytes, and installs the candidates outside the workspace with explicit
+candidate overrides. It exercises Node 22.18, Node 24.21 and the development runtime;
+CI requires the compatibility executables explicitly. It retains fixed crypto
+vectors, public declarations and intended compiler failures, CLI behavior, protocol
+and library import isolation, Armour codecs, Ledger lifecycle, Concord groups/drafts/
+storage and Seal proof/artifact behavior. A temporary plain Vite+ Vue production
+build executes those browser proofs in Chromium and checks CSS/interaction.
+Deliberately failing lint, format and behavior inputs check useful failure propagation.
 
-Root README, contribution instructions and ISC license explain the actual setup.
-Dated planning documents remain evidence, with links to this implemented state;
-they do not certify current tests or completed publication.
+These overrides prevent fallback to registry predecessors but do not prove final
+published sibling ranges. That separate release gate remains on the
+[release backlog](release-and-deployment.md#release-backlog).
+Reports are `artifacts/check.json`, `artifacts/consumers.json`,
+`artifacts/browser.png` and retained candidate tarballs. They describe their own run;
+older test counts, builds or remote CI results do not certify newer edits.
+
+## Automation and retained documentation
+
+One read-only CI workflow installs the frozen lockfile, pinned age reference and
+browser, runs acceptance and retains reports/tarballs. Third-party actions are pinned
+to reviewed SHAs. There is no active npm publisher or application deployer.
+The release planner, verified-artifact publisher and registry onboarding are backlog
+work. Renovate is configured without automatic merging; the owner must enable it.
+
+Copied legacy implementations, the retired Utils product and obsolete publishers
+were removed; Git retains their history. Current protocol, standard-profile, group,
+storage and Seal format docs and fixed vectors remain authoritative. Dated migration,
+tooling and review reports whose useful contracts are now represented there are
+retired rather than retained as competing plans. The first-slice and independent-group
+notes remain at their established paths with current ownership and evidence pointers.

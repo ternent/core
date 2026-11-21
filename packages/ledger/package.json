@@ -36,22 +36,18 @@
     "typecheck": "tsc6 --noEmit -p tsconfig.json",
     "test": "vp test run",
     "build": "vp pack",
-    "check:artifact": "ternent-tooling validate . --built",
-    "check": "vp run verify"
+    "check:artifact": "publint --strict --pack false",
+    "check": "pnpm --filter @ternent/ledger... run build && pnpm run fmt:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:artifact"
   },
   "dependencies": {
     "@noble/hashes": "2.4.0",
     "@ternent/identity": "workspace:^"
   },
   "devDependencies": {
-    "@ternent/tooling": "workspace:*",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "vite-plus": "1.7.0"
   },
   "engines": {
     "node": ">=22.18.0"
-  },
-  "ternent": {
-    "profile": "ts-library"
   }
 }

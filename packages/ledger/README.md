@@ -117,9 +117,11 @@ trust. Only payload data is encrypted: entry kind, author, timestamps, metadata 
 history structure remain visible. The host decides which decoded data to project;
 Ledger's synchronous projector continues to receive the recorded payload.
 
-Externally owned storage remains the migration contract. Staged-state persistence
-still requires an explicit retain/move/drop decision. Committed `export()` is not
-a recovery format for staged work.
+Staged entries stay in a simple in-memory array. The consumer chooses when to commit
+and owns any draft autosave or recovery. Ledger has no draft persistence adapter,
+recovery snapshot or restore API. Committed `export()` remains signed-history only;
+external storage and push/pull workflows exchange committed snapshots. See
+[the persistence decision](../../docs/adr/0019-keep-draft-persistence-with-consumers.md).
 No historical `concord-ledger` or former Concord-alpha import adapter is included.
 
 ## Container format

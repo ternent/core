@@ -6,43 +6,43 @@ the host owns its data and storage.
 | Package                                 | Responsibility                                                            |
 | --------------------------------------- | ------------------------------------------------------------------------- |
 | [Identity](packages/identity/README.md) | Seed identities, signatures, recovery and key derivation                  |
-| [Armour](packages/armour/README.md)     | age encryption through FiloSottile's TypeScript implementation, typage    |
-| [Concord](packages/concord/README.md)   | Framework composition, authority, encrypted groups and application replay |
-| [Seal](packages/seal/README.md)         | Standalone proofs, encrypted artifacts, manifests and a Node CLI          |
+| [Armour](packages/armour/README.md)     | age encryption through the TypeScript implementation, typage              |
 | [Ledger](packages/ledger/README.md)     | Standalone signed log, staging, commits, verification and replay          |
+| [Concord](packages/concord/README.md)   | Commands, authority, encrypted groups and application replay above Ledger |
+| [Seal](packages/seal/README.md)         | Standalone proofs, encrypted artifacts, manifests and a Node CLI          |
 
-The five public products are Identity, Armour, Ledger, Concord and Seal. They are
-alpha candidates using one Ledger-owned container and history lifecycle. Isolated candidate-registry verification,
-the verified-artifact publisher and registry acceptance remain on the
-[shipping backlog](docs/engineering/shipping-inventory-2026-11-20.md).
-The existing UI and Workspace directories are excluded from the active workspace.
-Tooling is private repository infrastructure pending simplification; apps, profile
-fixtures and overlapping planning documents remain cleanup work. There is no
-maintained UI package in the v1 release; see
-[the UI scope decision](docs/adr/0017-drop-ui-from-the-library-release.md).
-Workspace work is deferred until the libraries are stable and a substantial set of
-demos has been built; it does not block the library release.
+These five independently usable libraries are the active workspace and release
+scope. Ledger owns the common signed container and history lifecycle. Concord
+composes commands, authority and encryption above it. Staging is in memory;
+consumers choose commit cadence and own any draft persistence or recovery.
 
 Use Node **26.13.1** and pnpm **12.21.0**:
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm exec playwright install chromium
 pnpm check
 ```
 
-The full check builds public outputs, checks formatting, lint and types, runs
-behavior tests, installs exact tarballs into an isolated consumer, and exercises
-production Vue and docs builds in Chromium. See [CONTRIBUTING.md](CONTRIBUTING.md)
-for setup and focused commands.
+The acceptance gate checks contracts, formatting, builds, lint, types and behavior,
+then validates exact tarballs with publint and installs them in an isolated
+Node/browser consumer. The temporary Vue browser consumer uses ordinary render
+functions and CSS. See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites and
+focused checks. A configured check is not a release receipt.
 
-`packages/` owns product code, `tooling/` currently holds private development helpers,
-`fixtures/` and `apps/handshake/` prove consumption, and `scripts/verify/` owns
-repository checks. Workspace selection lives in `pnpm-workspace.yaml`; root checks
-derive package paths from that selection. Historical implementations belong in Git.
+`packages/` owns the libraries, `scripts/verify/` owns repository acceptance,
+and `docs/` owns contracts and decisions. Root Vite+ and TypeScript base configs
+share repository defaults; each package declares its own entries and outputs.
+There is no portable tooling product or maintained application in core. UI is
+outside this release under [ADR 0017](docs/adr/0017-drop-ui-from-the-library-release.md).
+Workspace remains deferred until the libraries are stable and substantial demos
+exist. Demos should consume published libraries from outside core.
 
 Start with the [project brief](docs/concord/context.md),
 [alpha architecture](docs/concord/alpha-architecture.md) and
 [repository guide](docs/engineering/repository-hygiene.md). Signed history is
 authoritative; projections are derived, and storage publication is a separate step.
+Candidate-registry verification, release automation and registry onboarding remain
+on the [release backlog](docs/engineering/release-and-deployment.md).
 
 ISC licensed. See [LICENSE](LICENSE).

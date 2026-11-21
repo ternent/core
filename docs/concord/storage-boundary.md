@@ -88,9 +88,10 @@ policy. Expected-head checks prevent routine stale writes; anchors detect stale 
 An old valid snapshot can still open unanchored. Opening with a remembered full newer
 snapshot rejects rollback as `STALE_HEAD` and retains the bytes for inspection.
 
-Expected head is not a byte revision: unsigned annotation changes can retain the same
-head, and an away-and-back sequence is not detected by this token alone. A host needing
-those distinctions must use a provider revision/ETag or a stronger transaction contract.
+Expected head is not a byte revision: transport whitespace/key ordering can change
+while retaining the same head, and an away-and-back sequence is not detected by this
+token alone. All Ledger subject metadata is signed. A host needing byte-revision
+distinctions must use a provider revision/ETag or a stronger transaction contract.
 No freshness protection can be inferred from success when the host forgot its anchor.
 
 ## Scope of the proof
@@ -101,10 +102,12 @@ other processes or independent instances. A real adapter advertising this capabi
 must use its storage transaction/conditional-write primitive. A client-side read then
 ordinary write cannot establish atomic expected-head protection.
 
-The existing handshake's file publisher separately proves atomic create-only
-publication through a filesystem hard link, with conflicting candidates retained.
-It is not a general expected-head update adapter. No transport, persistence provider,
-storage framework, new subpath or runtime storage option is introduced here.
+The former handshake app is retired. The reference helper and public tests retain
+the library conflict, fork, anchor and failure-preservation checks. No transport,
+persistence provider, storage framework, new subpath or runtime storage option is
+introduced here.
 
-[Implementation and verification evidence](../engineering/storage-boundary-2026-11-20.md)
-records source tests, installed consumers and current environmental limits.
+Source cases live in `packages/concord/test/storage.test.ts`; external Node/browser
+consumers exercise the public package. The
+[repository guide](../engineering/repository-hygiene.md#acceptance-boundaries) identifies
+acceptance reports and their limits.

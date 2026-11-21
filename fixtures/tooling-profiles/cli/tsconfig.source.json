@@ -1,4 +1,0 @@
-{
-  "extends": "@ternent/tooling/tsconfig/node.json",
-  "include": ["src/**/*.ts"]
-}

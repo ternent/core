@@ -15,14 +15,20 @@ import {
 import { tmpdir } from "node:os";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { chromium } from "playwright";
-import { validatePackage } from "@ternent/tooling/validation";
-import { readManifest, workspacePackages } from "./workspace.mjs";
+import { workspacePackages } from "./workspace.mjs";
 
 const root = process.cwd();
 const rootManifest = /** @type {{devDependencies: Record<string, string>}} */ (
   JSON.parse(readFileSync("package.json", "utf8"))
 );
 const packages = workspacePackages();
+assert.deepEqual(packages.map(({ name }) => name).sort(), [
+  "@ternent/armour",
+  "@ternent/concord",
+  "@ternent/identity",
+  "@ternent/ledger",
+  "@ternent/seal",
+]);
 mkdirSync("artifacts", { recursive: true });
 const candidateDir = mkdtempSync(resolve("artifacts", "candidates-"));
 const consumer = mkdtempSync(join(tmpdir(), "ternent-packed-consumer-"));
@@ -48,10 +54,8 @@ function put(name, value) {
   writeFileSync(path, typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`);
 }
 
-/** Local artifact routing proof; production behavior still requires a Cloudflare deployment test.
- * @param {string} directory @param {boolean} spa
- */
-async function serve(directory, spa) {
+/** Serve the temporary production browser bundle. @param {string} directory */
+async function serve(directory) {
   const types = /** @type {Record<string, string>} */ ({
     ".html": "text/html",
     ".js": "application/javascript",
@@ -63,18 +67,15 @@ async function serve(directory, spa) {
   const server = createServer((request, response) => {
     const pathname = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname);
     let file = resolve(directory, `.${pathname}`);
-    if (relative(directory, file).startsWith(`..${sep}`)) {
+    const local = relative(directory, file);
+    if (local === ".." || local.startsWith(`..${sep}`)) {
       response.writeHead(400).end();
       return;
     }
     if (existsSync(file) && statSync(file).isDirectory()) file = join(file, "index.html");
-    if (!existsSync(file) && !extname(file) && existsSync(`${file}.html`)) file += ".html";
     if (!existsSync(file)) {
-      if (spa && !extname(pathname)) file = join(directory, "index.html");
-      else {
-        response.writeHead(404, { "Content-Type": "text/plain" }).end("Not found");
-        return;
-      }
+      response.writeHead(404, { "Content-Type": "text/plain" }).end("Not found");
+      return;
     }
     response.writeHead(200, { "Content-Type": types[extname(file)] ?? "application/octet-stream" });
     response.end(readFileSync(file));
@@ -96,35 +97,26 @@ async function serve(directory, spa) {
 
 try {
   for (const entry of packages) {
-    assert.deepEqual(validatePackage(entry.path, { built: true }), [], `artifact: ${entry.name}`);
-    const profile = readManifest(entry.path).ternent?.profile;
-    if (profile === "vue-app" || profile === "docs-app") continue;
     const result = JSON.parse(
       pnpm(["pack", "--json", "--pack-destination", candidateDir], entry.path),
     );
     const packed = Array.isArray(result) ? result[0] : result;
     const file = resolve(candidateDir, packed.filename);
     assert(existsSync(file), `Missing packed file: ${file}`);
+    console.log(pnpm(["exec", "publint", file, "--strict"], root));
     candidates[entry.name] = {
       file,
       sha256: createHash("sha256").update(readFileSync(file)).digest("hex"),
     };
   }
-  checks.push("all declared package/app artifact targets validated");
+  checks.push("all five exact library tarballs pass strict publint validation");
   const dependencies = Object.fromEntries(
     Object.entries(candidates).map(([name, data]) => [name, `file:${data.file}`]),
   );
-  for (const name of [
-    "vite-plus",
-    "typescript",
-    "vue",
-    "vue-tsc",
-    "@types/node",
-    "@volar/language-service",
-    "unplugin-vue",
-    "@vitejs/plugin-vue",
-  ])
+  for (const name of ["vite-plus", "typescript", "vue", "@types/node"]) {
+    assert(rootManifest.devDependencies[name], `Missing consumer tool: ${name}`);
     dependencies[name] = rootManifest.devDependencies[name];
+  }
   put("package.json", {
     name: "@ternent-consumers/verification",
     version: "1.0.0",
@@ -241,36 +233,30 @@ try {
   checks.push(
     `Optional Armour payload codec, keyless Ledger verification and locked/readable decoding on ${versions}`,
   );
-  const output = execFileSync(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      'import { greet } from "@ternent-fixtures/library"; import { formatCount } from "@ternent-fixtures/library/format"; import { renderGreeting } from "@ternent-fixtures/cli"; import { defineLibrary } from "@ternent/tooling/config"; import { validateManifest } from "@ternent/tooling/validation"; if (greet("Concord") !== "Hello, Concord" || formatCount(2) !== "2 items" || renderGreeting("CLI") !== "Hello, CLI" || !defineLibrary({ entry: { index: "src/index.ts" } }).pack || validateManifest({}).length === 0) throw new Error("public imports failed"); console.log("public imports passed");',
-    ],
-    { cwd: consumer, encoding: "utf8" },
-  );
-  assert.equal(output.trim(), "public imports passed");
-  assert.equal(
-    execFileSync(join(consumer, "node_modules/.bin/ternent-fixture"), ["Concord"], {
-      cwd: consumer,
-      encoding: "utf8",
-    }).trim(),
-    "Hello, Concord",
-  );
-  checks.push("public imports/subpath/tooling/CLI behavior with no import side effects");
   put("tsconfig.json", {
-    extends: "@ternent/tooling/tsconfig/library.json",
+    compilerOptions: {
+      target: "ES2022",
+      module: "NodeNext",
+      moduleResolution: "NodeNext",
+      strict: true,
+      noEmit: true,
+      skipLibCheck: false,
+      verbatimModuleSyntax: true,
+      resolveJsonModule: true,
+      forceConsistentCasingInFileNames: true,
+      lib: ["ES2022", "DOM"],
+      types: ["node", "vite-plus/client"],
+    },
     include: [
-      "consumer.ts",
-      "config-contract.ts",
-      "feedback.ts",
       "concord-types.ts",
       "primitives-types.ts",
       "groups-types.ts",
       "storage-types.ts",
       "seal-types.ts",
       "ledger-types.ts",
+      "src/**/*.ts",
+      "vite.config.ts",
+      "feedback.ts",
     ],
   });
   put("ledger-types.ts", readFileSync(resolve(root, "scripts/verify/ledger-types.txt"), "utf8"));
@@ -282,33 +268,30 @@ try {
     readFileSync(resolve(root, "scripts/verify/primitives-types.txt"), "utf8"),
   );
   put(
-    "consumer.ts",
-    'import { greet } from "@ternent-fixtures/library";\nimport { formatCount } from "@ternent-fixtures/library/format";\nimport { CounterButton } from "@ternent-fixtures/vue-library";\nconst message: string = greet("typed");\nconst count: string = formatCount(1);\ntype Props = InstanceType<typeof CounterButton>["$props"];\nconst props: Props = { label: message };\n// @ts-expect-error A published command argument retains its type.\ngreet(42);\n// @ts-expect-error Vue declarations retain required prop types.\nconst invalid: Props = { label: 42 };\nvoid [message, count, props, invalid];\n',
-  );
-  put(
-    "config-contract.ts",
-    'import { defineLibrary } from "@ternent/tooling/config";\nimport type { UserConfig } from "vite-plus";\nconst config: UserConfig = defineLibrary({ entry: { index: "src/index.ts" } });\n// @ts-expect-error The public build input rejects non-string entries.\ndefineLibrary({ entry: { index: 42 } });\nvoid config;\n',
-  );
-  put(
     "concord-types.ts",
     'import {createDocument,openDocument} from "@ternent/concord";\nimport {createStandardSystemProfile} from "@ternent/concord/system";\nimport {registerModel} from "@ternent/concord/testing";\nimport {generateIdentity} from "@ternent/armour";\nconst identity=await generateIdentity();if(!identity.ok)throw new Error();\nconst created=await createDocument({model:registerModel,system:createStandardSystemProfile(),identity:identity.value});if(!created.ok)throw new Error();\nawait created.value.dispatch("set",{value:"typed"});\n// @ts-expect-error unknown command names are rejected.\nawait created.value.dispatch("missing",{});\n// @ts-expect-error command payload types survive publishing.\nawait created.value.dispatch("set",{value:42});\nconst opened=await openDocument({bytes:created.value.export(),model:registerModel,system:createStandardSystemProfile(),signer:identity.value});\nawait opened.dispatch("set",{value:"typed"});\n// @ts-expect-error open retains model command types.\nawait opened.dispatch("set",{value:42});\n',
   );
-  console.log(pnpm(["exec", "tsc6", "--noEmit", "-p", "tsconfig.json"]));
-  checks.push("published declarations, Vue props and expected TypeScript failures");
-  put("src/index.ts", 'export { greet } from "@ternent-fixtures/library";\n');
   put(
-    "vite.config.ts",
-    'import { defineLibrary } from "@ternent/tooling/config";\nexport default defineLibrary({ entry: { index: "src/index.ts" } });\n',
+    "index.html",
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Library consumer verification</title></head><body><main id="app"></main><script type="module" src="/src/main.ts"></script></body></html>',
   );
-  console.log(pnpm(["exec", "vp", "pack"]));
-  checks.push("portable tooling builds a new library outside the workspace");
-  cpSync(resolve(root, "fixtures/tooling-profiles/app/src"), join(consumer, "src"), {
-    recursive: true,
-  });
-  cpSync(resolve(root, "fixtures/tooling-profiles/app/index.html"), join(consumer, "index.html"));
   put(
     "vite.config.ts",
-    'import { defineApp } from "@ternent/tooling/config";\nexport default defineApp();\n',
+    `import { defineConfig } from "vite-plus";
+export default defineConfig({
+  define: {
+    __VUE_OPTIONS_API__: true,
+    __VUE_PROD_DEVTOOLS__: false,
+    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
+  },
+  build: { target: "es2022", sourcemap: true },
+  lint: {
+    options: { typeAware: true, typeCheck: false },
+    rules: { "typescript/no-floating-promises": "error" },
+  },
+  test: { include: ["test/**/*.test.ts"], passWithNoTests: false },
+});
+`,
   );
   put(
     "public/seal-proof.v2.json",
@@ -318,28 +301,30 @@ try {
     "src/concord-proof.ts",
     readFileSync(resolve(root, "scripts/verify/concord-browser.txt"), "utf8"),
   );
+  put("src/main.ts", readFileSync(resolve(root, "scripts/verify/browser-main.txt"), "utf8"));
   put(
-    "src/main.ts",
-    readFileSync(join(consumer, "src/main.ts"), "utf8") +
-      '\nimport {proveConcord} from "./concord-proof.js";\nvoid proveConcord();\n',
+    "src/style.css",
+    ".consumer-counter { color: #13529b; font: inherit; padding: 0.5rem 1rem; }\n",
+  );
+  console.log(pnpm(["exec", "tsc6", "--noEmit", "-p", "tsconfig.json"]));
+  checks.push(
+    "five-library published declarations, browser consumer types and expected TypeScript failures",
   );
   console.log(pnpm(["exec", "vp", "build"]));
-  checks.push("portable tooling builds a Vue app against installed candidate libraries");
+  checks.push(
+    "plain Vite+ production build of a temporary Vue render consumer using installed candidates",
+  );
   const browser = await chromium.launch({ headless: true });
   try {
-    const app = await serve(join(consumer, "dist"), true);
-    const docs = await serve(
-      resolve(root, "fixtures/tooling-profiles/docs/site/.vitepress/dist"),
-      false,
-    );
+    const app = await serve(join(consumer, "dist"));
     try {
       const page = await browser.newPage();
       page.setDefaultTimeout(15_000);
       page.setDefaultNavigationTimeout(15_000);
       /** @type {string[]} */ const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto(`${app.url}/boards/example`);
-      const button = page.getByRole("button", { name: "Hello, Concord: 0" });
+      await page.goto(app.url);
+      const button = page.getByRole("button", { name: "Library consumer: 0" });
       await button.waitFor();
       await page.locator("#concord-proof").filter({ hasText: "Concord: hello browser" }).waitFor();
       assert.equal(
@@ -347,20 +332,16 @@ try {
         "rgb(19, 82, 155)",
       );
       await button.click();
-      await page.getByRole("button", { name: "Hello, Concord: 1" }).waitFor();
+      await page.getByRole("button", { name: "Library consumer: 1" }).waitFor();
       assert.equal((await page.request.get(`${app.url}/missing.js`)).status(), 404);
-      await page.screenshot({ path: resolve(root, "artifacts/browser.png") });
-      await page.goto(docs.url);
-      await page.getByRole("heading", { name: /^Ternent tooling pilot/, level: 1 }).waitFor();
-      assert.equal((await page.request.get(`${docs.url}/absent.html`)).status(), 404);
       assert.deepEqual(errors, []);
+      await page.screenshot({ path: resolve(root, "artifacts/browser.png") });
       await page.close();
       checks.push(
-        "Chromium: standalone Ledger, Seal proof/artifact and encrypted Concord lifecycle, production CSS, Vue interaction, deep navigation, docs and missing-asset/404 behavior",
+        "Chromium: standalone Ledger, Armour codecs, fixed Seal proof/artifact, encrypted Concord and independent groups, storage, drafts, production CSS and Vue render interaction",
       );
     } finally {
       await app.close();
-      await docs.close();
     }
   } finally {
     await browser.close();
@@ -371,7 +352,11 @@ try {
     encoding: "utf8",
     env: { ...process.env, CI: "true" },
   });
-  assert.notEqual(lintFailure.status, 0, "A floating promise must fail the portable lint policy");
+  assert.notEqual(
+    lintFailure.status,
+    0,
+    "A floating promise must fail the explicit typed lint rule",
+  );
   assert.match(`${lintFailure.stdout}${lintFailure.stderr}`, /no-floating-promises/);
   put("bad-format.ts", "export const messy={a:1,b:2}");
   const formatFailure = spawnSync("pnpm", ["exec", "vp", "fmt", "--check", "bad-format.ts"], {
@@ -385,7 +370,7 @@ try {
     "export const messy={a:1,b:2}",
   );
   assert.match(`${formatFailure.stdout}${formatFailure.stderr}`, /bad-format.ts/);
-  checks.push("portable typed lint and read-only formatting propagate useful failures");
+  checks.push("explicit typed lint and read-only formatting propagate useful failures");
   put(
     "test/failure.test.ts",
     'import { expect, test } from "vite-plus/test";\ntest("intentional failure", () => expect(1).toBe(2));\n',
@@ -398,6 +383,13 @@ try {
   assert.notEqual(failing.status, 0, "A failing behavior test must exit nonzero");
   assert.match(`${failing.stdout}${failing.stderr}`, /intentional failure/);
   checks.push("an actual failing test propagates a failure exit status");
+  for (const { file, sha256 } of Object.values(candidates))
+    assert.equal(
+      createHash("sha256").update(readFileSync(file)).digest("hex"),
+      sha256,
+      `Candidate changed: ${file}`,
+    );
+  checks.push("verified tarballs retain their recorded SHA-256 digests");
   writeFileSync("artifacts/consumers.json", `${JSON.stringify({ candidates, checks }, null, 2)}\n`);
   console.log(JSON.stringify({ candidates: Object.keys(candidates), checks }, null, 2));
 } catch (error) {

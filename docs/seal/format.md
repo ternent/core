@@ -83,4 +83,4 @@ Only the separate executable imports Node filesystem/path/URL APIs. All six publ
 library exports have declarations and are checked with Node builtins, Concord, Utils
 and Rage imports blocked. The browser fixture bundles proof/artifact operations from
 the installed candidates. Its execution status is recorded separately in the
-[migration evidence](../engineering/seal-migration-2026-11-20.md).
+[current acceptance reports](../engineering/repository-hygiene.md#acceptance-boundaries).

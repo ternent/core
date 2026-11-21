@@ -11,7 +11,6 @@ const gates = [
   ["types:root", ["run", "typecheck"]],
   ["types:workspace", ["--recursive", "run", "typecheck"]],
   ["behavior", ["run", "test"]],
-  ["handshake:artifact", ["--filter", "@ternent/app-handshake", "run", "check:artifact"]],
   ["consumers", ["run", "check:artifact"]],
 ];
 /** @type {{gate: string, seconds: number, exitCode: number}[]} */

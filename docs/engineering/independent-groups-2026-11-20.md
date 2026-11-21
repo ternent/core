@@ -1,116 +1,81 @@
 # Independent groups and readable replay
 
-B03/B04 implementation, 2026-11-20. Follow-up: [B05 now implements drafts](draft-authoring-2026-11-20.md);
-the checks and remaining-scope observations below describe the earlier group slice. The default `document` group and additional
-privacy groups now have separate membership, authority and encryption epochs.
-This is a pre-release revision of standard profile 1. The existing owner-only signed
-vectors remain byte-for-byte unchanged; no old-runtime compatibility is promised.
+The B03/B04 slice introduced independent membership and explicit readable/locked
+replay. This retained note describes that implemented behavior and where to find
+its evidence. The current signed container is Ledger under
+[ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md); fixed documents were
+regenerated for that accepted format change. Earlier Concord-only hashes and old
+test counts are not current acceptance evidence.
 
-## Behaviour delivered
+## Behavior and authority
 
-- A default-group writer can create a group without owner approval. The creator
-  gets all four capabilities; the default owner gets no implicit access or control.
-- Members can join a group without joining `document`. Removing default membership
-  leaves their other group rights and keys intact. Each application command selects
-  one audience; every emitted event must select that same audience.
-- Admission/re-admission includes every historical epoch key for the selected group.
-  Removal rotates only that group, with wraps to exactly its remaining members.
-  Retained old keys/plaintext stay readable; new epochs stay locked until granted.
-- Replay verifies complete reachable history and validates every public authority
-  transition before decryption/model callbacks. Available-key authentication/context
-  failures remain invalid; missing keys produce explicit locked markers.
-- A model requires all events unless it implements `reduceLocked`. That hook receives
-  only the public marker and historical audience-scoped facts. A failed hook or later
-  readable transition publishes no intermediate trusted projection.
-- Ready state and `replay()` now both include coverage and exact locked count.
-  `replay()` returns `{ projection, coverage, lockedEntries }`. Complete coverage has
-  zero locked entries; readable coverage reports application status `scoped` and
-  never certifies hidden application semantics.
-- Inspection exposes ordered readable/locked entries and public audience summaries
-  after a successful complete system pass, including when model replay later fails.
-  Profile output is checked for exact entry coverage, signer/audience binding and
-  closed nested member/epoch records before publication. Identity validation is
-  cached within that output-validation pass.
+- A default `document` writer can create a group without owner approval. Its creator
+  gets the group's four capabilities; the document owner gets no implicit access.
+- Group membership is independent of `document`. Removing default membership leaves
+  other group rights intact. Every command selects one audience, and every event
+  emitted by that command must select that same audience.
+- Admission/re-admission grants every historical epoch key for that group. Removal
+  rotates only that group and wraps the new key for exactly its remaining members.
+  Already obtained keys/plaintext remain available; revocation cannot erase them.
+- Replay verifies complete signed history and every public authority transition
+  before decryption/model callbacks. Missing keys yield locked markers; available-key
+  authentication/context failure invalidates reconstruction.
+- A model requires all events unless it opts into `reduceLocked`. That hook receives
+  a public marker and historical audience-scoped facts. Neither failed locked handling
+  nor a late readable transition may publish an intermediate trusted projection.
+- Ready state and `replay()` report projection, coverage and exact locked count.
+  Complete coverage has no locked entries. Readable coverage is a scoped application
+  reconstruction and does not certify hidden application semantics.
+- Successful system replay exposes ordered readable/locked inspection entries and
+  public audience summaries, even if later model replay fails. Runtime checks profile
+  output for exact coverage, signer/audience binding and closed nested member/epoch
+  records before exposing that evidence.
 
-## Ownership and public API
+The [group design](../concord/group-profile-design.md),
+[standard profile](../concord/standard-profile.md) and
+[conformance scenarios](../concord/conformance.md) own the exact current contract.
+[ADR 0015](../adr/0015-keep-audience-memberships-independent.md) and
+[ADR 0016](../adr/0016-route-each-command-to-one-audience.md) record the decisions.
 
-The existing system implementation owns group keys, wraps, epochs and membership;
-Identity/Armour still own cryptography. Armour continues to use typage through
-`age-encryption@0.3.1`, without WASM or an initialization lifecycle. There is one
-application encryption operation per entry, to its chosen group/epoch. No benchmark
-or measured speed/size gain is claimed.
+## API and disclosure
 
-`@ternent/concord/system` adds `createGroup(handle)`. Member helpers accept optional
-`audience`, defaulting to `document` only when omitted. Application models may add
-command `audience(input)`, event `audience(event)` and `reduceLocked`. Defaults retain
-document-only routing. Mixed routing fails before protection/signing.
+`@ternent/concord/system` supplies `createGroup`, `setMember` and `removeMember`.
+Member helpers default to `document` only when audience is omitted. Models can supply
+command/event audience selectors and `reduceLocked`; omitted selectors use document
+routing. Mixed command routing fails before protection/signing.
 
-Group IDs, membership/capability changes, signers, wrap targets, epochs/recipients,
-linkage, sizes/counts and signed commit metadata remain public. Group names and
-descriptions belong in encrypted application data. No metadata-hiding guarantee,
-trial-decryption routing, anonymous envelope or automatic owner self-grant is added.
+The system owns membership, group keys, wraps and epochs; Identity/Armour own the
+cryptography. Each application entry is encrypted once to one named group/epoch.
+No anonymous envelope, trial-decryption routing or automatic owner self-grant is
+introduced. Group IDs, capabilities, signers, wrap targets, epochs/recipients,
+linkage, sizes/counts and signed metadata remain public. Names and descriptions
+belong in encrypted application data.
 
-Primary code: `packages/concord/src/{runtime,model/types,protocol/types,protocol/schema}.ts`
-and `src/system/{types,standard,audience,authoring,index}.ts`. The existing handshake
-consumer changes only its historical facts and unavailable-key smoke expectation.
-No new product application is introduced.
+## Evidence to preserve
 
-## Fixed evidence and checks
+Saved `groups.removed.document.json` and `groups.readmitted.document.json` vectors
+cover two groups, an owner outside both, independent default removal, group rotation
+and full-history readmission. Literal expectations cover three readers at both heads.
+Node crypto independently checked the Ledger hashes and Ed25519 signatures; expected
+projections were constructed from the six intended application events, not replay.
+See [vector provenance](../concord/vectors/README.md).
 
-The original Identity/age/protocol owner vectors are unchanged. New fixed
-`groups.removed.document.json` and `groups.readmitted.document.json` snapshots hold
-two groups, an owner outside both, independent default removal, group rotation and
-full-history readmission. Literal expected results cover three readers at both heads.
-They were authored once; built-in Node crypto separately checked all hashes and
-Ed25519 signatures. Expectations were constructed from the intended six application
-events, not generated from replay. See [vector provenance](../concord/vectors/README.md).
+`packages/concord/test/groups.test.ts` covers permissions, historical access,
+routing/atomicity, opted-in/full models, saved-byte determinism, signed semantic
+failures, cross-group substitution, tampering before callbacks and malformed profile
+streams. Membership/runtime tests retain complementary failure coverage. External
+candidate consumers exercise the saved vectors and public authoring; declaration
+fixtures check helpers, coverage and locked-marker narrowing. The Chromium proof
+includes independent-group scoped replay.
 
-`packages/concord/test/groups.test.ts` covers independent permissions, historical
-access, routing/atomicity, opted-in/full models, saved-byte determinism, signed
-semantic failures, cross-group substitution, tampering before callbacks and malformed
-profile streams. Existing membership/runtime tests retain their failure coverage
-while adopting the new public result shape and retained-history behaviour.
+Current gate results belong to the run reports described in the
+[repository guide](repository-hygiene.md#acceptance-boundaries), not this dated note.
+No publication, remote CI status or performance measurement is inferred here.
 
-Installed candidate consumers exercise the fixed group vectors and public authoring
-on Node 22.18.0 and 24.21.0 outside the workspace. Published declaration checks include
-group helpers, nullable/invalid types, coverage wrapping and locked-marker narrowing.
-The browser fixture now also proves independent group access and scoped replay.
-
-Verification used pinned Node 24.21.0 / pnpm 10.33.4:
-
-| Check                                                     | Result                                                                          |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Root behaviour suite                                      | 137 tests passed in 15 files, including 19 group tests                          |
-| Built handshake CLI/MCP artifact smoke                    | 2 tests passed                                                                  |
-| Contract, format, build, typed lint and all TS/Vue scopes | Passed                                                                          |
-| Installed candidate Node 22.18.0 / 24.21.0                | Primitive, Concord, fixed-group, authoring and protocol-isolation checks passed |
-| Installed declarations                                    | Passed, including intended TypeScript errors and locked-marker narrowing        |
-| External library and production Vue build                 | Passed                                                                          |
-| Chromium execution                                        | Blocked at launch by macOS Mach port permission denial                          |
-
-The first full run caught the handshake smoke's stale `READ_ACCESS_REQUIRED`
-expectation for an uninvited reader. The contract now distinguishes absent reader
-from missing keys; its expectation is `KEY_UNAVAILABLE`. Both smoke tests passed
-after that update. A read-only review then found the nested profile-output boundary
-gap; strict validation and a regression covering 24 malformed nested outputs pass.
-The final root gate run passes its first ten gates and exits nonzero in consumers
-only at Chromium launch (`bootstrap_check_in ... Permission denied (1100)`).
-The behaviour suite was rerun after the final regression addition: 137/137 passed.
-Browser assertions and the portable feedback checks located after browser execution
-were not reached. The browser fixture builds; execution is not claimed.
-
-The final exercised Concord candidate SHA-256 was
-`16aed74abc175cc2e7af16eda049d6d380e09238e173eebcdfcce64b096a7b2f`.
-Machine-local gate/candidate evidence is in `artifacts/pilot-check.json` and
-`artifacts/pilot-consumers.json`. They are verification outputs, not release receipts.
-This increment has no remote CI result; the earlier PR checkpoint's success does
-not certify these later edits.
-
-## Remaining work
-
-B05 draft mode is still unimplemented: requesting it returns `HOST_CONFIGURATION`.
-Cross-audience atomic batches will combine separate commands through that later mode.
-The reusable expected-head storage conflict proof follows it. Seal/UI activation,
-complete candidate-set verification and release publication remain their existing
-backlog items. No new npm package publication, remote CI verification, deployment or
-performance measurement is claimed by this implementation note.
+Draft authoring now groups separate single-audience commands into an atomic commit;
+see [draft conformance](../concord/conformance.md#d-and-s-grouped-authoring-and-complete-standard-profile-step-4).
+Draft persistence stays consumer-owned under
+[ADR 0019](../adr/0019-keep-draft-persistence-with-consumers.md).
+The [storage proof](../concord/storage-boundary.md) is implemented independently of
+runtime publication. Remaining delivery work is on the
+[release backlog](release-and-deployment.md#release-backlog).

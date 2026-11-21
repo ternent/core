@@ -17,7 +17,13 @@ export function workspacePackages(root = process.cwd()) {
   return data.filter((entry) => resolve(entry.path) !== resolve(root));
 }
 
-/** @param {string} root @returns {import('@ternent/tooling/validation').PackageManifest} */
+/** @typedef {{
+ * name: string, version: string, type: string, private?: boolean,
+ * packageManager?: string, exports?: Record<string, unknown>, bin?: Record<string, string>,
+ * dependencies?: Record<string, string>, peerDependencies?: Record<string, string>,
+ * scripts?: Record<string, string>, publishConfig?: {access?: string}
+ * }} PackageManifest */
+/** @param {string} root @returns {PackageManifest} */
 export function readManifest(root) {
   return JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 }

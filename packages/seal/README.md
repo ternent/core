@@ -109,5 +109,7 @@ explicit CLI override can exercise a locally installed candidate. This migration
 proves its manifest/sign/public-key command sequence against the installed executable;
 it does not change or release that Action or claim a registry-backed Action run.
 
-[Migration and verification notes](../../docs/engineering/seal-migration-2026-11-20.md)
-record checks and remaining limits.
+[Repository acceptance](../../docs/engineering/repository-hygiene.md#acceptance-boundaries)
+describes source and installed-consumer checks.
+[Release work](../../docs/engineering/release-and-deployment.md#release-backlog) remains
+separate from local candidate verification.

@@ -14,8 +14,8 @@ Draft authoring is implemented in B05; the reusable storage conflict proof is im
 
 Status: first-slice contract, 2026-10-21. Identity, Armour and the private immediate
 commit/register slice are implemented; [migration evidence](../engineering/alpha-first-slice.md)
-records executed checks and remaining increments. The local handshake is the first
-end-to-end application. Drafts and the reusable storage proof are implemented. The
+records the retained lifecycle and ownership. The former local handshake is retired;
+public library consumers preserve its applicable lifecycle/storage checks. Drafts and the reusable storage proof are implemented. The
 [accepted architecture](alpha-architecture.md) and ADRs 0001–0005 remain in force.
 New decisions are recorded in ADRs 0006–0009. No legacy compatibility is implied.
 
@@ -29,13 +29,13 @@ create -> dispatch/commit -> export -> open -> verify -> replay -> inspect
 independent verification and repeatability rather than required extra loading steps.
 The normative details are split by ownership:
 
-| Contract                                                       | Source                                                                 |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Signed wire schema, canonical bytes, IDs, signatures, ancestry | [Protocol 1](alpha-protocol.md)                                        |
-| Bootstrap, authorization, group keys, two-stage system replay  | [Standard profile 1](standard-profile.md)                              |
-| Fixed artifacts and observable success/failure checks          | [Conformance](conformance.md) and [vectors](vectors/README.md)         |
-| Runtime, typed models, module ownership, delivery              | This blueprint                                                         |
-| Published artifact and feedback gates                          | [Package tooling contract](../engineering/package-tooling-contract.md) |
+| Contract                                                       | Source                                                                              |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Signed wire schema, canonical bytes, IDs, signatures, ancestry | [Protocol 1](alpha-protocol.md)                                                     |
+| Bootstrap, authorization, group keys, two-stage system replay  | [Standard profile 1](standard-profile.md)                                           |
+| Fixed artifacts and observable success/failure checks          | [Conformance](conformance.md) and [vectors](vectors/README.md)                      |
+| Runtime, typed models, module ownership, delivery              | This blueprint                                                                      |
+| Published artifact and feedback gates                          | [Repository acceptance](../engineering/repository-hygiene.md#acceptance-boundaries) |
 
 If an implementation requires a new wire field or new security interpretation,
 change these documents and vectors deliberately before coding that behavior. Package
@@ -532,47 +532,25 @@ a real provider transaction/conditional write, not a non-atomic client read/writ
 
 ## 6. Toolchain and implementation order
 
-The [repository architecture](../engineering/repository-architecture.md) and
-[release/deployment contract](../engineering/release-and-deployment.md) now specify
-Step 0 in detail: replacement workspace, Vite+ profiles, independent package releases,
-and Cloudflare apps. Their concrete tool choices supersede the earlier evaluation
-language in this section; the runtime/protocol delivery sequence remains unchanged.
+The [repository guide](../engineering/repository-hygiene.md) defines the current
+five-library workspace, ordinary shared Vite+/TypeScript base configs and standard
+pnpm recursive builds. It supersedes the earlier portable-profile and app-driven
+rollout. The [release contract and backlog](../engineering/release-and-deployment.md)
+own candidate-registry verification, planning, publication and onboarding.
 
-Design baseline: ESM only for new alpha outputs, ES2022 syntax, Node 22 and 24 test
-lanes, plus a browser fixture with TextEncoder, typed arrays, and secure randomness.
-No CommonJS/UMD alpha promise. Browser CI must use pinned runner/browser versions and
-exercise real encryption; do not infer support from a syntax target. Record exact
-package-manager/tool pins in the pilot. The old Node 23 development pin is not a
-published runtime promise. Seal/Action and UI compatibility are separate migrations.
+The implemented library sequence covers strict Identity/Armour primitives, the
+Ledger-owned common container/lifecycle, Concord bootstrap and typed register,
+independent membership/readable replay, in-memory drafts, external storage conflict
+proof, and standalone Seal library/CLI. UI, portable tooling and the retired handshake
+are not release gates. The deferred board below remains an application example,
+not a required core package or hosted app.
 
-| Step | Deliverable                                                                                        | Exit gate                                                                                                                                       |
-| ---- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | Capture clean-rebuild baseline; choose/pin pilot tools; introduce portable tooling library profile | Source checks, build, declarations, isolated tarball imports catch absent entrypoints and undeclared dependencies; report elapsed scope/runtime |
-| 1    | Identity strict primitives and Armour binary pure TS age                                           | Fixed derivation/signature vectors; TS -> age and age -> TS decrypt; independently packed Identity/Armour consumers; no Rage WASM               |
-| 2    | Protocol parser, canonical encoder, IDs, verifier, compare                                         | Primitive and signed owner vectors plus every P/C case in conformance; protocol-only import works without model/keys/age engine                 |
-| 3    | Standard bootstrap, register model, create/dispatch/export/open/inspect                            | All first-slice R cases, no trusted state on tamper/locked/incompatible; identical saved-history replay                                         |
-| 4    | Standard member events                                                                             | Atomic failed commits, grant vs administer, historical key admission and revocation branches                                                    |
-| 5    | Private artifact handoff via local MCP                                                             | Two signed terms, offline invited verification, tamper and divergence inspection, digest-gated release                                          |
-| 6    | Whole-document store and expected-head memory/file proof                                           | Reopen, no staged-state leakage, simulated race retains local candidate, divergence classified and surfaced                                     |
-| 7    | Alpha release candidate                                                                            | Exact candidate tarballs, Node/browser fixtures, package/type/behavior/lint/format gates and handshake walkthrough                              |
-
-Draft authoring remains its own runtime increment. The board contract below is retained
-for the later application example and depends on draft authoring and the storage proof.
-
-Steps are vertical increments, not parallel rewrites of all packages. First-slice done
-means Steps 0–3 and the corresponding acceptance rows. The Step 1 privacy prerequisite
-is intentional; shipping a temporary plaintext profile would give false completion.
-Do not refactor old Workspace or Ledger merely to get legacy suites green. Use explicit
-workspace dependencies for candidate packages; never test a changed local package via
-its registry predecessor. Keep unrelated packages outside the candidate release set.
-
-Keep Oxfmt, Oxlint, type checking, tests, build, and check:package separate as prescribed
-by the tooling contract. At design time root provides Oxfmt 0.50.0 scripts using its
-defaults; no formatter config was found. Oxlint adoption and package scripts are
-Step 0 work. Do not publish a green `check`
-that silently skips a missing gate. Choose build implementation after a consumer pilot;
-Vite+'s tsdown-backed library profile is selected by the repository design, while the
-build implementation remains separate from the protocol contract.
+ESM/ES2022 outputs are tested through installed Node 22/24/development-runtime
+consumers and Chromium. Browser execution must exercise real cryptography; a syntax
+target or successful bundle does not establish that result. Keep formatting, typed
+lint, explicit types, behavior, builds and installed-artifact checks separate.
+Use declared public workspace dependencies rather than source aliases or registry
+predecessors. See [CONTRIBUTING.md](../../CONTRIBUTING.md) for current pins and commands.
 
 ## 7. Deferred project-board proof
 
@@ -623,14 +601,5 @@ Networking, profiles/directories, consensus, merges, recovery, continuity, key r
 of identities, checkpoints, partial authoritative replay, model upgrades, and
 multi-document queries remain outside this implementation. The expected-head proof
 is a local adapter test, not a network product. No existing consumer requires changing
-these semantics; standalone Seal Action compatibility must be investigated before
-its own migration, not guessed here.
-
-Evidence rechecked on 2026-10-21 at `8f78367`: Concord/Ledger remain excluded from the
-workspace; Concord types still depend on public Ledger/Seal abstractions; legacy
-Identity signBytes prepends context; Identity tests mostly compare derivation paths
-without fixed public conversion/age outputs; Armour still declares Rage; Concord's
-tests cover atomic replay failure and tampering but use old plugins/source imports.
-Root Oxfmt reports 0.50.0; age reference CLI reports 1.3.1. These motivate fixture,
-ownership, and consumer gates. No legacy build or behavior suite was rerun for this
-documentation task. Existing runtime-test edits are outside this delivery.
+these semantics. Seal Action command-sequence checks use the installed candidate;
+registry-backed integration remains part of published-consumption acceptance.

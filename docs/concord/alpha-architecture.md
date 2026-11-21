@@ -331,23 +331,22 @@ representative tampering failures.
 Keep one monorepo while the contracts are being established. Repository layout,
 installable package boundaries, and release cadence are separate decisions.
 
-The alpha public surface is centered on `@ternent/concord`, with specialist subpaths
-such as `/protocol`, `/system`, and `/testing`. Ledger mechanics are an internal Concord
-module unless an independent consumer proves the need for a public package. A separate
-Workspace runtime is not part of the target architecture.
+The five public packages are Identity, Armour, Ledger, Concord and Seal. Ledger
+owns the common signed container and history lifecycle. Concord composes commands,
+authority, group encryption and application replay, with specialist `/protocol`,
+`/system` and `/testing` subpaths. Workspace is deferred.
 
-Identity, Armour, and Seal remain independently useful packages. Storage integrations
-may be independently installable when their dependencies or release needs justify it.
-All packages follow the shared Oxc-oriented tooling and packed-consumer contract.
+Storage integrations and applications are consumers. The libraries use ordinary
+Vite+/TypeScript configs and exact-tarball acceptance under the
+[repository guide](../engineering/repository-hygiene.md).
 
-## First end-to-end application
+## Application consumers
 
-The [local handshake pilot](../../apps/handshake/README.md) uses one document for
-one artifact handoff. Two distinct signers record a proposal and its acceptance.
-An invited reader can reopen the private receipt offline. This exercises signer-bound
-authority, private membership, immediate authoring, export and deterministic replay.
-MCP and artifact release belong to the application host. The host checks ancestry
-against a saved proposal and reports divergence against any later remembered head.
+Applications and demos live outside core and consume the libraries. The earlier
+handshake pilot is retained in Git; it is not a library release gate. Current
+acceptance exercises signed history, private membership, authoring, export and
+deterministic replay through installed-package consumers, including a temporary
+browser application. Hosts own draft persistence and publication of committed data.
 
 ## Deferred project-board example
 

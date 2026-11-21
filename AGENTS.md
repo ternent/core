@@ -80,6 +80,9 @@ duplicate the owning layer's cryptography and verification in consumers.
   make a document trustworthy.
 - Immediate commit is the default authoring mode. Draft mode may group several commands
   into an explicit commit. Storage publication is a separate operation.
+- Staged entries and pending command intents stay in memory. Consumers choose commit
+  cadence and own any draft autosave or recovery; libraries exchange committed history.
+  See [the draft persistence decision](docs/adr/0019-keep-draft-persistence-with-consumers.md).
 - Commit identifiers and signatures bind the canonical unsigned commit subject,
   including parent linkage and ordered entry identifiers.
 - Invalid reachable committed history cannot produce trusted runtime state.

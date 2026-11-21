@@ -1,175 +1,75 @@
-Current repository state: [repository hygiene](repository-hygiene.md). The observations below describe the earlier slice.
-
 # Identity, Armour and the Concord first slice
 
-2026-11-20 follow-up: [B02's primitive-interface note](primitive-interfaces-2026-11-20.md)
-records explicit Identity exports and removal of Armour's obsolete initialization
-requirement. Earlier reuse/evidence statements below describe the original increment;
-they are not a requirement to preserve its initialization API.
+This established migration path is retained for the project brief's implementation
+history. The first slice introduced strict Identity capabilities, TypeScript age
+composition and a private register lifecycle. Subsequent work added independent
+groups, drafts, storage proof and Seal, then moved the signed container and history
+lifecycle into standalone Ledger. [ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md)
+records that accepted container change; earlier Concord-only signed bytes are not a
+compatibility promise.
 
-The active workspace now includes `packages/identity`, `packages/armour` and
-`packages/concord` alongside the R1 tooling and profile fixtures. This implements
-R2 and the private immediate-commit path in R3: create → dispatch/commit → export →
-open → verify → replay → inspect. It does not claim the complete board or complete
-standard-profile-1 implementation.
+The current workspace is five libraries. Setup and check scope live in
+[CONTRIBUTING.md](../../CONTRIBUTING.md) and the
+[repository guide](repository-hygiene.md); release work lives in the
+[release backlog](release-and-deployment.md). Earlier migration commands, test totals
+and temporary artifact digests do not certify the current checkout. Git retains the
+superseded implementation reports and sources.
 
-## Reuse and architectural changes
+## Retained capabilities and their owners
 
-| Area     | Reused                                                                                                                                       | Architectural change                                                                                                                          |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity | Existing seed, mnemonic, Ed25519/X25519 and age conversion helpers; original helper tests                                                    | Added a strict public identity and exact-byte signer capability; scoped/zeroed private scalar callback; ESM profile and verified declarations |
-| Armour   | Existing identity/text/binary/passphrase/recipient interfaces, error mapping and behavior tests                                              | Replaced the Rage dependency with a private adapter over pinned TypeScript age; added init-free binary operations and capability composition  |
-| Concord  | Existing behavioral requirements for strict integrity, atomic replay publication, read-only operation and deterministic saved-history replay | Implemented the accepted new signed format and lifecycle directly; the old Ledger/Seal/plugin format cannot be renamed into that contract     |
-| Tooling  | R1 profile factories, artifact validator, graph scheduling and isolated candidate overrides                                                  | Extended the same checks to the real products, supported Node consumers and actual encrypted browser behavior                                 |
+| Area                   | Retained behavior                                                                                                                        | Current owner                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Identity               | Seeds, mnemonic/serialized helpers, Ed25519 signatures, X25519/age conversion, strict public identities and exact-byte signer capability | Identity public exports; secret scalar callbacks stay scoped and cleaned up |
+| Encryption             | Recipient/identity/passphrase and binary/text age operations                                                                             | Armour over typage, without WASM or an initialization lifecycle             |
+| Signed history         | Bounded parsing, canonical subjects, IDs, signatures, chain verification, comparison, staging and ordered replay                         | Ledger's common container and lifecycle                                     |
+| Private framework      | Bootstrap, signer-bound authority, group epochs/wraps and contextual application encryption                                              | Concord system extensions using Identity/Armour                             |
+| Application projection | Typed commands, event validation and pure reducers                                                                                       | Concord application models; register is an example in `/testing`            |
+| Publication            | Complete candidate evaluation followed by atomic adoption; detached bytes/reports/state                                                  | Concord runtime above a private candidate Ledger handle                     |
 
-Legacy Identity `signBytes`/`signUtf8` retain their context prefix. New capability
-`sign` accepts exactly the supplied bytes; Concord never substitutes the legacy
-helper. The old Armour helpers retain explicit initialization and default ASCII
-armor output, while new `encryptAge`/`decryptAgeWithSecret` use binary age without
-initialization. Those compatibility choices preserve tested behavior without
-mixing document semantics into the primitives.
+Identity's contextual convenience signing and capability exact-byte signing remain
+distinct contracts. Armour's production implementation does not invoke the native
+age executable; the independent executable is a test oracle. Seal owns its separate
+proof format and does not depend on Concord for canonical subjects.
 
-Original package sources, tests, metadata, guidance and configurations are retained
-under each migrated package's `legacy/` directory. These are reference snapshots,
-excluded from checks and publication. Identity's retained implementation is active
-at `src/serialized.ts`; Armour's existing helpers remain active over the new private
-engine port. Neither is a wrapper around the previous Concord runtime.
+## Lifecycle proof
 
-The existing edit to `packages/workspace/test/runtime-core.test.ts` is outside this
-migration. Other legacy packages remain outside the active workspace. Their previous
-failures have not been reclassified as successes or repaired speculatively.
+The small register demonstrates:
 
-## Implemented ownership and behavior
-
-- Identity owns strict point and identity validation, raw signatures, seed custody,
-  X25519 conversion and canonical age/base64 encodings. Its retained mnemonic and
-  serialized-identity helpers remain host conveniences.
-- Armour composes Identity with `age-encryption` **0.3.1**. It does not spawn age or
-  load WASM in production. The independent **age 1.3.1** executable is a test oracle.
-- Protocol owns bounded duplicate-detecting UTF-8/JSON parsing, exact numeric token
-  validation, canonical bytes, closed schemas, identifiers, signatures, lineage and
-  snapshot comparison. It has no runtime, model, Armour or Seal import requirement.
-- Standard system owns `system.init`, owner authority, wrapped epoch-0 material,
-  contextual private events and complete decryption before model replay. Secrets
-  remain behind profile-private session tokens. It checks all public entries before
-  attempting reader decryption.
-- Runtime owns serialized authoring, resource checks before signing, complete
-  candidate verification/replay and atomic publication. State, bytes and reports
-  detach at public seams. Expected failures return results or inspection; unexpected
-  extension exceptions produce sanitized diagnostics.
-- Models own command validation, event meaning and reducers. The exact register
-  model is an example under `/testing`, not runtime policy. Model callbacks are
-  synchronous, pure functions without a `this` dependency.
-
-Ready exports are canonical snapshots; invalid/locked/incompatible/freshness
-inspection exports preserve the original bytes. Read-only readers can reconstruct
-without signing. No storage publication is hidden in dispatch. Unknown or deferred
-security events are incompatible, never ignored.
-
-## Run the current checks
-
-Use Node **24.21.0** and pnpm **10.33.4** for the development lane, plus
-**Node 22.18.0**, **age 1.3.1**, and the pinned Playwright Chromium installation for
-independent consumers. With nvm, the consumer check discovers the sibling Node
-22.18.0 executable. Otherwise set `CONCORD_NODE22` to its executable path. The
-GitHub workflow records that path before switching back to the development runtime.
-
-```sh
-pnpm install --frozen-lockfile
-pnpm exec playwright install chromium
-pnpm check
+```text
+create -> dispatch/commit -> export -> open -> verify -> replay -> inspect
 ```
 
-The root command validates all active manifests, formats only active code, builds
-the graph, runs typed lint, checks tooling/root/fixture/product types, runs behavior
-tests, packs the exact candidate set and installs it outside the workspace. Package
-tests use sibling public exports rather than source aliases or registry predecessors.
+Create signs genesis; immediate dispatch commits an encrypted event. Export contains
+committed history. Open with the matching reader verifies all reachable history,
+completes system replay and reconstructs the register. A decrypt-only reader can
+reconstruct without write authority. Missing requirements, unavailable keys, invalid
+integrity and failed application reconstruction have explicit inspection outcomes;
+none publishes a partial trusted projection. Replay consumes saved history rather
+than reissuing commands with new randomness.
 
-The external consumer exercises all public Concord subpaths and the full lifecycle
-on Node 22/24; verifies the independent owner vectors; compiles typed command
-successes and intentional failures; and blocks runtime/model/age imports while
-verifying through `/protocol`. Chromium builds and runs actual private authoring,
-decryption, reopening and replay against the installed tarballs. Native-age tests
-cover both encryption directions and saved independent ciphertext.
+The [protocol](../concord/alpha-protocol.md),
+[standard profile](../concord/standard-profile.md),
+[conformance cases](../concord/conformance.md) and
+[fixed vectors](../concord/vectors/README.md) define the current checks.
+Public tests preserve malformed input, tamper, context, authority, reducer failure,
+resource limits, concurrent authoring and detached-value cases. Semantic negative
+fixtures are re-signed with public test seeds so system/model failures are distinct
+from ordinary integrity failures.
 
-CI pins the age 1.3.1 Linux archive by its release SHA-256 and pins both Node lanes.
-The CI definition has not itself been run remotely in this task. No release or
-Cloudflare deployment has been attempted.
+## Later slices and explicit boundaries
 
-## Acceptance evidence
+Independent membership and readable/locked replay are described in the
+[group note](independent-groups-2026-11-20.md) and
+[group contract](../concord/group-profile-design.md). Draft cases are defined in
+[conformance](../concord/conformance.md#d-and-s-grouped-authoring-and-complete-standard-profile-step-4).
+Drafts are in memory; consumers own persistence/recovery under
+[ADR 0019](../adr/0019-keep-draft-persistence-with-consumers.md).
+The [storage contract](../concord/storage-boundary.md) keeps saving separate from
+local commits and makes expected-head conflict limits explicit.
 
-Behavior cases live in the migrated packages' `test/` directories; immutable
-reference artifacts remain in `docs/concord/vectors/`. The reference bytes have not
-been rewritten to match the implementation. Negative semantic fixtures re-sign
-through an independent Node-crypto author rather than the verifier under test.
-
-The final full workspace run passed all **10 gates**, **103 tests across 12 suites**,
-all **nine package builds**, strict types and typed lint, independent native age,
-exact packed Node 22/24 imports and Chromium. The 23 original Identity/Armour helper
-tests remain active. Frozen-lockfile installation also passed after recreating the
-migrated packages' generated dependency directories.
-
-The observed full-run gate total was **70.4 seconds** with warm dependency/browser
-caches and task caching disabled. This measures the expanded scope, not a speed
-comparison with R1 or the legacy packages.
-
-Original snapshots were compared byte-for-byte with the prior tracked revision:
-seven Identity files, 20 Armour files and 13 Concord files. The two tracked generated
-Identity config bundles are preserved in place and excluded from active formatting
-and lint. The pre-existing Workspace test edit retains its original SHA-256.
-
-The checks cover the P/C/R first-slice areas: unsafe and malformed input, strict
-identity/signature vectors, metadata/ciphertext/signature tampering, missing and
-detached records, ordering/linkage/selectors, unsupported limits/requirements,
-lineage/freshness, locked/read-only handling, event context and reducer failures,
-author failure atomicity, concurrent operations, immutable public values, and
-extension output coverage/actor binding. Source tests are separate from the packed
-Node/browser checks and declaration checks.
-
-Machine-readable current outcomes, candidate digests and elapsed gates are in
-`artifacts/pilot-check.json` and `artifacts/pilot-consumers.json`; the production
-browser proof is `artifacts/pilot-browser.png`. These are generated acceptance
-artifacts, not a new source of protocol expectations or a benchmark against legacy.
-
-## Limits at the close of the original increment
-
-- Draft mode is not implemented in this increment; requesting it returns
-  `HOST_CONFIGURATION`. Immediate `commit()` correctly returns `NO_DRAFT`.
-- Member set/remove and audience rotation remain Step 4. Their valid signed records
-  return `UNSUPPORTED_SYSTEM_EVENT`; no management function is exported as a stub.
-- Full historical admission, revocation, grant/administer cases and the board
-  walkthrough are acceptance gates of the next increments.
-- The old Concord interface and `concord-ledger`/Seal wire records remain archived
-  reference material. There is no silent import conversion or compatibility claim.
-- Package candidate versions are provisional alpha versions, separate from wire
-  version 1. Registry version allocation and legacy Seal/Action compatibility are
-  checked during their own release/migration work.
-- Other browsers and deployed Cloudflare routing remain unverified. Local static
-  serving is not a production deployment test. Existing legacy release workflows
-  must not be used for this candidate set; the single replacement publisher/deployer
-  remains R5.
-- Custom asynchronous profiles must honor the no-reentry host contract. Synchronous
-  callback reentry is rejected; automatic detection across arbitrary host awaits is
-  not implemented. The official profile follows the contract. See
-  [ADR 0014](../adr/0014-keep-async-profile-reentry-a-host-contract.md).
-
-The original roadmap paired drafts with the membership increment and used the board
-for the publication proof. The local handshake now comes first. Drafts, the reusable
-expected-head storage proof, and the board remain separate increments.
-
-## Standard membership and local handshake follow-up (2026-11-16)
-
-Concord now exposes `setMember` and `removeMember` through `/system`. The same
-serialized immediate-commit path verifies signed candidates and replays both stages
-before publishing state. Tests exercise bounded grants, full history on admission,
-revocation, audience rotation, read-only reopening, and divergent histories. The
-packed Node 22 and Node 24 consumers exercise admission, replay, and removal using
-the public imports.
-
-The [handshake pilot](../../apps/handshake/README.md) uses one private Concord
-document per artifact. A live sender and recipient ran in separate ephemeral Codex
-sessions using the local stdio server. After they exited, the invited reader verified
-the saved receipt offline against the proposal. Release produced the exact 34 bytes
-of the disposable source artifact. The automated built CLI smoke also exercises
-invalid acceptance, duplicate publication, tampering, changed artifact bytes,
-rollback, and divergence relative to a remembered head.
+The former handshake application is retired. Its useful library contracts survive
+in public lifecycle, group, draft, storage and installed-consumer tests; no maintained
+MCP application or hosted board is required to release these libraries. UI is outside
+scope, Workspace is deferred, and legacy import is separate work. Custom asynchronous
+profiles still obey the host no-reentry contract in
+[ADR 0014](../adr/0014-keep-async-profile-reentry-a-host-contract.md).

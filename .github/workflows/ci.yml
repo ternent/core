@@ -50,7 +50,7 @@ jobs:
           echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
       - name: Install the pinned browser
         run: pnpm exec playwright install --with-deps chromium
-      - name: Verify packages, tooling and consumers
+      - name: Verify libraries and installed consumers
         run: pnpm check
       - name: Retain acceptance evidence
         if: always()

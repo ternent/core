@@ -1,21 +1,16 @@
-# Active product migrations plus the tooling profile fixtures.
+# The five public libraries; applications live outside core.
 packages:
   - packages/ledger
   - packages/identity
   - packages/armour
   - packages/concord
   - packages/seal
-  - apps/handshake
-  - tooling/*
-  - fixtures/tooling-profiles/*
 
 allowBuilds:
   esbuild: true
 
 overrides:
   "@types/node": "26.6.6"
-patchedDependencies:
-  vitepress@1.6.4: patches/vitepress@1.6.4.patch
 
 saveExact: true
 engineStrict: true

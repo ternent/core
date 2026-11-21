@@ -2,16 +2,17 @@
 
 Shipping update, 2026-11-20: independent groups and readable coverage are implemented.
 The [group matrix](group-profile-design.md#6-concrete-scenario-and-acceptance-matrix)
-remains the scenario checklist; [executed evidence](../engineering/independent-groups-2026-11-20.md)
-identifies tests and actual verification. Existing owner-only fixed vectors remain
-unchanged. Draft gates are now implemented; B12 now supplies reusable storage/conflict reference checks. The
+remains the scenario checklist; [implementation and evidence locations](../engineering/independent-groups-2026-11-20.md)
+identify tests and fixed-vector provenance. The current vectors use the accepted
+common Ledger container; earlier Concord-only wire hashes are superseded. Draft
+gates are implemented; B12 supplies reusable storage/conflict reference checks. The
 library release does not require the deferred board application.
 
 Status: implementation acceptance contract, 2026-10-21. Case IDs are stable test
 names. A coding agent implements these as one-shot tests crossing the public interface;
 private helpers may isolate crypto diagnostics but cannot replace observable checks.
 The [vector artifacts](vectors/README.md) contain fixed bytes independent of the
-future Concord implementation. This document also specifies cases not yet executed.
+candidate implementation. This document also specifies cases not yet executed.
 
 ## Error contract
 
@@ -45,10 +46,10 @@ part of a document or public report. Alpha has no default logging callback.
 | `SIGNING_FAILED`, `ENCRYPTION_FAILED`                                                   | author / primitive failure creating candidate; no committed mutation                                                                |
 | `STORAGE_FAILED`, `HEAD_CONFLICT`                                                       | storage / adapter failure or expected-head mismatch; local history retained                                                         |
 
-Protocol schema validates syntax before identity semantics: wrong-length public key
-or signature is SCHEMA_INVALID; well-sized but invalid point/ID is IDENTITY_INVALID;
-well-sized signature with invalid R/S/equation is SIGNATURE_INVALID. Verification stops
-at the first failure in the protocol's declared phase order. A missing root parent
+Ledger validates signer identity through Identity: malformed identity shape, encoding,
+point or key-ID binding gives IDENTITY_INVALID. Wrong-length/noncanonical signature
+encoding is SCHEMA_INVALID; a well-sized signature with invalid R/S/equation is
+SIGNATURE_INVALID. Verification stops at the first failure in the protocol's declared phase order. A missing root parent
 record is LINK_INVALID, missing listed entry ENTRY_MISSING. HEAD_INVALID covers wrong
 documentId/head selectors; DECLARATION_INVALID covers declaration placement. Unknown
 model event is incompatible application, invalid event data or transition is invalid
@@ -65,27 +66,27 @@ use integrity invalid, checked counts zero, no trusted history, and reason inval
 
 ## P: bytes, schema, and integrity (first slice)
 
-| ID  | Input/action                                                                               | Required observation                                                                          |
-| --- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| P01 | Every positive canonical case in primitives.json                                           | Exact canonical string, UTF-8 bytes and key order                                             |
-| P02 | Every rejected JSON case; BOM; malformed UTF-8; trailing bytes                             | JSON_INVALID before crypto; raw bytes retained                                                |
-| P03 | Unsafe JS values, NaN, Infinity, -0, sparse array, accessor, custom prototype, cycle       | Author input rejected without invoking accessors or signing                                   |
-| P04 | Padded/non-URL base64, nonzero unused bits, uppercase hash, wrong byte length, extra field | SCHEMA_INVALID; no normalization                                                              |
-| P05 | Fixed Identity seed and supplied conversion outputs                                        | Exact public identity ID, private/public X25519, age strings, RFC8032 empty-message signature |
-| P06 | Identity ID changed with correctly rebound commit hashes/signatures                        | IDENTITY_INVALID; ID cannot select another key                                                |
-| P07 | Small/mixed-order public point, non-canonical point; signature R small-order or S >= L     | Strict rejection, independent of crypto library permissive defaults                           |
-| P08 | owner.document.json and expected bytes                                                     | Two entry IDs, two commit IDs, exact signature messages/signatures, valid protocol report     |
-| P09 | Change child signed metadata without changing its ID                                       | HASH_MISMATCH; no reducers invoked                                                            |
-| P10 | Change child signature only, retaining length/canonical encoding                           | SIGNATURE_INVALID                                                                             |
-| P11 | Remove referenced entry; repeat entry/commit; append detached record                       | ENTRY_MISSING; DUPLICATE_RECORD; UNREFERENCED_RECORD respectively                             |
-| P12 | Swap physical entries but preserve commits                                                 | ENTRY_ORDER                                                                                   |
-| P13 | Reorder ordered entry IDs in a multi-event commit without rehashing                        | HASH_MISMATCH; after rehashing but not signing, SIGNATURE_INVALID                             |
-| P14 | Rehash/re-sign child with wrong parent, or entry parent not equal child parent             | LINK_INVALID; valid signatures cannot repair linkage                                          |
-| P15 | Duplicate genesis, missing genesis, non-null child declaration, wrong head/doc ID          | No trusted state; appropriate duplicate/link/declaration/head code                            |
-| P16 | Unknown suite/protocol; exceeded resource/depth limit                                      | Unsupported inspection, not a claim of invalid cryptography                                   |
-| P17 | Whitespace/key-order changes or unsigned container metadata change                         | Same history IDs/signatures; canonical export stable                                          |
-| P18 | Signed genesis profile/model ref unknown to host                                           | Protocol valid; REQUIREMENT_UNAVAILABLE on open; no automatic module load                     |
-| P19 | Large bounded arrays and attacker keys such as **proto**                                   | Bounded parser behavior, no prototype mutation, no unchecked recursion                        |
+| ID  | Input/action                                                                                           | Required observation                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| P01 | Every positive canonical case in primitives.json                                                       | Exact canonical string, UTF-8 bytes and key order                                             |
+| P02 | Every rejected JSON case; BOM; malformed UTF-8; trailing bytes                                         | JSON_INVALID before crypto; raw bytes retained                                                |
+| P03 | Unsafe JS values, NaN, Infinity, -0, sparse array, accessor, custom prototype, cycle                   | Author input rejected without invoking accessors or signing                                   |
+| P04 | Padded/non-URL base64, nonzero unused bits, uppercase hash, wrong byte length, extra field             | SCHEMA_INVALID; no normalization                                                              |
+| P05 | Fixed Identity seed and supplied conversion outputs                                                    | Exact public identity ID, private/public X25519, age strings, RFC8032 empty-message signature |
+| P06 | Identity ID changed with correctly rebound commit hashes/signatures                                    | IDENTITY_INVALID; ID cannot select another key                                                |
+| P07 | Small/mixed-order public point, non-canonical point; signature R small-order or S >= L                 | Strict rejection, independent of crypto library permissive defaults                           |
+| P08 | owner.document.json and expected bytes                                                                 | Two entry IDs, two commit IDs, exact signature messages/signatures, valid protocol report     |
+| P09 | Change child signed metadata without changing its ID                                                   | HASH_MISMATCH; no reducers invoked                                                            |
+| P10 | Change child signature only, retaining length/canonical encoding                                       | SIGNATURE_INVALID                                                                             |
+| P11 | Remove referenced entry; repeat entry/commit; append detached record                                   | ENTRY_MISSING; DUPLICATE_RECORD; UNREFERENCED_RECORD respectively                             |
+| P12 | Swap physical entries but preserve commits                                                             | ENTRY_ORDER                                                                                   |
+| P13 | Reorder ordered entry IDs in a multi-event commit without rehashing                                    | HASH_MISMATCH; after rehashing but not signing, SIGNATURE_INVALID                             |
+| P14 | Rehash/re-sign child with wrong parent, or entry parent not equal child parent                         | LINK_INVALID; valid signatures cannot repair linkage                                          |
+| P15 | Duplicate/missing genesis, missing/malformed genesis `metadata.concord` declaration, wrong head/doc ID | No trusted state; appropriate duplicate/link/declaration/head code                            |
+| P16 | Unknown suite/protocol; exceeded resource/depth limit                                                  | Unsupported inspection, not a claim of invalid cryptography                                   |
+| P17 | Transport whitespace/key-order changes only                                                            | Same history IDs/signatures; canonical export stable; signed metadata changes remain P09      |
+| P18 | Signed genesis profile/model ref unknown to host                                                       | Protocol valid; REQUIREMENT_UNAVAILABLE on open; no automatic module load                     |
+| P19 | Large bounded arrays and attacker keys such as **proto**                                               | Bounded parser behavior, no prototype mutation, no unchecked recursion                        |
 
 P13's two-event input is constructed by repeating the register command twice in draft
 mode in Step 4; before then use the protocol helper with two saved valid entry subjects
@@ -140,8 +141,9 @@ computed by the production verifier under test.
 
 ## D and S: grouped authoring and complete standard profile (Step 4)
 
-B05 implements D01–D05 and cross-group command batches; see the
-[draft implementation evidence](../engineering/draft-authoring-2026-11-20.md).
+B05 implements D01–D05 and cross-group command batches. Drafts remain in memory;
+[ADR 0019](../adr/0019-keep-draft-persistence-with-consumers.md) keeps persistence and
+recovery with consumers.
 
 | ID  | Action                                                                         | Required observation                                                                                               |
 | --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
@@ -191,13 +193,13 @@ dependencies, workspace range rewriting, assets, and release dependency order.
 
 ## Evidence and completion reporting
 
-The supplied reference artifacts were checked with Node crypto and native age, not the
-future runtime. See [the vector README](vectors/README.md) for exact coverage. Steps
-0–3 are done only when every applicable P/C/R and T case passes through candidate
-public imports. P13 may use the protocol helper before grouped runtime authoring exists.
-D/S/B cases gate their later increments. A first-slice report must explicitly identify
-the remaining profile-1 events as unimplemented; it cannot claim complete alpha
-profile conformance. Complete alpha requires all cases and the board proof.
+The supplied reference artifacts were checked with Node crypto and native age,
+independently of the runtime. See [the vector README](vectors/README.md) for exact
+coverage. Current library completion requires applicable P/C/R/D/S/T and storage cases through
+public interfaces. B01–B04 remain deferred board examples; the library release does
+not require that application. Run outcomes belong to the
+[acceptance reports](../engineering/repository-hygiene.md#acceptance-boundaries);
+release delivery has its own [backlog](../engineering/release-and-deployment.md#release-backlog).
 
 Record formatter, lint, typecheck, behavior, build, packed-consumer, and browser results
 separately. Record runtime/tool versions and elapsed scope before making feedback-speed

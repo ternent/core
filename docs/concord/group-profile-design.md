@@ -386,7 +386,8 @@ count, membership and reader coverage before introducing cache/incremental repla
 
 B03/B04 now implement these transitions, readable/locked output, model hooks and
 coverage. Normative profile/protocol/blueprint docs change with the implementation.
-Drafts are implemented by B05; reusable storage conflict proof and full release
-delivery remain subsequent backlog items. No benchmark, npm publication or remote verification of this new slice
-is implied; the [implementation note](../engineering/independent-groups-2026-11-20.md)
-records actual checks and remaining limits.
+Drafts and the [storage conflict proof](storage-boundary.md) are implemented.
+[Release delivery](../engineering/release-and-deployment.md#release-backlog) remains
+separate. No benchmark, publication or remote verification is implied; the
+[implementation note](../engineering/independent-groups-2026-11-20.md) identifies
+source tests, fixed evidence and current acceptance-report locations.

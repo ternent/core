@@ -94,19 +94,11 @@ permission enforcement, and portable package behavior. Fast tooling should make
 it easier to check these guarantees frequently. Linting cannot establish their
 correctness by itself.
 
-Observed on 2026-10-20:
-
-- The root declares Oxfmt `^0.50.0`; the installed executable reports `0.50.0`.
-- `pnpm fmt` and `pnpm fmt:check` exist. Scope edits with explicit file paths.
-- No Oxlint configuration or root dependency is present.
-- Concord, Ledger, and Workspace declare Vite/Vitest tooling. The package wiring
-  and consumer import problems are recorded in the [project brief](../concord/context.md).
-
-Recommended adoption sequence: use Oxfmt on current changes, establish a working
-local package chain, introduce correctness-focused Oxlint checks, then evaluate
-type-aware linting against resolved workspace types. Assess build-tool changes
-through separate consumer and performance evidence. Keep mass formatting and
-tool upgrades separate from behavior changes so each diff remains reviewable.
+The repository uses Vite+ Oxfmt, typed Oxlint and explicit TypeScript checks.
+The [repository guide](repository-hygiene.md) records current scope and ownership;
+[CONTRIBUTING.md](../../CONTRIBUTING.md) records commands. Keep tool upgrades and
+mass formatting separate from behavior changes so each diff remains reviewable.
+Assess replacements through consumer evidence and measured feedback-loop costs.
 
 ## What good looks like
 

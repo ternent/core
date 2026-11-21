@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig/tooling.json",
-  "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true
-  },
-  "include": ["src/**/*.mjs", "bin/**/*.mjs", "types/**/*.d.ts", "test/**/*.mjs", "vite.config.ts"]
-}

@@ -1,4 +1,4 @@
 {
-  "extends": "@ternent/tooling/tsconfig/tooling.json",
+  "extends": "../../tsconfig.base.json",
   "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"]
 }

@@ -1,2 +1,10 @@
-import { defineLibrary } from "@ternent/tooling/config";
-export default defineLibrary({ entry: { index: "src/index.ts" } });
+import { defineConfig } from "vite-plus";
+import base from "../../vite.config.base.js";
+
+export default defineConfig({
+  ...base,
+  pack: {
+    ...base.pack,
+    entry: { index: "src/index.ts" },
+  },
+});

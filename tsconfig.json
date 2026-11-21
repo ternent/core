@@ -1,8 +1,8 @@
 {
-  "extends": "@ternent/tooling/tsconfig/tooling.json",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["scripts/verify/**/*.mjs", "vite.config.ts"]
+  "include": ["scripts/verify/**/*.mjs", "vite.config*.ts"]
 }

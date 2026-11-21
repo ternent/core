@@ -8,12 +8,14 @@ const paths = [
   ...workspacePackages().map((entry) => relative(process.cwd(), entry.path)),
   "scripts/verify",
   "vite.config.ts",
+  "vite.config.base.ts",
 ];
 if (command === "fmt")
   paths.push(
     "package.json",
     "pnpm-workspace.yaml",
     "tsconfig.json",
+    "tsconfig.base.json",
     ".github",
     "README.md",
     "CONTRIBUTING.md",

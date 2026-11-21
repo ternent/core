@@ -76,6 +76,10 @@ Call `commit({ message: "Group edits" })` to encrypt the staged events and creat
 signed commit, or `discardDraft()` to drop the preview. Genesis always commits
 immediately. Drafts are volatile and never included in exports. Failed dispatch or
 commit retains the previous committed state and any successful staged work for retry.
+Pending command intents stay in memory. Consumers choose immediate or draft authoring
+and own any autosave or recovery of unfinished work. Export and external storage
+contain committed history only; Concord has no draft persistence adapter or recovery
+format. See [the persistence decision](../../docs/adr/0019-keep-draft-persistence-with-consumers.md).
 A draft can batch several commands targeting different groups; each command still
 selects exactly one audience. Commit metadata is public and signed.
 
@@ -104,9 +108,7 @@ Protocol and semantic failures are separate. Invalid, locked, incompatible and s
 imports remain exportable inspection evidence. Projection is derived; storage is not
 trust. Ready exports are canonical; inspection exports retain original bytes.
 
-[The normative architecture](../../docs/concord/implementation-blueprint.md) defines
-schemas, errors and acceptance checks. [Group implementation evidence](../../docs/engineering/independent-groups-2026-11-20.md)
-records groups; [draft implementation evidence](../../docs/engineering/draft-authoring-2026-11-20.md)
-records batching. [First-slice evidence](../../docs/engineering/alpha-first-slice.md)
-records the earlier rebuild. The previous Ledger/plugin
-implementation is retained in `legacy/`, excluded from the active module and npm files.
+The [protocol](../../docs/concord/alpha-protocol.md),
+[standard profile](../../docs/concord/standard-profile.md) and
+[conformance contract](../../docs/concord/conformance.md) define the current wire,
+authority, encryption and acceptance behavior. Git retains previous implementations.

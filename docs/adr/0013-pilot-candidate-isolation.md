@@ -4,6 +4,12 @@ status: accepted
 
 # Isolate R1 consumers with exact candidate overrides
 
+Exact candidate overrides remain the local isolation method.
+[ADR 0020](0020-simplify-core-around-five-libraries.md) retires the portable-profile
+and fixture products described below; the five libraries retain their public consumer
+checks. Final registry-range acceptance remains on the
+[release backlog](../engineering/release-and-deployment.md#release-backlog).
+
 For the tooling pilot, pack every candidate once and install those tarballs in a
 temporary directory outside the workspace. Override every candidate name to its
 exact local tarball, including transitive sibling references. Registry access may
@@ -20,4 +26,4 @@ R5 adds the temporary registry, planned release versions, packed registry metada
 OIDC identity, and artifact-preserving publication checks specified in the release
 contract. No release infrastructure is required merely to prove portable profiles.
 
-See [implementation and limitations](../engineering/tooling-pilot.md).
+See [current acceptance boundaries](../engineering/repository-hygiene.md#acceptance-boundaries).

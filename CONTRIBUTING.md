@@ -1,7 +1,7 @@
 # Working on core
 
-Install the Node version in `.node-version` (also mirrored in `.nvmrc`) and the
-pnpm version in `package.json#packageManager`. Then:
+Use the Node version in `.node-version` (mirrored in `.nvmrc`) and the pnpm
+version in `package.json#packageManager`:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -13,42 +13,56 @@ On Linux, install browser system dependencies with
 `pnpm exec playwright install --with-deps chromium`. Armour's interoperability
 tests also need `age` 1.3.1; CI installs its checksum-verified official binary.
 
-| Command                               | Feedback                                                    |
-| ------------------------------------- | ----------------------------------------------------------- |
-| `pnpm fmt`                            | Format active workspace files                               |
-| `pnpm fmt:check`                      | Check formatting without writing                            |
-| `pnpm build`                          | Build workspace outputs in dependency order                 |
-| `pnpm lint`                           | Typed Oxlint checks                                         |
-| `pnpm typecheck`                      | Repository automation types                                 |
-| `pnpm -r typecheck`                   | Package TypeScript and Vue declarations                     |
-| `pnpm test`                           | All active behavior tests                                   |
-| `pnpm --filter @ternent/concord test` | Focus on one package                                        |
-| `pnpm check:artifact`                 | Exact packed consumers; requires built outputs and Chromium |
-| `pnpm check`                          | Complete acceptance gate                                    |
+| Command                                | Feedback                                                     |
+| -------------------------------------- | ------------------------------------------------------------ |
+| `pnpm fmt`                             | Format active workspace code and selected repository files   |
+| `pnpm fmt:check`                       | Check formatting without writing                             |
+| `pnpm build`                           | Build the five libraries in dependency order                 |
+| `pnpm lint`                            | Typed Oxlint checks                                          |
+| `pnpm typecheck`                       | Repository automation types                                  |
+| `pnpm -r typecheck`                    | Package types                                                |
+| `pnpm test`                            | Active library behavior tests                                |
+| `pnpm --filter @ternent/concord test`  | Focus on one package                                         |
+| `pnpm --filter @ternent/concord check` | Build that package and its dependencies, then run its checks |
+| `pnpm check:artifact`                  | Exact packed consumers; requires built outputs and Chromium  |
+| `pnpm check`                           | Complete acceptance gate                                     |
 
-Local packed checks use the current Node executable. To include compatibility
-lanes, set `CONCORD_NODE22` and `CONCORD_NODE24` to explicit executable paths.
-CI supplies both and sets `VERIFY_COMPATIBILITY=true`, requiring those lanes.
-There is no dependency on a contributor's Node version manager or home layout.
+For a small formatting change, use explicit paths with `pnpm exec vp fmt`.
+Package `check:artifact` scripts run `publint --strict --pack false` on built
+outputs. The root artifact check also lints each exact tarball before installing
+it outside the workspace.
 
-The checked development toolchain is Node 26; product consumers retain the
-Node 22.18 minimum. Vite+ supplies the build, formatter, typed linter and tests.
-The `typescript` dependency aliases `@typescript/typescript6` for the compiler API
-used by Vue/Volar and declaration tooling; invoke its `tsc6` CLI for explicit types.
-Do not silently replace this with the incompatible TypeScript 7 compiler API.
+Local packed checks use the current Node executable. Set `CONCORD_NODE22` and
+`CONCORD_NODE24` to explicit executable paths to include compatibility lanes.
+CI supplies both and sets `VERIFY_COMPATIBILITY=true`, requiring them. Checks do
+not depend on a contributor's version manager or home directory layout.
 
-Keep signed vectors and observable behavior tests when refactoring. Test public
-imports, declarations and exact tarballs when changing package structure.
-Formatting, types, behavior, browser and installed-package checks prove different
-things. Report an unavailable check as unavailable, preserving its failing exit.
-Acceptance evidence is written under ignored `artifacts/`.
+Development uses Node 26; published libraries declare Node 22.18 as their minimum.
+Vite+ supplies builds, Oxfmt, typed Oxlint and tests. Root `vite.config.base.ts`
+and `tsconfig.base.json` hold ordinary shared defaults; package configs own public
+entries, environment differences and output paths. pnpm owns dependency ordering.
+The `typescript` dependency aliases `@typescript/typescript6` for declaration and
+compiler API compatibility; use its `tsc6` CLI for explicit type checking.
+There is no Vue SFC, Volar or portable tooling-profile contract in this workspace.
 
-Changes to active package selection belong in `pnpm-workspace.yaml`. Keep runtime
-dependencies with their owning product; portable tooling must not know this
-repository's package names. Retire unused source instead of copying it into a
-legacy directory. Preserve unrelated working edits.
+Keep signed vectors and observable failure cases when refactoring. Public imports,
+declarations, CLI behavior, import isolation and exact tarballs need their own
+checks. The temporary Vue render consumer proves production CSS, interaction and
+browser cryptography; it does not certify a component library or documentation
+site. Formatting, types, behavior and installed consumers establish different
+properties. Report unavailable checks honestly and preserve failing exit statuses.
+Current run reports, candidate digests and the browser screenshot are written to
+ignored `artifacts/`.
 
-The single CI workflow verifies candidates with read-only repository permissions.
-Publishing and deployment are separate backlog work; merging does not publish npm
-packages. Dependency update configuration is in `renovate.json`; the repository
-owner must enable Renovate for it to open update PRs.
+`pnpm-workspace.yaml` selects exactly Identity, Armour, Ledger, Concord and Seal.
+Keep runtime dependencies with their owning library and use declared public
+exports between packages. Preserve unrelated edits. Retire unused source instead
+of creating legacy archives; Git keeps history. UI and Workspace remain excluded.
+See the [repository guide](docs/engineering/repository-hygiene.md) for ownership
+and check boundaries.
+
+The read-only CI workflow verifies candidates. Merging does not publish npm
+packages or deploy applications. Release automation and registry acceptance remain
+on the [release backlog](docs/engineering/release-and-deployment.md).
+`renovate.json` configures dependency updates; the owner must enable Renovate for
+it to open PRs.

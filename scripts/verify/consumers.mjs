@@ -20,6 +20,12 @@ import { workspacePackages } from "./workspace.mjs";
 import { startCandidateRegistry } from "./candidate-registry.mjs";
 
 const root = process.cwd();
+const publishedBundle = process.env.VERIFY_PUBLISHED_BUNDLE;
+const retained = publishedBundle
+  ? JSON.parse(readFileSync(join(publishedBundle, "release-plan.json"), "utf8"))
+  : undefined;
+const sourceSha =
+  process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const rootManifest = /** @type {{devDependencies: Record<string, string>}} */ (
   JSON.parse(readFileSync("package.json", "utf8"))
 );
@@ -103,11 +109,26 @@ async function serve(directory) {
 
 try {
   for (const entry of packages) {
-    const result = JSON.parse(
-      pnpm(["pack", "--json", "--pack-destination", candidateDir], entry.path),
+    const expected = retained?.packages.find(
+      (/** @type {{name:string}} */ item) => item.name === entry.name,
     );
-    const packed = Array.isArray(result) ? result[0] : result;
-    const file = resolve(candidateDir, packed.filename);
+    let file;
+    if (publishedBundle) {
+      assert(expected, `Missing retained candidate: ${entry.name}`);
+      file = resolve(publishedBundle, expected.tarball);
+      const local = relative(resolve(publishedBundle), file);
+      assert(
+        local && !local.startsWith("..") && !local.startsWith(sep),
+        "Invalid retained candidate path",
+      );
+      assert.equal(createHash("sha256").update(readFileSync(file)).digest("hex"), expected.sha256);
+    } else {
+      const result = JSON.parse(
+        pnpm(["pack", "--json", "--pack-destination", candidateDir], entry.path),
+      );
+      const packed = Array.isArray(result) ? result[0] : result;
+      file = resolve(candidateDir, packed.filename);
+    }
     assert(existsSync(file), `Missing packed file: ${file}`);
     console.log(pnpm(["exec", "publint", file, "--strict"], root));
     candidates[entry.name] = {
@@ -120,8 +141,9 @@ try {
     };
   }
   checks.push("all five exact library tarballs pass strict publint validation");
-  registry = await startCandidateRegistry(resolve("artifacts/candidate-registry.log"));
-  const registryUrl = registry.url;
+  if (!publishedBundle)
+    registry = await startCandidateRegistry(resolve("artifacts/candidate-registry.log"));
+  const registryUrl = registry?.url ?? "https://registry.npmjs.org";
   const npmrc = `registry=https://registry.npmjs.org/\n@ternent:registry=${registryUrl}/\n@ternent-verify:registry=${registryUrl}/\n`;
   put(".npmrc", npmrc);
   put("pnpm-workspace.yaml", "packages: []\nallowBuilds: {}\n");
@@ -132,100 +154,102 @@ try {
     type: "module",
   });
 
-  /** @param {string} file */
-  function publish(file) {
-    // All publication is anonymous and confined to the child registry; never use npm defaults.
-    assert.equal(new URL(registryUrl).hostname, "127.0.0.1");
-    const manifest = JSON.parse(
-      execFileSync("tar", ["-xOf", file, "package/package.json"], { encoding: "utf8" }),
-    );
-    assert(
-      !manifest.publishConfig?.registry,
-      "A packed publishConfig.registry must not redirect publication",
-    );
-    console.log(
-      pnpm([
-        "publish",
-        file,
-        "--registry",
-        registryUrl,
-        "--no-git-checks",
-        "--ignore-scripts",
-        "--tag",
-        "candidate",
-      ]),
-    );
-  }
+  if (!publishedBundle) {
+    /** @param {string} file */
+    function publish(file) {
+      // All publication is anonymous and confined to the child registry; never use npm defaults.
+      assert.equal(new URL(registryUrl).hostname, "127.0.0.1");
+      const manifest = JSON.parse(
+        execFileSync("tar", ["-xOf", file, "package/package.json"], { encoding: "utf8" }),
+      );
+      assert(
+        !manifest.publishConfig?.registry,
+        "A packed publishConfig.registry must not redirect publication",
+      );
+      console.log(
+        pnpm([
+          "publish",
+          file,
+          "--registry",
+          registryUrl,
+          "--no-git-checks",
+          "--ignore-scripts",
+          "--tag",
+          "candidate",
+        ]),
+      );
+    }
 
-  /** @param {string} label @param {Record<string, string>} dependencies @param {RegExp} diagnostic */
-  function rejectResolution(label, dependencies, diagnostic) {
-    const directory = join(consumer, "probes", label);
-    put(`probes/${label}/package.json`, {
-      name: `@ternent-consumers/${label}`,
+    /** @param {string} label @param {Record<string, string>} dependencies @param {RegExp} diagnostic */
+    function rejectResolution(label, dependencies, diagnostic) {
+      const directory = join(consumer, "probes", label);
+      put(`probes/${label}/package.json`, {
+        name: `@ternent-consumers/${label}`,
+        version: "1.0.0",
+        private: true,
+        dependencies,
+      });
+      put(`probes/${label}/pnpm-workspace.yaml`, "packages: []\nallowBuilds: {}\n");
+      put(
+        `probes/${label}/.npmrc`,
+        `${npmrc}cache-dir=${join(directory, "cache")}\nfetch-retries=0\n`,
+      );
+      const result = spawnSync(
+        "pnpm",
+        ["install", "--lockfile-only", "--ignore-scripts", "--store-dir", join(directory, "store")],
+        {
+          cwd: directory,
+          encoding: "utf8",
+          env: { ...process.env, CI: "true", NPM_CONFIG_USERCONFIG: "/dev/null" },
+        },
+      );
+      assert.notEqual(result.status, 0, `${label} unexpectedly resolved`);
+      const output = `${result.stdout}${result.stderr}`;
+      assert.match(output, diagnostic);
+      assert.match(output, /@ternent\/identity/);
+      writeFileSync(resolve("artifacts", `registry-${label}.log`), output);
+    }
+
+    // A real sibling is deliberately absent, even if a predecessor exists on public npm.
+    publish(candidates["@ternent/armour"].file);
+    assert.equal((await fetch(`${registryUrl}/@ternent%2fidentity`)).status, 404);
+    rejectResolution(
+      "missing-sibling",
+      { "@ternent/armour": candidates["@ternent/armour"].version },
+      /ERR_PNPM_FETCH_404/,
+    );
+    for (const [name, candidate] of Object.entries(candidates))
+      if (name !== "@ternent/armour") publish(candidate.file);
+
+    // Only the probe's transitive range is wrong; no direct Identity dependency masks it.
+    const probeName = "@ternent-verify/bad-sibling";
+    put("probes/range-package/package.json", {
+      name: probeName,
       version: "1.0.0",
-      private: true,
-      dependencies,
+      files: ["index.js"],
+      exports: "./index.js",
+      type: "module",
+      dependencies: { "@ternent/identity": "999999.0.0-b13" },
     });
-    put(`probes/${label}/pnpm-workspace.yaml`, "packages: []\nallowBuilds: {}\n");
-    put(
-      `probes/${label}/.npmrc`,
-      `${npmrc}cache-dir=${join(directory, "cache")}\nfetch-retries=0\n`,
+    put("probes/range-package/index.js", 'export { generateSigner } from "@ternent/identity";\n');
+    const probePack = JSON.parse(
+      pnpm(
+        ["pack", "--json", "--pack-destination", join(consumer, "probes")],
+        join(consumer, "probes/range-package"),
+      ),
     );
-    const result = spawnSync(
-      "pnpm",
-      ["install", "--lockfile-only", "--ignore-scripts", "--store-dir", join(directory, "store")],
-      {
-        cwd: directory,
-        encoding: "utf8",
-        env: { ...process.env, CI: "true", NPM_CONFIG_USERCONFIG: "/dev/null" },
-      },
+    publish(
+      resolve(consumer, "probes", (Array.isArray(probePack) ? probePack[0] : probePack).filename),
     );
-    assert.notEqual(result.status, 0, `${label} unexpectedly resolved`);
-    const output = `${result.stdout}${result.stderr}`;
-    assert.match(output, diagnostic);
-    assert.match(output, /@ternent\/identity/);
-    writeFileSync(resolve("artifacts", `registry-${label}.log`), output);
+    rejectResolution(
+      "incompatible-sibling",
+      { [probeName]: "1.0.0" },
+      /ERR_PNPM_NO_MATCHING_VERSION/,
+    );
+    checks.push(
+      "fresh registry resolution rejects an absent real sibling and an incompatible transitive sibling range without public npm fallback",
+    );
   }
-
-  // A real sibling is deliberately absent, even if a predecessor exists on public npm.
-  publish(candidates["@ternent/armour"].file);
-  assert.equal((await fetch(`${registryUrl}/@ternent%2fidentity`)).status, 404);
-  rejectResolution(
-    "missing-sibling",
-    { "@ternent/armour": candidates["@ternent/armour"].version },
-    /ERR_PNPM_FETCH_404/,
-  );
-  for (const [name, candidate] of Object.entries(candidates))
-    if (name !== "@ternent/armour") publish(candidate.file);
-
-  // Only the probe's transitive range is wrong; no direct Identity dependency masks it.
-  const probeName = "@ternent-verify/bad-sibling";
-  put("probes/range-package/package.json", {
-    name: probeName,
-    version: "1.0.0",
-    files: ["index.js"],
-    exports: "./index.js",
-    type: "module",
-    dependencies: { "@ternent/identity": "999999.0.0-b13" },
-  });
-  put("probes/range-package/index.js", 'export { generateSigner } from "@ternent/identity";\n');
-  const probePack = JSON.parse(
-    pnpm(
-      ["pack", "--json", "--pack-destination", join(consumer, "probes")],
-      join(consumer, "probes/range-package"),
-    ),
-  );
-  publish(
-    resolve(consumer, "probes", (Array.isArray(probePack) ? probePack[0] : probePack).filename),
-  );
-  rejectResolution(
-    "incompatible-sibling",
-    { [probeName]: "1.0.0" },
-    /ERR_PNPM_NO_MATCHING_VERSION/,
-  );
-  checks.push(
-    "fresh registry resolution rejects an absent real sibling and an incompatible transitive sibling range without public npm fallback",
-  );
 
   for (const [name, candidate] of Object.entries(candidates)) {
     const response = await fetch(`${registryUrl}/${encodeURIComponent(name)}/${candidate.version}`);
@@ -259,7 +283,14 @@ try {
     dependencies,
   });
   put(".npmrc", `${npmrc}cache-dir=${join(consumer, "metadata-cache")}\n`);
-  console.log(pnpm(["install", "--ignore-scripts", "--store-dir", resolve(root, ".pnpm-store")]));
+  console.log(
+    pnpm([
+      "install",
+      "--ignore-scripts",
+      "--store-dir",
+      publishedBundle ? join(consumer, "store") : resolve(root, ".pnpm-store"),
+    ]),
+  );
 
   const lock = readFileSync(join(consumer, "pnpm-lock.yaml"), "utf8").split("\n");
   for (const [name, candidate] of Object.entries(candidates)) {
@@ -318,7 +349,7 @@ try {
     Object.keys(candidates).sort(),
   );
   checks.push(
-    "actual package names/versions resolve without sibling overrides; registry tarball digests, locked SRI and every resolved candidate copy match the packed bytes",
+    `${publishedBundle ? "fresh public-registry" : "temporary-registry"} names/versions resolve without sibling overrides; registry tarball digests, locked SRI and every resolved candidate copy match the packed bytes`,
   );
   for (const name of [
     "owner.document.json",
@@ -565,13 +596,13 @@ export default defineConfig({
   checks.push("verified tarballs retain their recorded SHA-256 digests");
   writeFileSync(
     "artifacts/consumers.json",
-    `${JSON.stringify({ candidates, installedCandidates, checks }, null, 2)}\n`,
+    `${JSON.stringify({ sourceSha, candidates, installedCandidates, checks }, null, 2)}\n`,
   );
   console.log(JSON.stringify({ candidates: Object.keys(candidates), checks }, null, 2));
 } catch (error) {
   writeFileSync(
     "artifacts/consumers.json",
-    `${JSON.stringify({ candidates, installedCandidates, checks, error: String(error), consumer }, null, 2)}\n`,
+    `${JSON.stringify({ sourceSha, candidates, installedCandidates, checks, error: String(error), consumer }, null, 2)}\n`,
   );
   throw error;
 } finally {

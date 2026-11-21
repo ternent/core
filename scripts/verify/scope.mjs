@@ -7,6 +7,7 @@ if (command !== "fmt" && command !== "lint") throw new Error("Expected fmt or li
 const paths = [
   ...workspacePackages().map((entry) => relative(process.cwd(), entry.path)),
   "scripts/verify",
+  "scripts/release",
   "vite.config.ts",
   "vite.config.base.ts",
 ];
@@ -17,6 +18,7 @@ if (command === "fmt")
     "tsconfig.json",
     "tsconfig.base.json",
     ".github",
+    ".changeset",
     "README.md",
     "CONTRIBUTING.md",
     "renovate.json",

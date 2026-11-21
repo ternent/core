@@ -42,7 +42,8 @@ Start with the [project brief](docs/concord/context.md),
 [alpha architecture](docs/concord/alpha-architecture.md) and
 [repository guide](docs/engineering/repository-hygiene.md). Signed history is
 authoritative; projections are derived, and storage publication is a separate step.
-Candidate-registry verification, release automation and registry onboarding remain
-on the [release backlog](docs/engineering/release-and-deployment.md).
+Candidate-registry checks and the release planner/publisher are implemented. CI
+exercises Seal proofs over retained candidate bundles. Production workflow wiring
+and registry onboarding remain on the [release backlog](docs/engineering/release-and-deployment.md).
 
 ISC licensed. See [LICENSE](LICENSE).

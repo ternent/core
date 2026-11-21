@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
 
@@ -11,10 +11,13 @@ const gates = [
   ["types:root", ["run", "typecheck"]],
   ["types:workspace", ["--recursive", "run", "typecheck"]],
   ["behavior", ["run", "test"]],
+  ["release", ["run", "test:release"]],
   ["consumers", ["run", "check:artifact"]],
 ];
 /** @type {{gate: string, seconds: number, exitCode: number}[]} */
 const report = [];
+const sourceSha =
+  process.env.GITHUB_SHA ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 for (const [gate, args] of gates) {
   const started = performance.now();
   console.log(`\n[verify] ${gate}`);
@@ -30,7 +33,7 @@ for (const [gate, args] of gates) {
   mkdirSync("artifacts", { recursive: true });
   writeFileSync(
     "artifacts/check.json",
-    `${JSON.stringify({ scope: "active-workspace", node: process.version, gates: report }, null, 2)}\n`,
+    `${JSON.stringify({ scope: "active-workspace", sourceSha, node: process.version, gates: report }, null, 2)}\n`,
   );
   if (result.status !== 0) {
     process.exitCode = result.status ?? 1;

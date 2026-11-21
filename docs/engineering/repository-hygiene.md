@@ -40,16 +40,19 @@ Applications and demos should consume published libraries from separate projects
 
 ## Toolchain and installation
 
-| Tool       | Repository pin                      | Use                                                               |
-| ---------- | ----------------------------------- | ----------------------------------------------------------------- |
-| Node       | 26.13.1                             | Development and CI                                                |
-| pnpm       | 12.21.0                             | Frozen dependency installation and recursive builds               |
-| Vite+      | 1.7.0                               | Library build, Oxfmt, typed Oxlint and behavior tests             |
-| TypeScript | `npm:@typescript/typescript6@6.0.2` | Explicit `tsc6` checks and declaration/compiler API compatibility |
-| publint    | 0.3.25                              | Standard built-package and exact-tarball validation               |
-| Vue        | 3.5.46                              | Runtime in the temporary browser consumer                         |
-| Playwright | 1.65.1                              | Chromium execution against installed candidates                   |
-| Verdaccio  | 7.1.2                               | Disposable local candidate registry with no uplinks               |
+| Tool         | Repository pin                      | Use                                                               |
+| ------------ | ----------------------------------- | ----------------------------------------------------------------- |
+| Node         | 26.13.1                             | Development and CI                                                |
+| pnpm         | 12.21.0                             | Frozen dependency installation and recursive builds               |
+| Vite+        | 1.7.0                               | Library build, Oxfmt, typed Oxlint and behavior tests             |
+| TypeScript   | `npm:@typescript/typescript6@6.0.2` | Explicit `tsc6` checks and declaration/compiler API compatibility |
+| publint      | 0.3.25                              | Standard built-package and exact-tarball validation               |
+| Vue          | 3.5.46                              | Runtime in the temporary browser consumer                         |
+| Playwright   | 1.65.1                              | Chromium execution against installed candidates                   |
+| Verdaccio    | 7.1.2                               | Disposable local candidate registry with no uplinks               |
+| Changesets   | 3.0.3                               | Package version intent and changelogs                             |
+| canonicalize | 5.1.0                               | RFC 8785 release-plan serialization                               |
+| semver       | 7.8.6                               | Candidate dependency and registry version checks                  |
 
 Volar, vue-tsc, unplugin-vue and the Vue Vite plugin are no longer direct repository
 dependencies or explicit requirements. Declaration tooling may still resolve Vue
@@ -66,8 +69,9 @@ No speed claim follows from switching tools without a measured comparison.
 
 ## Acceptance boundaries
 
-`pnpm check` runs eight separate gates: project contract, read-only formatting,
-recursive build, typed lint, root types, package types, behavior and packed consumers.
+`pnpm check` runs nine separate gates: project contract, read-only formatting,
+recursive build, typed lint, root types, package types, library behavior, release
+automation tests and packed consumers.
 The small contract check enforces five-library membership, public ESM metadata,
 required scripts and workspace dependency policy. Standard publint validates package
 artifacts; it does not replace behavior, declaration or browser checks.
@@ -92,13 +96,21 @@ Reports are `artifacts/check.json`, `artifacts/consumers.json`,
 `artifacts/browser.png`, registry logs and retained candidate tarballs. They describe their own run;
 older test counts, builds or remote CI results do not certify newer edits.
 
+Reports record their source revision. `scripts/release/` freezes the accepted
+candidates into a digest-bound plan, verifies the Seal-signed file set, and provides
+a retryable publisher. CI exercises the pinned Seal Action over the candidate bundle
+with a disposable identity, retaining `artifacts/release/`. That proof establishes
+test integration; production release trust uses a separately configured public key.
+
 ## Automation and retained documentation
 
 One read-only CI workflow installs the frozen lockfile, pinned age reference and
 browser, runs acceptance and retains reports/tarballs. Third-party actions are pinned
 to reviewed SHAs. There is no active npm publisher or application deployer.
-The release planner, verified-artifact publisher and registry onboarding are backlog
-work. Renovate is configured without automatic merging; the owner must enable it.
+The version-PR workflow, protected signing/publishing workflow and registry onboarding
+remain on the release backlog. Publisher tests use saved registry responses and
+recorded argv; no public registry mutation is part of acceptance.
+Renovate is configured without automatic merging; the owner must enable it.
 
 Copied legacy implementations, the retired Utils product and obsolete publishers
 were removed; Git retains their history. Current protocol, standard-profile, group,

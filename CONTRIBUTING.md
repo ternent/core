@@ -26,6 +26,9 @@ tests also need `age` 1.3.1; CI installs its checksum-verified official binary.
 | `pnpm --filter @ternent/concord check` | Build that package and its dependencies, then run its checks |
 | `pnpm check:artifact`                  | Exact packed consumers; requires built outputs and Chromium  |
 | `pnpm check`                           | Complete acceptance gate                                     |
+| `pnpm test:release`                    | Release plan, retry, integrity and Seal trust tests          |
+| `pnpm release:version`                 | Review registry history, apply Changesets and record intent  |
+| `pnpm release:plan`                    | Freeze accepted tarballs and reports from committed source   |
 
 For a small formatting change, use explicit paths with `pnpm exec vp fmt`.
 Package `check:artifact` scripts run `publint --strict --pack false` on built
@@ -63,7 +66,8 @@ of creating legacy archives; Git keeps history. UI and Workspace remain excluded
 See the [repository guide](docs/engineering/repository-hygiene.md) for ownership
 and check boundaries.
 
-The read-only CI workflow verifies candidates. Merging does not publish npm
+The read-only CI workflow verifies candidates and exercises the pinned Seal Action
+on a retained release bundle with a disposable test identity. Merging does not publish npm
 packages or deploy applications. Release automation and registry acceptance remain
 on the [release backlog](docs/engineering/release-and-deployment.md).
 `renovate.json` configures dependency updates; the owner must enable Renovate for

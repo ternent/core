@@ -106,8 +106,12 @@ The separately maintained Seal Action accepts `package-name`, `package-version` 
 `cli-command`. Its observed defaults still target the old package name. Select
 `@ternent/seal` and an actually published version when using its package path; an
 explicit CLI override can exercise a locally installed candidate. This migration
-proves its manifest/sign/public-key command sequence against the installed executable;
-it does not change or release that Action or claim a registry-backed Action run.
+proves its manifest/sign/public-key command sequence against the installed executable.
+Core CI also pins and invokes the actual Action with an explicit CLI command to sign
+the release candidate bundle, then verifies its complete file set and proof with a
+disposable test key. Production release verification requires an externally trusted
+public key. This does not release the Action or establish published consumption of
+the new Seal package.
 
 [Repository acceptance](../../docs/engineering/repository-hygiene.md#acceptance-boundaries)
 describes source and installed-consumer checks.

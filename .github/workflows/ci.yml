@@ -25,6 +25,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 2
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.18.0
@@ -52,6 +53,25 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Verify libraries and installed consumers
         run: pnpm check
+      - name: Freeze the accepted release candidate bundle
+        run: node scripts/release/cli.mjs verification-plan
+      - name: Create a disposable proof-test identity
+        id: seal-test-key
+        run: node scripts/release/cli.mjs test-identity
+      - name: Exercise the pinned Seal Action on the release bundle
+        uses: samternent/seal-action@d07a683a9195a1190c3e15b6e4374a1d59592b57
+        with:
+          assets-directory: artifacts/release
+          manifest-name: release-manifest.json
+          proof-name: release-proof.json
+          public-key-name: release-public-key.json
+          cli-command: '"${{ steps.seal-test-key.outputs.node }}" "${{ github.workspace }}/packages/seal/bin/seal"'
+        env:
+          SEAL_IDENTITY_FILE: ${{ steps.seal-test-key.outputs.identity-file }}
+      - name: Verify the Action proof and every bundled file
+        run: node scripts/release/cli.mjs verify-seal
+        env:
+          SEAL_RELEASE_PUBLIC_KEY: ${{ steps.seal-test-key.outputs.public-key }}
       - name: Retain acceptance evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -66,3 +86,5 @@ jobs:
             artifacts/registry-*.log
             artifacts/browser.png
             artifacts/candidates-*/*.tgz
+            artifacts/release/
+            artifacts/release-receipt.json

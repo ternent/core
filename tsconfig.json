@@ -4,5 +4,5 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["scripts/verify/**/*.mjs", "vite.config*.ts"]
+  "include": ["scripts/verify/**/*.mjs", "scripts/release/**/*.mjs", "vite.config*.ts"]
 }

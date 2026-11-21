@@ -18,12 +18,20 @@
     "build": "pnpm --recursive run build",
     "check:artifact": "node scripts/verify/consumers.mjs",
     "check": "node scripts/verify/check.mjs",
-    "test:watch": "vp test watch"
+    "test:watch": "vp test watch",
+    "test:release": "node --test scripts/release/*.test.mjs",
+    "release:plan": "node scripts/release/cli.mjs plan",
+    "release:publish": "node scripts/release/cli.mjs publish",
+    "release:version": "node scripts/release/version.mjs"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@types/node": "26.6.6",
+    "@types/semver": "7.8.0",
+    "canonicalize": "5.1.0",
     "playwright": "1.65.1",
     "publint": "0.3.25",
+    "semver": "7.8.6",
     "typescript": "npm:@typescript/typescript6@6.0.2",
     "verdaccio": "7.1.2",
     "vite-plus": "1.7.0",

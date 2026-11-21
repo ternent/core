@@ -8,12 +8,23 @@ export type AgePayloadCodec = {
   encode?(this: void, plaintext: Uint8Array): Promise<Uint8Array>;
   decode?(this: void, ciphertext: Uint8Array): Promise<Uint8Array | null>;
 };
+export type AgePayloadEncoder = AgePayloadCodec & Required<Pick<AgePayloadCodec, "encode">>;
+export type AgePayloadDecoder = AgePayloadCodec & Required<Pick<AgePayloadCodec, "decode">>;
+type AgeCodecOptions = {
+  recipients?: readonly string[];
+  reader?: Pick<ReaderCapability, "decryptAge">;
+};
 export function createAgeCodec(
-  input: {
-    recipients?: readonly string[];
-    reader?: Pick<ReaderCapability, "decryptAge">;
-  } = {},
-): AgePayloadCodec {
+  input: Required<AgeCodecOptions>,
+): AgePayloadEncoder & AgePayloadDecoder;
+export function createAgeCodec(
+  input: AgeCodecOptions & { recipients: readonly string[] },
+): AgePayloadEncoder;
+export function createAgeCodec(
+  input: AgeCodecOptions & { reader: Pick<ReaderCapability, "decryptAge"> },
+): AgePayloadDecoder;
+export function createAgeCodec(input?: AgeCodecOptions): AgePayloadCodec;
+export function createAgeCodec(input: AgeCodecOptions = {}): AgePayloadCodec {
   if (
     !input ||
     typeof input !== "object" ||

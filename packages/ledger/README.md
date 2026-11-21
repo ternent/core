@@ -72,6 +72,10 @@ Armour dependency, recipient configuration, key management or automatic decrypti
 the ordinary `append()` API. `decodePayload(data, codec?)` reads that envelope after
 replay. A codec is just an `id` and optional asynchronous byte `encode`/`decode`
 functions; there is no plugin registry or lifecycle to configure.
+`encodePayload` requires a `LedgerPayloadEncoder`, so reader-only or unknown
+encoding capabilities are rejected by TypeScript. `LedgerPayloadDecoder` describes
+a guaranteed decoder; the general `LedgerPayloadCodec` keeps both methods optional
+for inspection and locked-result handling.
 
 ```ts
 import { encodePayload, decodePayload } from "@ternent/ledger";

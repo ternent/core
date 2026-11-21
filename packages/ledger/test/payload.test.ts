@@ -3,12 +3,13 @@ import {
   createLedger,
   encodePayload,
   decodePayload,
-  type LedgerPayloadCodec,
+  type LedgerPayloadEncoder,
+  type LedgerPayloadDecoder,
 } from "../src/index.js";
 import { signerFromSeed } from "@ternent/identity";
 
 // A transport codec proves that payload integration is independent of encryption.
-const codec: LedgerPayloadCodec = {
+const codec: LedgerPayloadEncoder & LedgerPayloadDecoder = {
   id: "test.reverse",
   encode: async (bytes) => new Uint8Array(bytes).reverse(),
   decode: async (bytes) => new Uint8Array(bytes).reverse(),
@@ -66,7 +67,7 @@ test("failed encoding never appends plaintext; codec and malformed payload failu
     },
   };
   await expect(encodePayload("secret", broken)).rejects.toThrow("unavailable");
-  await expect(encodePayload("secret", { id: "read-only" })).rejects.toMatchObject({
+  await expect(encodePayload("secret", { id: "read-only" } as never)).rejects.toMatchObject({
     finding: { code: "HOST_CONFIGURATION" },
   });
   await expect(

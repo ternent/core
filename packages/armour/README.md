@@ -56,6 +56,10 @@ composing Armour with Ledger's `encodePayload`/`decodePayload` helpers. Armour d
 not import Ledger. Supplying recipients enables encoding; supplying a `decryptAge`
 reader capability enables decoding. Recipients are copied when the codec is created.
 An absent operation remains absent; it never falls back to plaintext.
+The factory preserves these capabilities in its return type: recipients guarantee
+`encode`, a reader guarantees `decode`, and supplying both guarantees both methods.
+No non-null assertions are needed. Dynamically optional configuration returns the
+general codec type and does not promise either operation.
 
 The codec uses the existing binary age operations. Its decoder returns `null` when
 the reader reports an authentication/decryption failure, covering both wrong keys

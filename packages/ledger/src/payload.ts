@@ -13,6 +13,10 @@ export type LedgerPayloadCodec = {
   /** null means unavailable to this reader; exceptions remain operational failures. */
   decode?(this: void, encoded: Uint8Array): Promise<Uint8Array | null>;
 };
+export type LedgerPayloadEncoder = LedgerPayloadCodec &
+  Required<Pick<LedgerPayloadCodec, "encode">>;
+export type LedgerPayloadDecoder = LedgerPayloadCodec &
+  Required<Pick<LedgerPayloadCodec, "decode">>;
 export type LedgerEncodedPayload = {
   format: "ledger-payload";
   version: 1;
@@ -33,7 +37,7 @@ function codecId(codec: LedgerPayloadCodec): string {
 /** Encode portable JSON before appending it through the ordinary Ledger API. */
 export async function encodePayload(
   data: Json,
-  codec: LedgerPayloadCodec,
+  codec: LedgerPayloadEncoder,
   options?: PayloadLimits,
 ): Promise<LedgerEncodedPayload> {
   const lim = limits(options),

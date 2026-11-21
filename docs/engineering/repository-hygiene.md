@@ -65,10 +65,12 @@ system-output validation and model folding. The runtime retains command queues,
 drafts and atomic state publication together. This extraction preserves function
 bodies and public exports.
 
-Workspace remains excluded because its test file contains a separate pre-existing
-working edit. Its retirement needs that work reconciled. UI remains excluded pending
-its migration; `scripts/vite` still supports that unmigrated build. These directories
-are not part of the new package checks or release candidates.
+Workspace is intentionally deferred until the libraries run smoothly and a substantial
+set of demos has been built. It is not live, and its migration, cleanup and existing
+working edits do not block the library release. Preserve it without further work for
+now. UI remains excluded pending its library migration; `scripts/vite` still supports
+that unmigrated build. These directories are not part of the new package checks or
+release candidates.
 
 Root README, contribution instructions and ISC license explain the actual setup.
 Dated planning documents remain evidence, with links to this implemented state;

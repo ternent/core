@@ -14,6 +14,8 @@ the host owns its data and storage.
 These are local alpha candidates. UI migration, the verified-artifact publisher
 and registry acceptance remain on the [shipping backlog](docs/engineering/shipping-inventory-2026-11-20.md).
 The existing UI and Workspace directories are excluded from the active workspace.
+Workspace work is deferred until the libraries are stable and a substantial set of
+demos has been built; it does not block the library release.
 
 Use Node **26.13.1** and pnpm **12.21.0**:
 

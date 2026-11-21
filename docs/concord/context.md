@@ -31,19 +31,21 @@ Product reference: [ternent.dev/concord](https://ternent.dev/concord). The curre
 
 ## Repository map
 
-| Area | Starting point |
-| --- | --- |
-| Document parsing, signatures and linkage | `packages/concord/src/protocol/` |
-| Lifecycle, drafts and atomic publication | `packages/concord/src/runtime.ts` |
-| Private host validation and model replay | `packages/concord/src/runtime/` |
-| Authority, audiences and key distribution | `packages/concord/src/system/` |
-| Memory storage and conflict reference | `packages/concord/src/testing/` |
-| Package selection | `pnpm-workspace.yaml` |
-| Repository acceptance checks | `scripts/verify/` |
+| Area                                      | Starting point                    |
+| ----------------------------------------- | --------------------------------- |
+| Document parsing, signatures and linkage  | `packages/concord/src/protocol/`  |
+| Lifecycle, drafts and atomic publication  | `packages/concord/src/runtime.ts` |
+| Private host validation and model replay  | `packages/concord/src/runtime/`   |
+| Authority, audiences and key distribution | `packages/concord/src/system/`    |
+| Memory storage and conflict reference     | `packages/concord/src/testing/`   |
+| Package selection                         | `pnpm-workspace.yaml`             |
+| Repository acceptance checks              | `scripts/verify/`                 |
 
 The copied legacy archives, retired Ledger and Utils products, and obsolete
 publish workflows were removed on 2026-11-21. Git retains their history.
-Workspace remains excluded pending retirement; UI migration remains B08–B10.
+Workspace is intentionally deferred until the libraries are stable and a substantial
+set of demos has been built. It is not live and does not block library readiness.
+UI library migration remains B08–B10.
 The migration evidence below is historical, including references to removed paths.
 
 ## Migration context
@@ -114,7 +116,9 @@ next implementation deliverable. The reference application is the existing
 [todo application in samternent/home](https://github.com/samternent/home/blob/main/apps/concord-demo/src/route/workspace/WorkspaceTodo.vue),
 not a new invented example. Complete the library migration and package CI/CD first.
 Mini applications, a todo port and demo deployments follow that foundation. Workspace
-remains outside this scope.
+remains outside this scope. Sam reaffirmed on 2026-11-21 that Workspace can wait until
+the libraries run smoothly and plenty of demos exist; do not schedule its cleanup or
+migration as a prerequisite for either.
 
 Start with a source-to-target inventory of the libraries and a package-by-package gap
 assessment. Map existing contracts to target owners; the old package layout does not

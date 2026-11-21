@@ -37,8 +37,7 @@ another protocol. `verifyBytes`/`verifyUtf8` must use the same context. Capabili
 `sign` signs exactly the supplied bytes and returns raw bytes inside a structured
 result. Concord constructs its own signing message and uses that exact-byte path.
 
-Historical package/configuration sources are retained in `legacy/` and excluded
-from publication. The distribution is ESM.
+Historical implementations are available in Git. The distribution is ESM.
 
 ```ts
 import { signerFromSeed } from "@ternent/identity";

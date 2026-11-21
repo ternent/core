@@ -1,16 +1,15 @@
 # Concord alpha implementation blueprint
 
-Shipping design update, 2026-11-20: independent memberships are accepted in
-[ADR 0015](../adr/0015-keep-audience-memberships-independent.md).
-The [group design draft](group-profile-design.md) proposes scoped authoring,
-readable/locked replay and explicit projection coverage. The interfaces below still
-describe the single-audience baseline; revise them together during B03/B04 rather
-than treating its all-key requirement as the final shipping behavior.
+Shipping update, 2026-11-20: independent memberships, scoped command routing and
+readable/locked replay are implemented. [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
+and [ADR 0016](../adr/0016-route-each-command-to-one-audience.md) record the decisions.
+The [standard profile](standard-profile.md) defines their wire and replay contract.
+Draft authoring is implemented in B05; the reusable storage conflict proof is implemented by B12.
 
 Status: first-slice contract, 2026-10-21. Identity, Armour and the private immediate
 commit/register slice are implemented; [migration evidence](../engineering/alpha-first-slice.md)
 records executed checks and remaining increments. The local handshake is the first
-end-to-end application, followed by draft and reusable storage work. The
+end-to-end application. Drafts and the reusable storage proof are implemented. The
 [accepted architecture](alpha-architecture.md) and ADRs 0001–0005 remain in force.
 New decisions are recorded in ADRs 0006–0009. No legacy compatibility is implied.
 
@@ -101,7 +100,9 @@ type ConcordError = {
   entryId?: EntryId;
   details?: Readonly<JsonObject>; // never keys, decrypted data, or secrets
 };
-type ReadyState<S> = {
+type ReplayCoverage = { coverage: "complete" | "readable"; lockedEntries: number };
+type ProjectionResult<S> = ReplayCoverage & { projection: Readonly<S> };
+type ReadyState<S> = ReplayCoverage & {
   status: "ready";
   documentId: CommitId;
   head: CommitId;
@@ -127,7 +128,7 @@ interface DocumentHandle<S, Commands extends Record<string, Json>> {
   draft(): DraftState<S> | null;
   export(): Uint8Array;
   verify(): Promise<VerificationReport>;
-  replay(): Promise<Result<Readonly<S>>>;
+  replay(): Promise<Result<ProjectionResult<S>>>;
   inspect(): InspectionReport;
 }
 ```
@@ -211,7 +212,8 @@ serialized authoring port, with no caller-supplied actor, keys, epoch, or cipher
 The runtime owns their one-commit lifecycle. They require immediate mode, reject
 nonempty drafts with DRAFT_PENDING, and reject an empty draft-mode handle with
 HOST_CONFIGURATION (no implicit mode switch). These specialist management functions
-were delivered in Step 4. The draft-specific guards apply when draft authoring is added.
+and their draft guards are implemented. `createGroup` follows these same guards;
+member operations accept an optional audience that defaults to `document`.
 
 An untyped inspection overload of open returns `DocumentHandle<never, Record<never,
 never>>`. Passing a model gives its inferred types even when open returns inspection;
@@ -250,13 +252,15 @@ type VerificationReport = {
 type InspectionReport = {
   verification: VerificationReport;
   system: "valid" | "invalid" | "unsupported" | "not-run";
-  application: "valid" | "invalid" | "unsupported" | "locked" | "not-run";
+  application: "valid" | "scoped" | "invalid" | "unsupported" | "locked" | "not-run";
   freshness: "unanchored" | "equal" | "ahead" | "behind" | "diverged" | "unrelated";
   otherRecipientsDecryptability: "unverified";
   requirements: readonly { kind: "system" | "model"; ref: ModelRef }[];
   lockedEntries: number | null; // null if structure/profile could not be interpreted
   findings: readonly ConcordError[];
   history: readonly CommitRecord[]; // raw public envelopes; [] when unparseable
+  entries: readonly ReplayItem[] | null; // only after complete system pass
+  audiences: readonly AudienceState[] | null; // public group summaries
 };
 ```
 
@@ -265,16 +269,22 @@ suite leaves signature-checked commits at zero. A valid report counts all record
 Unknown requirements appear in `requirements` only when unavailable/mismatched, in
 system-then-model order. Inspection merges findings in protocol, requirements,
 freshness, system, model order. Protocol failure prevents later phases. Resolve
-requirements before system execution; freshness failure also stops replay. No reader
-or read at head sets application locked; count all application entries as locked in
-that case. Missing epoch keys count entries using those epochs. A cryptographic
-failure with an available epoch key is invalid, not merely locked. The inspection
-report marks other recipients' decryptability `unverified` because the host can only
-check wraps addressed to its own reader.
+requirements before system execution; freshness failure also stops replay. A complete
+system pass yields one readable entry or locked marker per application entry, including
+retained historical access after removal. No reader yields locked application entries.
+Missing keys count only entries using unavailable audience/epoch keys; available-key
+cryptographic/context failure is invalid. Models without `reduceLocked` return locked
+inspection before callbacks if any entry is unavailable (also for private genesis
+without a reader). Opted-in models fold the complete readable/locked stream and report
+`coverage: "readable"`, application `scoped`, when locked entries exist. Zero locked
+entries gives complete/valid. Hidden application semantics remain unverified.
+Inspection exposes entries/audiences after successful system replay even when model
+replay fails, with no intermediate trusted projection. Other recipients' encrypted
+wraps remain decryptability-unverified.
 
 `handle.verify()` verifies committed bytes without replaying or upgrading readiness.
 `handle.replay()` performs both complete stages against the fixed committed snapshot
-and returns its fresh projection; it cannot bypass verification or replay a range.
+and returns its fresh `{ projection, coverage, lockedEntries }`; it cannot bypass verification or replay a range.
 Inspection stays read-only; supplying new keys/models means a fresh open.
 `inspect()` never decrypts on demand or returns keys. Reports and history are detached
 immutable views. Ready-state projection and draft previews must not allow external
@@ -325,6 +335,18 @@ fails `NO_DRAFT`. Explicit commit in immediate mode also fails `NO_DRAFT`; dispa
 already committed. `discardDraft()` discards the whole draft; empty draft is a no-op
 success for a writable handle. Partial discard and mode switching are outside alpha.
 
+The preview is provisional and carries the same reader scope as its committed base;
+it cannot certify hidden application semantics. No protocol entry/commit IDs, nonces, ciphertext or
+signature are allocated while staging. Staged event count includes committed entries
+for `maxEntries`, and the prospective commit must fit `maxCommits`. Aggregate staged
+intents and each preview are independently bounded by `maxBytes`/`maxDepth`. The
+protected final snapshot may still exceed a byte/ciphertext limit at commit time;
+that failure retains the draft. There is no estimate presented as a verified size.
+Commit metadata is copied when `commit` is invoked, must be a JSON object within
+`maxMetadataBytes`, and is checked before protection/signing. Omitted metadata is
+signed as null. Invalid metadata fails `SCHEMA_INVALID`; bound failures use
+`RESOURCE_LIMIT`. Signed metadata remains public.
+
 Drafts are volatile. Export, verify, and full replay concern committed history and
 leave staged intents unchanged. Reopening export discards any local draft by design;
 no unsigned draft persistence is hidden in a storage adapter. System authoring is
@@ -344,6 +366,7 @@ type ModelIssue = { code: string; message: string; path?: string };
 type Capability = "read" | "write" | "grant" | "administer";
 type SystemFacts = {
   actor: PublicIdentity;
+  audience: AudienceId;
   capabilities: readonly Capability[]; // actor's rights at this entry position
   members: readonly { identity: PublicIdentity; capabilities: readonly Capability[] }[];
 };
@@ -354,6 +377,7 @@ type ApplicationModel<S, C extends Record<string, Json>, E extends DomainEvent> 
   commands: {
     [K in keyof C]: {
       validate(input: unknown): Result<C[K], ModelIssue>;
+      audience?(input: C[K]): AudienceId; // default document
       decide(
         input: C[K],
         state: Readonly<S>,
@@ -362,8 +386,14 @@ type ApplicationModel<S, C extends Record<string, Json>, E extends DomainEvent> 
     };
   };
   validateEvent(input: unknown): Result<E, ModelIssue>;
+  audience?(event: E): AudienceId; // default document
   requirements(event: E): readonly Capability[];
   reduce(state: Readonly<S>, event: E, facts: SystemFacts): Result<S, ModelIssue>;
+  reduceLocked?(
+    state: Readonly<S>,
+    entry: { audience: AudienceId; epoch: number },
+    facts: SystemFacts,
+  ): Result<S, ModelIssue>;
 };
 ```
 
@@ -381,6 +411,13 @@ into reducers. Facts exclude current wall time, reader identity, mutable permiss
 maps, raw ciphertext, keys, and derived UI profiles. Requirement sets are checked on
 authoring and historical replay. The runtime retains provenance (commit/entry IDs)
 for inspection; the reducer cannot make state depend on the new commit ID.
+
+After command input validation, select one audience and check current write there
+before decide receives that group's signer facts. Every emitted event must select the
+same audience. On replay event selection must match its signed envelope. Unknown or
+inconsistent routing fails; no implicit group creation. Each selector is synchronous
+and pure. Locked hooks get public facts/marker only; the model explicitly owns missing
+cross-group dependencies. Rejecting any transition aborts the whole pass.
 
 The model validates transitions in reduce as well as deciding commands: an authenticated
 writer can produce a structurally valid event that violates model invariants. Such
@@ -469,16 +506,23 @@ Tooling has no runtime package dependencies. Framework/UI -> root Concord interf
 No new Ledger, Workspace, protocol-only package, storage framework, or universal plugin
 package. Internal seams are private except the documented specialist subpaths.
 
-The first-slice storage proof uses a copied byte buffer, not a runtime storage option.
-When board publication is added, its minimum separate adapter interface is
-`read(): Promise<Result<Uint8Array | null, StorageError>>` and
-`write(bytes: Uint8Array): Promise<Result<void, StorageError>>`. A richer adapter
-advertises `expectedHead: true` and supplies
-`writeExpected(bytes, expected: CommitId | null)`, atomically comparing remote head
-before replacement; null means create only if absent. The adapter returns
-`HEAD_CONFLICT` with remote bytes/revision reference. It cannot claim concurrency
-protection by doing a non-atomic read then write. Runtime commit is never rolled back
-by failed publication; retain both local and returned remote snapshots.
+Storage remains separate from the runtime. The minimal adapter and optional atomic
+expected-head capability are implemented as reference helpers in `/testing`; see
+[the storage boundary](storage-boundary.md) for exact types and limits. The basic
+`createMemoryArtifactStore` stores copied raw bytes. The richer
+`createMemoryExpectedHeadStore` advertises `expectedHead: true` and adds
+`writeExpected(bytes, expected: CommitId | null)`. Null means create only if absent;
+HEAD_CONFLICT returns copied remote bytes outside JSON error details. It serializes
+all writes through validation/compare/replacement, so async verification cannot create
+a read-then-write race within that shared instance. It verifies protocol history only
+and uses default verifier limits; application validity still requires runtime open.
+
+Failed publication never rolls back a local commit or erases a pending draft. Keep
+both local and returned remote artifacts and compare explicitly. No automatic merge,
+head selection, overwrite retry, draft persistence, transport or provider is added.
+Expected head is not a byte revision or ancestry policy; freshness needs an external
+anchor. Atomicity is limited to the reference instance. A production adapter must use
+a real provider transaction/conditional write, not a non-atomic client read/write.
 
 ## 6. Toolchain and implementation order
 
@@ -563,8 +607,8 @@ Tampered, missing-model, and locked imports remain exportable inspection artifac
 
 ## 8. Decisions, product questions, and observed evidence
 
-There is no blocking product question for the first slice. One shared private audience,
-full history on admission, strict all-or-nothing projections, and local volatile drafts
+There is no blocking product question for the first slice. Independent groups,
+full history on admission, atomic complete or explicitly readable projections, and local volatile drafts
 are explicit alpha constraints rather than prompts for an implementer to guess. A
 product needing private task subsets or future-only membership needs a separately
 specified profile/model; it must not quietly widen this alpha.

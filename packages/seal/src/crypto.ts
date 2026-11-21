@@ -3,10 +3,12 @@ import {
   createIdentityFromMnemonic,
   createMnemonicIdentity,
   deriveKeyId,
-  parseIdentity,
+  validateIdentity,
+  validatePublicIdentity,
+  decodeBase64Url,
+  verifySignature,
   serializeIdentity,
   signUtf8,
-  verifyUtf8,
   type SerializedIdentity,
 } from "@ternent/identity";
 
@@ -51,9 +53,9 @@ export function exportIdentityJson(identity: SerializedIdentity): string {
 }
 
 export async function resolveSealSigner(input: SealSignerInput): Promise<ResolvedSealSigner> {
-  const identity = parseIdentity(input.identity);
+  const identity = await validateIdentity(input.identity);
   const keyId = await deriveKeyId(identity.publicKey);
-  if (keyId !== identity.keyId) {
+  if (keyId !== identity.keyId || !(await verifyPublicKeyKeyId(identity.publicKey, keyId))) {
     throw new Error("Identity keyId does not match the signer public key.");
   }
 
@@ -75,11 +77,36 @@ export async function verifySealUtf8(
   value: string,
   publicKey: string,
 ): Promise<boolean> {
-  return verifyUtf8(publicKey, value, signature, {
-    context: SEAL_SIGNATURE_CONTEXT,
-  });
+  try {
+    const keyId = await deriveKeyId(publicKey);
+    const identity = {
+      version: 1 as const,
+      algorithm: "Ed25519" as const,
+      publicKey,
+      id: `identity:${keyId}`,
+    };
+    const decoded = decodeBase64Url(signature);
+    if (!decoded.ok) return false;
+    const result = await verifySignature(
+      identity,
+      new TextEncoder().encode(`${SEAL_SIGNATURE_CONTEXT}\0${value}`),
+      decoded.value,
+    );
+    return result.ok && result.value;
+  } catch {
+    return false;
+  }
 }
 
 export async function verifyPublicKeyKeyId(publicKey: string, keyId: string): Promise<boolean> {
-  return (await deriveKeyId(publicKey)) === keyId;
+  try {
+    return validatePublicIdentity({
+      version: 1,
+      algorithm: "Ed25519",
+      publicKey,
+      id: `identity:${keyId}`,
+    }).ok;
+  } catch {
+    return false;
+  }
 }

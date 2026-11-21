@@ -23,6 +23,7 @@ const members: readonly Member[] = [
 
 function factsFor(actor: PublicIdentity, membership = members): SystemFacts {
   return {
+    audience: "document",
     actor,
     members: membership,
     capabilities: membership.find(({ identity }) => identity.id === actor.id)?.capabilities ?? [],

@@ -77,18 +77,5 @@ export function assertModelConformance<
     return { ok: false, error: error("MODEL_FAILED", "model") };
   }
 }
-export function createMemoryArtifactStore(): {
-  read(): Promise<Result<Uint8Array | null>>;
-  write(bytes: Uint8Array): Promise<Result<void>>;
-} {
-  let stored: Uint8Array | null = null;
-  return {
-    async read() {
-      return ok(stored ? new Uint8Array(stored) : null);
-    },
-    async write(bytes) {
-      stored = new Uint8Array(bytes);
-      return ok(undefined);
-    },
-  };
-}
+export { createMemoryArtifactStore, createMemoryExpectedHeadStore } from "./artifact-store.js";
+export type { ArtifactStore, ExpectedHeadArtifactStore, StorageError } from "./artifact-store.js";

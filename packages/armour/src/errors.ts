@@ -1,8 +1,8 @@
 import {
-  RageDecryptionError,
-  RageEncryptionError,
-  RageError,
-  RageValidationError,
+  AgeEngineDecryptionError,
+  AgeEngineEncryptionError,
+  AgeEngineError,
+  AgeEngineValidationError,
 } from "./engine.js";
 import type { ArmourErrorCode } from "./types.js";
 
@@ -49,33 +49,33 @@ export function toArmourEncryptionError(error: unknown): ArmourError {
     return error;
   }
 
-  if (error instanceof RageValidationError) {
+  if (error instanceof AgeEngineValidationError) {
     switch (error.code) {
-      case "RAGE_EMPTY_DATA":
+      case "AGE_ENGINE_EMPTY_DATA":
         return new ArmourValidationError(
           "ARMOUR_EMPTY_DATA",
           "Data must be a non-empty Uint8Array.",
           error,
         );
-      case "RAGE_EMPTY_RECIPIENTS":
+      case "AGE_ENGINE_EMPTY_RECIPIENTS":
         return new ArmourValidationError(
           "ARMOUR_EMPTY_RECIPIENTS",
           "At least one recipient is required.",
           error,
         );
-      case "RAGE_INVALID_RECIPIENT":
+      case "AGE_ENGINE_INVALID_RECIPIENT":
         return new ArmourValidationError(
           "ARMOUR_INVALID_RECIPIENT",
           "Recipient must be an age recipient string.",
           error,
         );
-      case "RAGE_EMPTY_PASSPHRASE":
+      case "AGE_ENGINE_EMPTY_PASSPHRASE":
         return new ArmourValidationError(
           "ARMOUR_EMPTY_PASSPHRASE",
           "Passphrase must not be empty.",
           error,
         );
-      case "RAGE_DATA_TOO_LARGE":
+      case "AGE_ENGINE_DATA_TOO_LARGE":
         return new ArmourValidationError(
           "ARMOUR_DATA_TOO_LARGE",
           "Data exceeds the 64MB maximum message size.",
@@ -86,7 +86,7 @@ export function toArmourEncryptionError(error: unknown): ArmourError {
     }
   }
 
-  if (error instanceof RageEncryptionError || error instanceof RageError) {
+  if (error instanceof AgeEngineEncryptionError || error instanceof AgeEngineError) {
     return new ArmourEncryptionError("ARMOUR_ENCRYPT_FAILED", "Failed to encrypt data.", error);
   }
 
@@ -98,21 +98,21 @@ export function toArmourDecryptionError(error: unknown): ArmourError {
     return error;
   }
 
-  if (error instanceof RageValidationError) {
+  if (error instanceof AgeEngineValidationError) {
     switch (error.code) {
-      case "RAGE_EMPTY_DATA":
+      case "AGE_ENGINE_EMPTY_DATA":
         return new ArmourValidationError(
           "ARMOUR_EMPTY_DATA",
           "Data must be a non-empty Uint8Array.",
           error,
         );
-      case "RAGE_INVALID_IDENTITY":
+      case "AGE_ENGINE_INVALID_IDENTITY":
         return new ArmourValidationError(
           "ARMOUR_INVALID_SECRET_KEY",
           "Secret key must be an age secret key string.",
           error,
         );
-      case "RAGE_EMPTY_PASSPHRASE":
+      case "AGE_ENGINE_EMPTY_PASSPHRASE":
         return new ArmourValidationError(
           "ARMOUR_EMPTY_PASSPHRASE",
           "Passphrase must not be empty.",
@@ -123,7 +123,7 @@ export function toArmourDecryptionError(error: unknown): ArmourError {
     }
   }
 
-  if (error instanceof RageDecryptionError || error instanceof RageError) {
+  if (error instanceof AgeEngineDecryptionError || error instanceof AgeEngineError) {
     return new ArmourDecryptionError("ARMOUR_DECRYPT_FAILED", "Failed to decrypt data.", error);
   }
 

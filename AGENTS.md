@@ -12,8 +12,8 @@ repeatable, and useful to both people and agents.
 
 - Prefer Oxfmt for formatting and Oxlint for JavaScript/TypeScript linting.
   Use installed, repository-configured versions; verify capabilities before
-  depending on flags or rules. The active tooling pilot uses Vite+ Oxlint through
-  `pnpm lint`; legacy packages remain outside that check until migrated.
+  depending on flags or rules. The active workspace uses Vite+ Oxlint through
+  `pnpm lint`; excluded packages remain outside that check until migrated or retired.
 - Encode repeatable mechanical rules in tooling when practical. Spend review
   attention on contracts, behavior, and design decisions.
 - Use diagnostics to drive small corrections. Review automatic fixes and scope
@@ -36,6 +36,7 @@ repeatable, and useful to both people and agents.
 - Proceed with routine, reversible decisions in scope. Ask when a missing
   decision materially affects behavior, compatibility, or scope; do not ask
   again for actions already authorized.
+- Remove retired source copies; Git preserves history. Do not create legacy folders.
 - Preserve existing edits. Inspect the working tree at the start and review
   the final diff before reporting completion.
 - Describe outcomes in plain language. Separate facts, hypotheses, decisions,

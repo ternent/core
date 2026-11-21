@@ -45,3 +45,34 @@ Strict invalid-point/parser/authority cases in [conformance](../conformance.md) 
 implementation acceptance work. Complete profile-sharing/revocation and board fixtures
 must be added in their delivery steps with literal expected outputs before claiming
 those conformance levels. No alpha runtime was executed to verify these files today.
+
+## Independent-group vectors (2026-11-20)
+
+- `groups.removed.document.json`: two independently administered groups in one signed
+  document, creator removed from default membership, Bob removed from Accounts, and
+  a subsequent Accounts event encrypted under the rotated epoch.
+- `groups.readmitted.document.json`: direct child admitting Bob back to Accounts as
+  read-only, carrying every Accounts epoch key.
+- `groups.expected.json`: fixed audience/document/head IDs, canonical snapshot digests,
+  exact projections/coverage/locked counts for owner, creator and Bob, and current
+  authoring rights. Expectations were constructed from the six intended events,
+  independently of replay output.
+
+These new artifacts were authored once through the runtime and saved. Built-in Node
+crypto separately recomputed every entry/commit ID and verified every Ed25519 signature.
+They are regression vectors, not independent native-age construction like the original
+owner fixture. `groups.test.ts` opens the same bytes twice for each reader/stage and
+checks the literal expected result; the isolated packed consumers do the same on
+Node 22/24. Model ref is `concord.test.independent-groups`, version 1. Test identities
+use the original RFC seed (owner), 32 bytes of `02` (creator), and 32 bytes of `03`
+(Bob). All are public test secrets; never use them for real data.
+
+The application events are, in order: default `shared = "default history"`; Accounts
+`account = "initial account"`; Personal `personal = "private description"`; Bob's
+Accounts `account = "from Bob"`; creator's Accounts `account = "after default removal"`;
+and creator's Accounts `account = "after removal"`. Each event is `group.value`,
+version 1, with data `{ audience, key, value, admin: false }`. The model maps values
+by key, records readable actor/audience facts and records locked audience/epoch markers.
+The default owner lacks both group keys; creator has all events including retained
+default history; Bob sees Accounts history, one future Accounts lock while removed,
+and all Accounts history after re-admission. Default/Personal remain locked to Bob.

@@ -45,7 +45,7 @@ References identify implementation or fixture evidence, not a demand to copy it.
 
 | Source directory / package                                           | Capability and evidence                                                                                                        | Target owner / disposition                                                                                                                                                                                                  |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `identity-v2` / `@ternent/identity`                                  | Seed identity, mnemonic/serialized helpers, signing, X25519/age derivation; `src/index.ts`, tests                              | **Retain useful behavior** in Identity. `src/legacy.ts` ports helpers; `src/strict.ts` supplies capability signing and strict validation. Audit the final public surface in B02.                                            |
+| `identity-v2` / `@ternent/identity`                                  | Seed identity, mnemonic/serialized helpers, signing, X25519/age derivation; `src/index.ts`, tests                              | **Retain useful behavior** in Identity. `src/serialized.ts` ports helpers; `src/strict.ts` supplies capability signing and strict validation. Audit the final public surface in B02.                                            |
 | `identity` / `ternent-identity`                                      | Older key import/export/signing; `src/index.ts` and referenced modules                                                         | **Replace** with Identity's seed/capability interface. Do not restore an older key representation solely for compatibility.                                                                                                 |
 | `armour` / `@ternent/armour`                                         | Recipient, identity, passphrase, text and binary encryption; `src/`, `test/`                                                   | **Retain** in Armour with the existing TypeScript age port. Keep one engine and Identity-owned conversion.                                                                                                                  |
 | `encrypt` / `ternent-encrypt`                                        | String encryption/decryption and key generation; `src/index.ts`                                                                | **Replace** with Armour operations; no second encryption wrapper product.                                                                                                                                                   |
@@ -129,7 +129,7 @@ Armour/Concord lifecycle and vectors on Node **22.18.0 and 24.21.0**, protocol
 import isolation, public imports/CLI/types, and external library/Vue app builds.
 It then failed launching Chromium: macOS sandbox denied Mach-port registration
 (`bootstrap_check_in ... Permission denied (1100)` at
-`scripts/pilot/consumers.mjs:243`). No browser assertions ran in this attempt;
+`scripts/verify/consumers.mjs:243`). No browser assertions ran in this attempt;
 later consumer checks were not reached. This is an environment-blocked gate, not
 evidence of an application assertion failure. No assertions were weakened or
 browser checks skipped to report success.
@@ -144,7 +144,7 @@ unverified. This documentation-only pass introduced no implementation failure.
 
 | Area                | Inspected implementation                                                                                                                                       | Remaining shipping gap                                                                                                                                                                                        |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity            | `src/index.ts` exports strict capabilities and helper implementation from `legacy.ts`; local profile/public ESM exports                                        | Decide which helper APIs remain useful host conveniences, verify Seal's actual needs; avoid compatibility-only exports. Preserve strict signature/key/encoding vectors and mnemonic behavior selected for v1. |
+| Identity            | `src/index.ts` exports strict capabilities and helper implementation from `serialized.ts`; local profile/public ESM exports                                        | Decide which helper APIs remain useful host conveniences, verify Seal's actual needs; avoid compatibility-only exports. Preserve strict signature/key/encoding vectors and mnemonic behavior selected for v1. |
 | Armour              | One TypeScript age engine; capability and convenience APIs; local Identity dependency                                                                          | Audit deliberate init/helper surface and errors. Description still says Rage. Preserve independent age interop, malformed input and unauthorized decryption checks.                                           |
 | Concord protocol    | Canonical signed history, independent `/protocol`, snapshot comparison                                                                                         | Keep existing vectors/negative cases; update only group envelope contract required by B01. Old and new format support must be explicit, without a compatibility mandate.                                      |
 | Concord system      | `ProtectedEvent.audience`, `ApplicationIntent.audience`, standard replay and runtime dispatch fix `"document"`                                                 | Independent groups, per-group epochs/rotation/history grants, writer-created groups and owner access only through an actual grant.                                                                            |
@@ -183,8 +183,8 @@ independent paths after the contract review.
 Progress, 2026-11-20: Sam accepted separate memberships in
 [ADR 0015](../adr/0015-keep-audience-memberships-independent.md). A concrete
 [design draft](../concord/group-profile-design.md), 19 proposed acceptance cases
-and a saved semantic scenario are ready for implementation review. The wire/model
-details are proposals; multi-group code and signed vectors remain B03/B04 work.
+and a saved semantic scenario defined the implementation scope. B03/B04 now implement
+the contract and add signed group vectors; see the dated implementation note below.
 One audience per command is also accepted in
 [ADR 0016](../adr/0016-route-each-command-to-one-audience.md); draft mode may group
 commands across audiences in one commit.
@@ -231,6 +231,10 @@ Fresh package/browser acceptance limits are reported separately in that note.
 
 ### B03 — Implement independent groups in system authoring and replay
 
+Implemented locally, 2026-11-20: independent authoring/membership/epochs, scoped
+authority, historical grants and group-specific rotation. See
+[independent group implementation and verification](independent-groups-2026-11-20.md).
+
 - **Evidence:** B01, Workspace group sources, legacy encryption/permission negative
   fixtures; current `system/{audience,membership,authoring,standard}.ts`.
 - **Targets:** `packages/concord/src/{protocol,system}/`, necessary runtime routing,
@@ -246,6 +250,11 @@ Fresh package/browser acceptance limits are reported separately in that note.
   tampering failing protocol validation.
 
 ### B04 — Publish readable views with explicit locked entries
+
+Implemented locally, 2026-11-20: exhaustive readable/locked replay, explicit model
+opt-in, coverage metadata and raw readable inspection evidence after successful
+system replay. Verification and environmental limits are recorded in the
+[implementation note](independent-groups-2026-11-20.md). B05 now also implements drafts.
 
 - **Evidence:** B01; `system/standard.ts` all-key/read checks,
   `system/types.ts`, `model/types.ts`, runtime evaluation/output checks;
@@ -265,6 +274,11 @@ Fresh package/browser acceptance limits are reported separately in that note.
 
 ### B05 — Complete draft authoring
 
+Implemented locally, 2026-11-20: volatile previews, committed-only reads/export,
+ordered atomic commits across commands/audiences, signed metadata, discard and
+failure-preserving retries. See [draft implementation and verification](draft-authoring-2026-11-20.md).
+The reusable storage proof is also implemented in B12 below.
+
 - **Evidence:** `home/packages/ledger-v2/src/ledger.ts`, legacy Concord staging,
   current `model/types.ts` and runtime stubs; blueprint draft cases.
 - **Targets:** `packages/concord/src/runtime.ts`, model types, focused draft tests
@@ -279,6 +293,11 @@ Fresh package/browser acceptance limits are reported separately in that note.
   and inspection handles reject authoring. No hidden storage write.
 
 ### B06 — Migrate Seal's library contract and internal helpers
+
+Implemented locally, 2026-11-20: standalone public Identity/Armour composition,
+Seal-owned canonical helper, strict signer/signature verification, immutable async
+inputs and independent fixed proof evidence. Wire proof/public-key v2 and
+artifact/manifest v1 remain selected. See [Seal migration and verification](seal-migration-2026-11-20.md).
 
 - **Evidence:** `home/packages/seal-cli/src/`, current `packages/seal/src/`,
   Utils helper table, existing proof/artifact/manifest/crypto tests and CLAUDE guidance.
@@ -295,6 +314,11 @@ Fresh package/browser acceptance limits are reported separately in that note.
   import conceals dependency resolution.
 
 ### B07 — Activate Seal's library/CLI package and Action command proof
+
+Implemented locally, 2026-11-20: shared Node CLI build/profile, typed browser-safe
+public paths, executable bin, active workspace/root gates and installed candidate
+command proof. The standalone Action is unchanged; its command sequence is tested
+against the local candidate. See [the implementation note](seal-migration-2026-11-20.md).
 
 - **Evidence:** `packages/seal/{package.json,vite.config.ts,bin/seal,src/cli.ts,test/cli.test.ts}`;
   tooling CLI fixture; inspected standalone Action command sequence.
@@ -357,7 +381,11 @@ Fresh package/browser acceptance limits are reported separately in that note.
 
 ### B11 — Expand package policy and the complete verification graph
 
-- **Evidence:** root scripts/workspace/tsconfig, `scripts/pilot/{contract,check,workspace}.mjs`,
+Partial, 2026-11-20: Seal now participates in workspace format/lint/types/behaviour/
+build/packed-consumer gates and is removed from the legacy-excluded list. UI
+activation and complete six-product validation remain pending.
+
+- **Evidence:** root scripts/workspace/tsconfig, `scripts/verify/{contract,check,workspace}.mjs`,
   tooling config/validator/tests, UI diagnostic and current CI.
 - **Targets:** those files plus `.github/workflows/ci.yml` and focused broken
   package fixtures. **Depends on:** inventory review; land alongside package activation.
@@ -373,6 +401,12 @@ Fresh package/browser acceptance limits are reported separately in that note.
 
 ### B12 — Prove the storage boundary and conflict behavior
 
+Implemented locally, 2026-11-20: minimal adapter types, an in-memory atomic
+expected-head reference, conflict bytes, retained forks/drafts, reopen and anchor
+checks. Runtime remains independent of storage. See [storage proof and verification](storage-boundary-2026-11-20.md).
+Atomicity is limited to writers sharing the reference instance; no production
+provider or cross-process update adapter is claimed.
+
 - **Evidence:** legacy storage sources above; `src/testing/index.ts` memory store,
   current snapshot comparison/anchor contracts; handshake storage handling.
 - **Targets:** Concord testing/consumer fixtures and boundary documentation; only
@@ -387,7 +421,7 @@ Fresh package/browser acceptance limits are reported separately in that note.
 
 ### B13 — Verify the complete packed candidate set
 
-- **Evidence:** `scripts/pilot/consumers.mjs`, text consumer fixtures, current
+- **Evidence:** `scripts/verify/consumers.mjs`, text consumer fixtures, current
   exact-tarball override proof; release contract section 3.
 - **Targets:** existing harness or release consumer module and private fixtures.
   **Depends on:** B02–B12.

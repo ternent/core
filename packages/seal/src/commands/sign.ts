@@ -1,14 +1,14 @@
 import { basename } from "node:path";
 import { readFile } from "node:fs/promises";
-import { createSealArtifact, type SealArtifactV1 } from "../artifact";
-import { parseSealManifestJson } from "../manifest";
-import { createSealProof, createSealHash, type SealProofV1 } from "../proof";
+import { createSealArtifact, type SealArtifactV1 } from "../artifact.js";
+import { parseSealManifestJson } from "../manifest.js";
+import { createSealProof, createSealHash, type SealProofV2 } from "../proof.js";
 
 export async function createProofArtifact(params: {
   inputPath: string;
   identity: import("@ternent/identity").SerializedIdentity;
 }): Promise<{
-  proof: SealProofV1;
+  proof: SealProofV2;
   content: string;
 }> {
   const bytes = await readFile(params.inputPath);

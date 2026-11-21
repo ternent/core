@@ -1,10 +1,10 @@
 # Concord alpha architecture
 
-Shipping design update, 2026-11-20: [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
+Shipping update, 2026-11-20: [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
 extends the initial single-audience scope with independent memberships. The
-[group design draft](group-profile-design.md) distinguishes complete projection
+[group contract](group-profile-design.md) distinguishes complete projection
 from explicitly scoped readable replay; atomic publication and full reachable
-history verification still apply. It is not yet implemented.
+history verification still apply. B03/B04 now implement that contract.
 
 Status: accepted direction, 2026-10-21. This is the target for a clean rebuild. Existing
 packages and specifications are evidence, not a compatibility requirement, unless this
@@ -126,8 +126,8 @@ The first commit records the declarations and initial system state.
 3. resolve trusted implementations for the declared system profile and application
    model;
 4. replay system entries to establish identities, capabilities, and decryptability;
-5. expose only authorized and decrypted application events to application replay; and
-6. publish the resulting projection once the whole pass succeeds.
+5. supply decrypted application events and explicit locked markers in their original order; and
+6. publish projection and coverage together once the whole opted-in model pass succeeds.
 
 Integrity validity and model validity are separate. An unknown model is not tampering.
 It means the host cannot produce a complete trusted application projection.
@@ -200,7 +200,9 @@ build an application.
 
 An application model may declare the audience and capability required for an operation.
 During replay it receives authorized, decrypted domain events and stable system facts,
-not mutable security internals.
+not mutable security internals. An explicit `reduceLocked` hook opts into missing-event
+markers. A full model requires every event; a readable view certifies only available
+semantics, with coverage and locked counts on every public projection result.
 
 ### Deterministic replay conditions
 
@@ -224,7 +226,7 @@ The alpha suite is fixed and versioned:
 - identity ID derived from the canonical Ed25519 public key;
 - deterministic Ed25519-to-X25519 conversion;
 - age-compatible X25519 recipient encryption; and
-- a pure TypeScript age implementation rather than the Rage WASM dependency.
+- typage through the pure TypeScript `age-encryption` package, without WASM initialization.
 
 One seed is the identity capability root. Its Ed25519 key signs; its deterministically
 converted X25519 key decrypts. Concord does not store a second encryption public key.

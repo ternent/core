@@ -1,6 +1,6 @@
 # @ternent/tooling
 
-Portable ESM package profiles and artifact validation for Ternent's tooling pilot.
+Portable ESM package profiles and artifact validation for Ternent packages.
 
 Install the exact tested `vite-plus` and TypeScript peers alongside this package.
 Import profile factories from `@ternent/tooling/config` and extend the published

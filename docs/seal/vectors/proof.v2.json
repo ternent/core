@@ -1,0 +1,51 @@
+{
+  "description": "Public RFC 8032 test seed. Independently generated with Node crypto; never use this identity for private signing.",
+  "seedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "identity": {
+    "format": "ternent-identity",
+    "version": "2",
+    "algorithm": "Ed25519",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+    "keyId": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+    "material": {
+      "kind": "seed",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A"
+    }
+  },
+  "contentUtf8": "Seal fixed proof vector\nπ / café 🔏\n",
+  "subjectHash": "sha256:ead97474c835407246000b7d98430bd7e71dac6c988c721f52d7c1a255348eac",
+  "context": "ternent-seal/v2",
+  "signingPayload": "{\"algorithm\":\"Ed25519\",\"createdAt\":\"2026-11-20T00:00:00.000Z\",\"signer\":{\"keyId\":\"21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9\",\"publicKey\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"},\"subject\":{\"hash\":\"sha256:ead97474c835407246000b7d98430bd7e71dac6c988c721f52d7c1a255348eac\",\"kind\":\"file\",\"path\":\"dist/δ.txt\"},\"type\":\"seal-proof\",\"version\":\"2\"}",
+  "messageHex": "7465726e656e742d7365616c2f7632007b22616c676f726974686d223a2245643235353139222c22637265617465644174223a22323032362d31312d32305430303a30303a30302e3030305a222c227369676e6572223a7b226b65794964223a2232316665333164666131353461323631363236626638353430343666643232373162376265643462366162653435616135383837376566343766393732316239222c227075626c69634b6579223a223131715941594b7843726656535f3754795751484f6737686376506170694d6c727749616150634855526f227d2c227375626a656374223a7b2268617368223a227368613235363a65616439373437346338333534303732343630303062376439383433306264376537316461633663393838633732316635326437633161323535333438656163222c226b696e64223a2266696c65222c2270617468223a22646973742fceb42e747874227d2c2274797065223a227365616c2d70726f6f66222c2276657273696f6e223a2232227d",
+  "proof": {
+    "version": "2",
+    "type": "seal-proof",
+    "algorithm": "Ed25519",
+    "createdAt": "2026-11-20T00:00:00.000Z",
+    "subject": {
+      "kind": "file",
+      "path": "dist/δ.txt",
+      "hash": "sha256:ead97474c835407246000b7d98430bd7e71dac6c988c721f52d7c1a255348eac"
+    },
+    "signer": {
+      "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+      "keyId": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9"
+    },
+    "signature": "3bX0FY6naBoXDXNUtjdkYVO7-vjcOWsD-LwYZFWDTWNHq9nayOcnfg75Q3HRpo7E9xqhpmPd_hOivZVxwXEICQ"
+  },
+  "manifest": {
+    "version": "1",
+    "type": "seal-manifest",
+    "root": "fixed",
+    "files": {
+      "2": "sha256:b50726ca891c3e79a1f0cee7cf67df767a9ba3dff026d8a2614534e27840c283",
+      "10": "sha256:88ed149bc96b79c4004d4a13039950c5889cd8022a16ea705597d52d7a391c4e",
+      "a": "sha256:98c64c8ae66ca1f50af31d7dec04a7f34ab6981ef103d4abb80d28d2fd959c0d",
+      "__proto__": "sha256:1e9c49fa7fc3dbbd833db74effd94f17167c24e6d8fcbcad53753be8b69415fa",
+      "𐀀": "sha256:b6c490fcb1046ba8722222ed410e74e994f14020abe12a203bc37dfcd4adbd6f",
+      "": "sha256:c49ff3d8c04e6b674f79ba61970a66fd8a20e2e2fe96e37c4f560f6e2d708a0a"
+    }
+  },
+  "canonicalManifest": "{\"files\":{\"2\":\"sha256:b50726ca891c3e79a1f0cee7cf67df767a9ba3dff026d8a2614534e27840c283\",\"10\":\"sha256:88ed149bc96b79c4004d4a13039950c5889cd8022a16ea705597d52d7a391c4e\",\"__proto__\":\"sha256:1e9c49fa7fc3dbbd833db74effd94f17167c24e6d8fcbcad53753be8b69415fa\",\"a\":\"sha256:98c64c8ae66ca1f50af31d7dec04a7f34ab6981ef103d4abb80d28d2fd959c0d\",\"𐀀\":\"sha256:b6c490fcb1046ba8722222ed410e74e994f14020abe12a203bc37dfcd4adbd6f\",\"\":\"sha256:c49ff3d8c04e6b674f79ba61970a66fd8a20e2e2fe96e37c4f560f6e2d708a0a\"},\"root\":\"fixed\",\"type\":\"seal-manifest\",\"version\":\"1\"}"
+}

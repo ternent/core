@@ -1,6 +1,7 @@
 # @ternent/concord
 
-Portable signed documents with verified private replay. The first alpha slice implements
+Portable signed documents with independent encrypted groups and explicit replay coverage.
+The alpha implements
 create → dispatch/commit → export → open → verify → replay → inspect.
 
 ```ts
@@ -28,22 +29,65 @@ const replayed = await reopened.replay();
 Root exports the lifecycle, model definition helper, and their public types.
 `/protocol` verifies bytes without a model, runtime, decryption or age import.
 `/system` supplies the standard private profile, `setMember`, `removeMember`, and
-specialist types. Admission grants access to the document history. Removal rotates the
-audience key for later entries.
+`createGroup` and specialist types. `document` is the default group. A default-group
+writer may create an independently administered group; the document owner gets no
+automatic access. Pass `{ audience, identity, capabilities }` to `setMember` and
+`{ audience, identityId }` to `removeMember`; omitting audience selects `document`.
+Admission/re-admission grants that group's full history. Removal rotates only that
+group's future key; retained historical access remains readable.
 `/testing` supplies the exact register model, literal model-conformance checks, and
-copied-buffer artifact storage. No test runner is a production dependency.
+copied-buffer artifact storage. `createMemoryExpectedHeadStore()` additionally offers
+`expectedHead: true` and atomic `writeExpected(bytes, expectedHead)` for writers sharing
+that reference instance. Null means create-only; a conflict returns `HEAD_CONFLICT`
+with copied `error.remote` bytes. No test runner is a production dependency.
 
-All mutation uses immediate commits, serialized per handle, with candidate verification
-and complete replay before publication. Read-only and inspection handles reject writes.
-Requesting draft mode returns `HOST_CONFIGURATION`. The standard profile rejects
-unknown system events with `UNSUPPORTED_SYSTEM_EVENT`. Inspection marks other
-recipients' decryptability as `unverified`.
+Storage publication is explicitly separate from dispatch/commit. Failed I/O or head
+conflict preserves local history and drafts. Retain both local and remote snapshots;
+compare them with `/protocol` and select explicitly. Expected-head comparison does
+not provide ancestry policy, model validity or read freshness; use a remembered anchor
+when opening. These are in-memory reference helpers, with no cross-process/provider
+atomicity claim. See [the storage contract](../../docs/concord/storage-boundary.md).
+
+Immediate commits are the default. Pass `mode: "draft"` to create/open to stage
+application commands in memory. `draft()` returns `{ baseHead, entryCount, preview }`;
+subsequent commands decide against that preview. `state()`, `inspect()`, `export()`,
+`verify()` and `replay()` continue to describe committed history.
+
+Call `commit({ message: "Group edits" })` to encrypt the staged events and create one
+signed commit, or `discardDraft()` to drop the preview. Genesis always commits
+immediately. Drafts are volatile and never included in exports. Failed dispatch or
+commit retains the previous committed state and any successful staged work for retry.
+A draft can batch several commands targeting different groups; each command still
+selects exactly one audience. Commit metadata is public and signed.
+
+All mutation is serialized per handle, with complete candidate verification/replay
+before atomic publication. Read-only and inspection handles reject writes. Empty or
+immediate-mode `commit()` returns `NO_DRAFT`. Group/membership operations require an
+immediate-mode handle: on a draft handle they return `DRAFT_PENDING` when work is
+staged, otherwise `HOST_CONFIGURATION`. There is no implicit mode switch.
+The standard profile rejects unknown system events with `UNSUPPORTED_SYSTEM_EVENT`.
+Inspection marks other recipients' decryptability as `unverified`.
+
+A command's optional `audience(input)` selects one group (default `document`) before
+its decision receives scoped facts. The model's `audience(event)` must return the
+same group for every emitted event and match signed envelopes during replay.
+A command cannot span audiences.
+
+Models requiring all events remain locked when any event is unavailable. Opt into
+readable views with `reduceLocked(state, { audience, epoch }, facts)`. Ready states
+and `replay()` results both carry `coverage: "complete" | "readable"` and
+`lockedEntries`; `replay()` returns `{ projection, coverage, lockedEntries }`.
+Inspection exposes ordered readable/locked `entries` and public `audiences` after
+the complete system pass, including when subsequent model replay fails. Scoped
+coverage does not validate hidden application semantics.
 
 Protocol and semantic failures are separate. Invalid, locked, incompatible and stale
 imports remain exportable inspection evidence. Projection is derived; storage is not
 trust. Ready exports are canonical; inspection exports retain original bytes.
 
 [The normative architecture](../../docs/concord/implementation-blueprint.md) defines
-schemas, errors and acceptance checks. [Migration evidence](../../docs/engineering/alpha-first-slice.md)
-records what was reused, replaced, checked and deferred. The previous Ledger/plugin
+schemas, errors and acceptance checks. [Group implementation evidence](../../docs/engineering/independent-groups-2026-11-20.md)
+records groups; [draft implementation evidence](../../docs/engineering/draft-authoring-2026-11-20.md)
+records batching. [First-slice evidence](../../docs/engineering/alpha-first-slice.md)
+records the earlier rebuild. The previous Ledger/plugin
 implementation is retained in `legacy/`, excluded from the active module and npm files.

@@ -6,11 +6,10 @@
       "repo": "ternent/core"
     }
   ],
-  "commit": true,
-  "commitMessage": "${type}(${scope}): ${description}",
+  "commit": false,
   "fixed": [],
   "linked": [],
-  "access": "restricted",
+  "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": []

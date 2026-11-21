@@ -11,6 +11,8 @@ import type {
   CommitRecord,
   EntryRecord,
   PublicIdentity,
+  AudienceId,
+  GroupId,
 } from "../protocol/types.js";
 import type { Capability, SystemFacts, Member } from "../model/types.js";
 declare const verified: unique symbol;
@@ -25,17 +27,30 @@ export type ApplicationIntent = {
   kind: "application";
   event: DomainEvent;
   required: readonly Capability[];
-  audience: "document";
+  audience: AudienceId;
 };
 export type SystemIntent =
-  | { kind: "member.set"; identity: PublicIdentity; capabilities: readonly Capability[] }
-  | { kind: "member.remove"; identityId: string };
-export type SystemReplay = {
-  entryFacts: readonly { entryId: EntryId; facts: SystemFacts }[];
-  events: readonly { entryId: EntryId; event: DomainEvent; facts: SystemFacts }[];
+  | { kind: "group.create"; audience: GroupId }
+  | {
+      kind: "member.set";
+      audience: AudienceId;
+      identity: PublicIdentity;
+      capabilities: readonly Capability[];
+    }
+  | { kind: "member.remove"; audience: AudienceId; identityId: string };
+export type AudienceState = {
+  audience: AudienceId;
   members: readonly Member[];
   epochs: readonly { epoch: number; recipient: string }[];
-  reader: PublicIdentity;
+};
+export type ReplayItem =
+  | { status: "readable"; entryId: EntryId; event: DomainEvent; facts: SystemFacts }
+  | { status: "locked"; entryId: EntryId; audience: AudienceId; epoch: number; facts: SystemFacts };
+export type SystemReplay = {
+  entryFacts: readonly { entryId: EntryId; facts: SystemFacts }[];
+  entries: readonly ReplayItem[];
+  audiences: readonly AudienceState[];
+  reader: PublicIdentity | null;
   session: object;
 };
 export type SystemProfile = {

@@ -68,7 +68,11 @@ test("R01-R05 immediate create, dispatch, export, reopen, independent verify and
   expect(reopened.state()).toEqual(created.state());
   expect(await reopened.verify()).toMatchObject({ integrity: "valid" });
   expect(await verifyDocument(saved)).toMatchObject({ integrity: "valid" });
-  expect(value(await reopened.replay())).toEqual({ value: "hello Concord" });
+  expect(value(await reopened.replay())).toEqual({
+    projection: { value: "hello Concord" },
+    coverage: "complete",
+    lockedEntries: 0,
+  });
   expect(await reopened.replay()).toEqual(await reopened.replay());
   expect(reopened.inspect()).toMatchObject({
     system: "valid",
@@ -87,6 +91,8 @@ test("R06 fixed independent owner artifact reconstructs its literal projection a
     documentId: expected.documentId,
     head: expected.head,
     canWrite: true,
+    coverage: "complete",
+    lockedEntries: 0,
   });
 });
 test("R07/R20 no reader and unrelated reader stay locked, including a private genesis", async () => {
@@ -506,7 +512,12 @@ test("testing helpers assert literal model transitions and copy stored bytes", a
       steps: [
         {
           event: { type: "value.set", version: 1, data: { value: "literal" } },
-          facts: { actor: identity.publicIdentity, capabilities: ["read", "write"], members: [] },
+          facts: {
+            audience: "document",
+            actor: identity.publicIdentity,
+            capabilities: ["read", "write"],
+            members: [],
+          },
           expected: { value: "literal" },
         },
       ],
@@ -597,7 +608,7 @@ test("profile output cannot omit events or rebind actors", async () => {
           ok: true as const,
           value: {
             ...value,
-            events: mode === "missing" ? [] : value.events,
+            entries: mode === "missing" ? [] : value.entries,
             entryFacts:
               mode === "actor"
                 ? value.entryFacts.map((item) => ({
@@ -633,13 +644,12 @@ test("model capabilities remain mandatory during authoring and historical replay
   expect(result.inspect().findings[0].code).toBe("MODEL_FAILED");
 });
 
-test("first-slice authoring rejects deferred draft mode and alternative profile declarations", async () => {
+test("authoring accepts draft mode but rejects alternative profile declarations", async () => {
   const identity = await owner(),
     system = createStandardSystemProfile();
-  expect(await createDocument({ model, system, identity, mode: "draft" })).toMatchObject({
-    ok: false,
-    error: { code: "HOST_CONFIGURATION" },
-  });
+  const drafted = value(await createDocument({ model, system, identity, mode: "draft" }));
+  expect(drafted.state()).toMatchObject({ status: "ready", projection: { value: "" } });
+  expect(drafted.draft()).toBeNull();
   expect(
     await createDocument({
       model,
@@ -698,7 +708,11 @@ test("canonical export must fit the byte budget before any extension runs", asyn
   });
   expect(accepted.export()).toEqual(canonical);
   expect((await accepted.verify()).integrity).toBe("valid");
-  expect(value(await accepted.replay())).toEqual({ value: "hello Concord" });
+  expect(value(await accepted.replay())).toEqual({
+    projection: { value: "hello Concord" },
+    coverage: "complete",
+    lockedEntries: 0,
+  });
 });
 
 test("a multi-event snapshot reopens at its exact wire budget despite expanded replay facts", async () => {
@@ -736,7 +750,11 @@ test("a multi-event snapshot reopens at its exact wire budget despite expanded r
   expect(reopened.state()).toEqual(created.state());
   expect(reopened.export()).toEqual(saved);
   expect(reopened.inspect().findings).toEqual([]);
-  expect(value(await reopened.replay())).toEqual({ value: "" });
+  expect(value(await reopened.replay())).toEqual({
+    projection: { value: "" },
+    coverage: "complete",
+    lockedEntries: 0,
+  });
   expect(await reopened.replay()).toEqual(await reopened.replay());
 });
 
@@ -760,10 +778,14 @@ test.each(["system", "model"] as const)(
             ok: true,
             value: {
               ...result.value,
-              events: result.value.events.map((item) => ({
-                ...item,
-                event: { ...item.event, data: { value: oversized } },
-              })),
+              entries: result.value.entries.map((item) =>
+                item.status === "locked"
+                  ? item
+                  : {
+                      ...item,
+                      event: { ...item.event, data: { value: oversized } },
+                    },
+              ),
             },
           };
         },
@@ -795,10 +817,14 @@ test("per-entry profile validation still rejects non-JSON output before model re
             ok: true,
             value: {
               ...result.value,
-              events: result.value.events.map((item) => ({
-                ...item,
-                event: { ...item.event, data: undefined as unknown as Json },
-              })),
+              entries: result.value.entries.map((item) =>
+                item.status === "locked"
+                  ? item
+                  : {
+                      ...item,
+                      event: { ...item.event, data: undefined as unknown as Json },
+                    },
+              ),
             },
           };
         },

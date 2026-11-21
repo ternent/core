@@ -1,4 +1,4 @@
-import { createSealIdentity, createSealMnemonicIdentity, exportIdentityJson } from "../crypto";
+import { createSealIdentity, createSealMnemonicIdentity, exportIdentityJson } from "../crypto.js";
 
 function formatMnemonicBackup(input: { mnemonic: string; passphrase?: string }): string {
   const lines = ["Seal seed phrase backup", "", "Mnemonic:", input.mnemonic];

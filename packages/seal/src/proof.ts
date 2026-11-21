@@ -1,11 +1,11 @@
-import { canonicalStringify, hashBytes } from "ternent-utils";
+import { canonicalStringify, copyJson, hashBytes } from "./json.js";
 import {
   resolveSealSigner,
   signSealUtf8,
   verifyPublicKeyKeyId,
   verifySealUtf8,
   type SealSignerInput,
-} from "./crypto";
+} from "./crypto.js";
 
 export const SEAL_PROOF_VERSION = "2" as const;
 export const SEAL_PROOF_TYPE = "seal-proof" as const;
@@ -14,7 +14,7 @@ export const SEAL_SIGNATURE_ALGORITHM = "Ed25519" as const;
 
 export type SealSubjectKind = "file" | "manifest" | "artifact";
 
-export type SealProofV1 = {
+export type SealProofV2 = {
   version: typeof SEAL_PROOF_VERSION;
   type: typeof SEAL_PROOF_TYPE;
   algorithm: typeof SEAL_SIGNATURE_ALGORITHM;
@@ -39,7 +39,7 @@ export type SealPublicKeyArtifact = {
   keyId: string;
 };
 
-type SealProofSignableFields = Omit<SealProofV1, "signature">;
+type SealProofSignableFields = Omit<SealProofV2, "signature">;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -58,8 +58,9 @@ function isIsoDate(value: string): boolean {
 }
 
 export function getSealProofSignableFields(
-  proof: SealProofV1 | SealProofSignableFields,
+  proof: SealProofV2 | SealProofSignableFields,
 ): SealProofSignableFields {
+  proof = copyJson(proof);
   return {
     version: proof.version,
     type: proof.type,
@@ -70,7 +71,7 @@ export function getSealProofSignableFields(
   };
 }
 
-export function getSealProofSigningPayload(proof: SealProofV1 | SealProofSignableFields): string {
+export function getSealProofSigningPayload(proof: SealProofV2 | SealProofSignableFields): string {
   return canonicalStringify(getSealProofSignableFields(proof));
 }
 
@@ -82,21 +83,26 @@ export async function createSealHash(bytes: Uint8Array | ArrayBuffer): Promise<`
 export async function createSealProof(input: {
   createdAt?: string;
   signer: SealSignerInput;
-  subject: SealProofV1["subject"];
-}): Promise<SealProofV1> {
+  subject: SealProofV2["subject"];
+}): Promise<SealProofV2> {
+  const subject = copyJson(input.subject);
+  const createdAt = input.createdAt ?? new Date().toISOString();
   const signer = await resolveSealSigner(input.signer);
   const fields: SealProofSignableFields = {
     version: SEAL_PROOF_VERSION,
     type: SEAL_PROOF_TYPE,
     algorithm: SEAL_SIGNATURE_ALGORITHM,
-    createdAt: input.createdAt ?? new Date().toISOString(),
-    subject: input.subject,
+    createdAt,
+    subject,
     signer: {
       publicKey: signer.publicKey,
       keyId: signer.keyId,
     },
   };
 
+  const candidate = { ...fields, signature: "pending" };
+  const validation = validateSealProofShape(candidate);
+  if (!validation.ok) throw new TypeError(validation.errors.join(" "));
   const signature = await signSealUtf8(signer.identity, getSealProofSigningPayload(fields));
 
   return {
@@ -121,8 +127,13 @@ export async function createSealPublicKeyArtifact(
 export function validateSealProofShape(value: unknown): {
   ok: boolean;
   errors: string[];
-  proof: SealProofV1 | null;
+  proof: SealProofV2 | null;
 } {
+  try {
+    value = copyJson(value);
+  } catch {
+    return { ok: false, errors: ["Expected canonical JSON data."], proof: null };
+  }
   if (!isRecord(value)) {
     return { ok: false, errors: ["Proof must be a JSON object."], proof: null };
   }
@@ -202,14 +213,14 @@ export function validateSealProofShape(value: unknown): {
   return {
     ok: true,
     errors: [],
-    proof: value as SealProofV1,
+    proof: value as SealProofV2,
   };
 }
 
 export function parseSealProofJson(raw: string): {
   ok: boolean;
   errors: string[];
-  proof: SealProofV1 | null;
+  proof: SealProofV2 | null;
 } {
   try {
     return validateSealProofShape(JSON.parse(raw));
@@ -227,6 +238,11 @@ export function validateSealPublicKeyShape(value: unknown): {
   errors: string[];
   artifact: SealPublicKeyArtifact | null;
 } {
+  try {
+    value = copyJson(value);
+  } catch {
+    return { ok: false, errors: ["Expected canonical JSON data."], artifact: null };
+  }
   if (!isRecord(value)) {
     return {
       ok: false,
@@ -283,7 +299,7 @@ export function parseSealPublicKeyJson(raw: string): {
   }
 }
 
-export async function verifySealProofSignature(proof: SealProofV1): Promise<{
+export async function verifySealProofSignature(proof: SealProofV2): Promise<{
   ok: boolean;
   errors: string[];
 }> {
@@ -292,6 +308,7 @@ export async function verifySealProofSignature(proof: SealProofV1): Promise<{
     return { ok: false, errors: validation.errors };
   }
 
+  proof = validation.proof;
   if (!(await verifyPublicKeyKeyId(proof.signer.publicKey, proof.signer.keyId))) {
     return {
       ok: false,
@@ -309,7 +326,7 @@ export async function verifySealProofSignature(proof: SealProofV1): Promise<{
       return { ok: false, errors: ["Invalid signature."] };
     }
     return { ok: true, errors: [] };
-  } catch (caught) {
+  } catch {
     return {
       ok: false,
       errors: ["Invalid signature."],
@@ -318,7 +335,7 @@ export async function verifySealProofSignature(proof: SealProofV1): Promise<{
 }
 
 export async function verifySealProofAgainstBytes(
-  proof: SealProofV1,
+  proof: SealProofV2,
   bytes: Uint8Array | ArrayBuffer,
 ): Promise<{
   valid: boolean;
@@ -328,17 +345,19 @@ export async function verifySealProofAgainstBytes(
   algorithm: typeof SEAL_SIGNATURE_ALGORITHM;
   subjectHash: `sha256:${string}`;
 }> {
+  const validation = validateSealProofShape(proof);
   const subjectHash = await createSealHash(bytes);
-  const signatureCheck = await verifySealProofSignature(proof);
-  const hashMatch = subjectHash === proof.subject.hash;
+  const checked = validation.proof;
+  const signatureCheck = checked ? await verifySealProofSignature(checked) : { ok: false };
+  const hashMatch = subjectHash === checked?.subject.hash;
   const signatureValid = signatureCheck.ok;
 
   return {
     valid: hashMatch && signatureValid,
     hashMatch,
     signatureValid,
-    keyId: proof.signer.keyId,
-    algorithm: proof.algorithm,
+    keyId: checked?.signer.keyId ?? "",
+    algorithm: checked?.algorithm ?? SEAL_SIGNATURE_ALGORITHM,
     subjectHash,
   };
 }

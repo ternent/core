@@ -8,7 +8,13 @@ import { encryptAge, type ReaderCapability } from "@ternent/armour";
 import { fail } from "../common/errors.js";
 import { encodeJson, parseJson, text } from "../protocol/json.js";
 import { object } from "../protocol/schema.js";
-import type { EntrySubject, JsonObject, Limits, PublicIdentity } from "../protocol/types.js";
+import type {
+  AudienceId,
+  EntrySubject,
+  JsonObject,
+  Limits,
+  PublicIdentity,
+} from "../protocol/types.js";
 
 type ContextError = "SYSTEM_EVENT_INVALID" | "KEY_WRAP_INVALID" | "EVENT_CONTEXT_INVALID";
 type EntryContext = Pick<EntrySubject, "parent" | "nonce">;
@@ -82,6 +88,7 @@ export function wrapKey(
   recipient: string,
   secret: Uint8Array,
   lim: Limits,
+  audience: AudienceId = "document",
 ): Promise<string> {
   const target = ageRecipientFromPublicIdentity(identity);
   if (!target.ok) fail("IDENTITY_MISMATCH", "requirements");
@@ -91,7 +98,7 @@ export function wrapKey(
       context: "concord.audience-key/1",
       parent: context.parent,
       nonce: context.nonce,
-      audience: "document",
+      audience,
       epoch,
       identityId: identity.id,
       recipient,
@@ -108,6 +115,7 @@ export async function unwrapKey(
   recipient: string,
   ciphertext: string,
   lim: Limits,
+  audience: AudienceId = "document",
 ): Promise<Uint8Array> {
   const decrypted = await reader.decryptAge(unbase(ciphertext, lim, "KEY_WRAP_INVALID"));
   if (!decrypted.ok) fail("KEY_WRAP_INVALID", "system");
@@ -121,7 +129,7 @@ export async function unwrapKey(
     key.context !== "concord.audience-key/1" ||
     key.parent !== context.parent ||
     key.nonce !== context.nonce ||
-    key.audience !== "document" ||
+    key.audience !== audience ||
     key.epoch !== epoch ||
     key.identityId !== reader.publicIdentity.id ||
     key.recipient !== recipient

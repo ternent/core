@@ -14,7 +14,6 @@ function policy() {
         "**/node_modules/**",
         ".pnpm-store/**",
         "**/.vitepress/cache/**",
-        "**/legacy/**",
         "**/*.timestamp-*.mjs",
       ],
     },
@@ -25,7 +24,6 @@ function policy() {
         "**/node_modules/**",
         ".pnpm-store/**",
         "**/.vitepress/cache/**",
-        "**/legacy/**",
         "**/*.timestamp-*.mjs",
       ],
       options: { typeAware: true, typeCheck: false },
@@ -140,25 +138,18 @@ export function defineDocs() {
   };
 }
 
-/** @returns {Promise<UserConfig>} */
-export async function defineWorkspace() {
+/** @param {{testInclude: string[], verifyCommand: string}} options @returns {Promise<UserConfig>} */
+export async function defineWorkspace(options) {
   return {
     plugins: [await loadPlugin("@vitejs/plugin-vue", {})],
     ...policy(),
     test: {
-      include: [
-        "tooling/tooling/test/**/*.test.mjs",
-        "packages/identity/test/**/*.test.ts",
-        "packages/armour/test/**/*.test.ts",
-        "packages/concord/test/**/*.test.ts",
-        "apps/handshake/test/**/*.test.ts",
-        "fixtures/tooling-profiles/*/test/**/*.test.ts",
-      ],
+      include: options.testInclude,
       passWithNoTests: false,
     },
     run: {
       enablePrePostScripts: false,
-      tasks: { verify: { command: "node scripts/pilot/check.mjs", cache: false } },
+      tasks: { verify: { command: options.verifyCommand, cache: false } },
     },
   };
 }

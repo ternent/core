@@ -142,7 +142,7 @@ test(
 
     const uninvitedKey = join(root, "uninvited.key");
     await writeFile(uninvitedKey, Buffer.alloc(32, 0xd1), { mode: 0o600 });
-    expectFailure(run(root, "verify", receiptPath, uninvitedKey), "READ_ACCESS_REQUIRED");
+    expectFailure(run(root, "verify", receiptPath, uninvitedKey), "KEY_UNAVAILABLE");
 
     assert.deepEqual(successfulResult(run(root, "release", directory, rememberedPath)), artifact);
     await writeFile(artifactPath, Buffer.from("changed"));

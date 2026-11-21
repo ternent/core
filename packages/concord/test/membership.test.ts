@@ -240,9 +240,11 @@ test("S05-S08 and S12 revocation rotates keys and preserves both historical auth
   });
   expect(ownerDocument.state()).toMatchObject({ projection: { value: "editor before removal" } });
   expect((await open(before, editor)).state()).toMatchObject({ status: "ready", canWrite: true });
-  expect((await open(afterRemoval, editor)).state()).toEqual({
-    status: "inspection",
-    reason: "locked",
+  expect((await open(afterRemoval, editor)).state()).toMatchObject({
+    status: "ready",
+    canWrite: false,
+    coverage: "complete",
+    projection: { value: "editor before removal" },
   });
 
   value(await editorDocument.dispatch("set", { value: "offline branch" }));
@@ -262,6 +264,11 @@ test("S05-S08 and S12 revocation rotates keys and preserves both historical auth
   ]);
 
   value(await ownerDocument.dispatch("set", { value: "after first rotation" }));
+  expect((await open(ownerDocument.export(), editor)).inspect()).toMatchObject({
+    application: "locked",
+    lockedEntries: 1,
+    findings: [{ code: "KEY_UNAVAILABLE" }],
+  });
   value(await removeMember(ownerDocument, { identityId: other.publicIdentity.id }));
   value(await ownerDocument.dispatch("set", { value: "after second rotation" }));
   value(
@@ -273,7 +280,9 @@ test("S05-S08 and S12 revocation rotates keys and preserves both historical auth
     { epoch: 2 },
   ]);
   const newcomerDocument = await open(ownerDocument.export(), newcomer);
-  expect(value(await newcomerDocument.replay())).toEqual({ value: "after second rotation" });
+  expect(value(await newcomerDocument.replay()).projection).toEqual({
+    value: "after second rotation",
+  });
 
   value(await setMember(ownerDocument, editorInput));
   expect(lastSystem(ownerDocument.export()).payload.data.history).toMatchObject([

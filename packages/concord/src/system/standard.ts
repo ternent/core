@@ -3,8 +3,10 @@ import { decryptAgeWithSecret } from "@ternent/armour";
 import { caught, fail, ok } from "../common/errors.js";
 import { detached, freeze } from "../common/immutable.js";
 import { nonce } from "../common/random.js";
+import { isAudienceId } from "../protocol/schema.js";
 import { isVerifiedHistory } from "../protocol/history.js";
 import type {
+  AudienceId,
   CommitId,
   DomainEvent,
   EntryId,
@@ -38,7 +40,14 @@ import {
 type Location = { entryId: EntryId; commitId: CommitId; path: string };
 type SystemEntry = Extract<EntrySubject, { kind: "system" }>;
 type ApplicationEntry = Extract<EntrySubject, { kind: "application" }>;
+type Group = { members: Map<string, Member>; recipients: string[] };
+const keyId = (audience: AudienceId, epoch: number) => `${audience}/${epoch}`;
+function audienceId(value: unknown): AudienceId {
+  if (!isAudienceId(value)) fail("SYSTEM_EVENT_INVALID", "system");
+  return value;
+}
 type Wrap = {
+  audience: AudienceId;
   identityId: string;
   epoch: number;
   ciphertext: string;
@@ -47,10 +56,9 @@ type Wrap = {
 };
 type Session = {
   head: CommitId;
-  readerId: string;
-  members: readonly Member[];
-  recipients: readonly string[];
-  secrets: Map<number, Uint8Array>;
+  readerId: string | null;
+  groups: Map<AudienceId, Group>;
+  secrets: Map<string, Uint8Array>;
 };
 
 function recipient(value: unknown): string {
@@ -77,11 +85,13 @@ function recipientWraps(
   subject: SystemEntry,
   location: Location,
   lim: Limits,
+  audience: AudienceId,
 ): Wrap[] {
   if (!Array.isArray(value)) fail("SYSTEM_EVENT_INVALID", "system");
   const wraps = value.map((record: unknown, index) => {
     fields(record, ["identityId", "ciphertext"], "SYSTEM_EVENT_INVALID");
     return {
+      audience,
       identityId: identityId(record.identityId),
       ciphertext: ciphertext(record.ciphertext, lim),
       epoch,
@@ -100,11 +110,13 @@ function historicalWraps(
   subject: SystemEntry,
   location: Location,
   lim: Limits,
+  audience: AudienceId,
 ): Wrap[] {
   if (!Array.isArray(value)) fail("SYSTEM_EVENT_INVALID", "system");
   const wraps = value.map((record: unknown, index) => {
     fields(record, ["epoch", "ciphertext"], "SYSTEM_EVENT_INVALID");
     return {
+      audience,
       identityId: target,
       epoch: epochNumber(record.epoch),
       ciphertext: ciphertext(record.ciphertext, lim),
@@ -139,7 +151,7 @@ async function decryptApplication(
     body.parent !== subject.parent ||
     body.nonce !== subject.nonce ||
     !equal(body.model, model) ||
-    body.audience !== "document" ||
+    body.audience !== subject.payload.audience ||
     body.epoch !== subject.payload.epoch
   )
     fail("EVENT_CONTEXT_INVALID", "system");
@@ -194,13 +206,13 @@ export function createStandardSystemProfile(): SystemProfile {
     },
 
     async replay({ history, reader, limits: lim }) {
-      const secrets = new Map<number, Uint8Array>();
+      const secrets = new Map<string, Uint8Array>();
       let stored = false;
       let location: Location | undefined;
       try {
         if (!isVerifiedHistory(history)) fail("HOST_CONFIGURATION", "requirements");
-        const members = new Map<string, Member>();
-        const recipients: string[] = [];
+        const groups = new Map<AudienceId, Group>();
+        const allRecipients = new Set<string>();
         const wraps: Wrap[] = [];
         const entryFacts: SystemReplay["entryFacts"][number][] = [];
         const applications: {
@@ -208,6 +220,21 @@ export function createStandardSystemProfile(): SystemProfile {
           facts: SystemFacts;
           location: Location;
         }[] = [];
+        const factsFor = (audience: AudienceId, actor: SystemFacts["actor"]): SystemFacts => {
+          const members = groups.get(audience)?.members ?? new Map<string, Member>();
+          return detached({
+            audience,
+            actor,
+            capabilities: capabilitiesOf(members, actor),
+            members: orderedMembers(members),
+          });
+        };
+        const fresh = (value: unknown): string => {
+          const next = recipient(value);
+          if (allRecipients.has(next)) fail("SYSTEM_EVENT_INVALID", "system");
+          allRecipients.add(next);
+          return next;
+        };
 
         // Establish authority for the entire signed history before touching any key.
         for (const [index, { entry, commit }] of history.ordered.entries()) {
@@ -218,26 +245,26 @@ export function createStandardSystemProfile(): SystemProfile {
             commitId: commit.id,
             path: `/entries/${index}/subject/payload`,
           };
-          let facts = detached({
-            actor,
-            capabilities: capabilitiesOf(members, actor),
-            members: orderedMembers(members),
-          });
-
+          let facts: SystemFacts;
           if (subject.kind === "application") {
-            if (!recipients.length || subject.parent === null)
-              fail("SYSTEM_EVENT_INVALID", "system");
+            const audience = subject.payload.audience;
+            const group = groups.get(audience);
+            facts = factsFor(audience, actor);
+            if (!group || subject.parent === null) fail("SYSTEM_EVENT_INVALID", "system");
             if (!facts.capabilities.includes("write")) fail("CAPABILITY_DENIED", "system");
-            if (subject.payload.epoch !== recipients.length - 1)
+            if (subject.payload.epoch !== group.recipients.length - 1)
               fail("SYSTEM_EVENT_INVALID", "system");
             applications.push({ subject, facts, location });
           } else {
             const { type, version, data } = subject.payload;
             if (
               version !== 1 ||
-              (type !== "system.init" &&
-                type !== "system.member.set" &&
-                type !== "system.member.remove")
+              ![
+                "system.init",
+                "system.group.create",
+                "system.member.set",
+                "system.member.remove",
+              ].includes(type)
             )
               fail("UNSUPPORTED_SYSTEM_EVENT", "system");
             if (type === "system.init") {
@@ -249,8 +276,8 @@ export function createStandardSystemProfile(): SystemProfile {
                 "SYSTEM_EVENT_INVALID",
               );
               const owner = identity(data.owner);
-              const first = recipient(data.recipient);
-              const initial = recipientWraps(data.wraps, 0, subject, location, lim);
+              const first = fresh(data.recipient);
+              const initial = recipientWraps(data.wraps, 0, subject, location, lim, "document");
               if (
                 !equal(owner, actor) ||
                 data.audience !== "document" ||
@@ -259,109 +286,158 @@ export function createStandardSystemProfile(): SystemProfile {
                 initial[0].identityId !== owner.id
               )
                 fail("SYSTEM_EVENT_INVALID", "system");
-              members.set(owner.id, { identity: owner, capabilities: allCapabilities });
-              recipients.push(first);
-              wraps.push(initial[0]);
-              facts = detached({
-                actor,
-                capabilities: allCapabilities,
-                members: orderedMembers(members),
+              groups.set("document", {
+                members: new Map([[owner.id, { identity: owner, capabilities: allCapabilities }]]),
+                recipients: [first],
               });
-            } else if (type === "system.member.set") {
-              fields(data, ["identity", "capabilities", "history"], "SYSTEM_EVENT_INVALID");
-              const target = identity(data.identity);
-              const capabilities = capabilitySet(data.capabilities, true);
-              const historical = historicalWraps(data.history, target.id, subject, location, lim);
-              if (!recipients.length) fail("SYSTEM_EVENT_INVALID", "system");
-              const admission = checkSet(members, actor, target, capabilities);
-              if (
-                historical.length !== (admission ? recipients.length : 0) ||
-                historical.some((wrap, i) => wrap.epoch !== i)
-              )
+              wraps.push(...initial);
+              facts = factsFor("document", actor);
+            } else if (type === "system.group.create") {
+              fields(data, ["audience", "epoch", "recipient", "wraps"], "SYSTEM_EVENT_INVALID");
+              const audience = audienceId(data.audience);
+              facts = factsFor("document", actor);
+              if (audience === "document" || groups.has(audience) || data.epoch !== 0)
                 fail("SYSTEM_EVENT_INVALID", "system");
-              members.set(target.id, { identity: target, capabilities });
-              for (const wrap of historical) wraps.push(wrap);
+              if (!facts.capabilities.includes("write")) fail("CAPABILITY_DENIED", "system");
+              const first = fresh(data.recipient);
+              const initial = recipientWraps(data.wraps, 0, subject, location, lim, audience);
+              if (initial.length !== 1 || initial[0].identityId !== actor.id)
+                fail("SYSTEM_EVENT_INVALID", "system");
+              groups.set(audience, {
+                members: new Map([[actor.id, { identity: actor, capabilities: allCapabilities }]]),
+                recipients: [first],
+              });
+              wraps.push(...initial);
             } else {
-              fields(data, ["identityId", "epoch", "recipient", "wraps"], "SYSTEM_EVENT_INVALID");
-              const target = identityId(data.identityId);
-              const epoch = epochNumber(data.epoch);
-              const next = recipient(data.recipient);
-              const rotations = recipientWraps(data.wraps, epoch, subject, location, lim);
-              if (!recipients.length) fail("SYSTEM_EVENT_INVALID", "system");
-              checkRemoval(members, actor, target);
-              const remaining = [...members.keys()].filter((id) => id !== target).sort();
-              if (
-                epoch !== recipients.length ||
-                recipients.includes(next) ||
-                rotations.length !== remaining.length ||
-                rotations.some((wrap, i) => wrap.identityId !== remaining[i])
-              )
-                fail("SYSTEM_EVENT_INVALID", "system");
-              members.delete(target);
-              recipients.push(next);
-              for (const wrap of rotations) wraps.push(wrap);
+              const audience = audienceId(data.audience);
+              const group = groups.get(audience);
+              if (!group) fail("SYSTEM_EVENT_INVALID", "system");
+              const { members, recipients } = group;
+              facts = factsFor(audience, actor);
+              if (type === "system.member.set") {
+                fields(
+                  data,
+                  ["audience", "identity", "capabilities", "history"],
+                  "SYSTEM_EVENT_INVALID",
+                );
+                const target = identity(data.identity);
+                const capabilities = capabilitySet(data.capabilities, true);
+                const historical = historicalWraps(
+                  data.history,
+                  target.id,
+                  subject,
+                  location,
+                  lim,
+                  audience,
+                );
+                const admission = checkSet(members, actor, target, capabilities);
+                if (
+                  historical.length !== (admission ? recipients.length : 0) ||
+                  historical.some((wrap, i) => wrap.epoch !== i)
+                )
+                  fail("SYSTEM_EVENT_INVALID", "system");
+                members.set(target.id, { identity: target, capabilities });
+                wraps.push(...historical);
+              } else {
+                fields(
+                  data,
+                  ["audience", "identityId", "epoch", "recipient", "wraps"],
+                  "SYSTEM_EVENT_INVALID",
+                );
+                const target = identityId(data.identityId);
+                const epoch = epochNumber(data.epoch);
+                const next = recipient(data.recipient);
+                const rotations = recipientWraps(
+                  data.wraps,
+                  epoch,
+                  subject,
+                  location,
+                  lim,
+                  audience,
+                );
+                checkRemoval(members, actor, target);
+                const remaining = [...members.keys()].filter((id) => id !== target).sort();
+                if (
+                  epoch !== recipients.length ||
+                  allRecipients.has(next) ||
+                  rotations.length !== remaining.length ||
+                  rotations.some((wrap, i) => wrap.identityId !== remaining[i])
+                )
+                  fail("SYSTEM_EVENT_INVALID", "system");
+                allRecipients.add(next);
+                members.delete(target);
+                recipients.push(next);
+                wraps.push(...rotations);
+              }
             }
           }
           entryFacts.push({ entryId: entry.id, facts });
         }
 
-        if (!reader || !capabilitiesOf(members, reader.publicIdentity).includes("read")) {
-          const finding = caught(undefined, "READ_ACCESS_REQUIRED", "system");
-          finding.details = { lockedEntries: applications.length };
-          return { ok: false, error: finding };
-        }
         for (const wrap of wraps) {
-          if (wrap.identityId !== reader.publicIdentity.id) continue;
+          if (!reader || wrap.identityId !== reader.publicIdentity.id) continue;
           location = wrap.location;
           const secret = await unwrapKey(
             wrap.subject,
             reader,
             wrap.epoch,
-            recipients[wrap.epoch],
+            groups.get(wrap.audience)!.recipients[wrap.epoch],
             wrap.ciphertext,
             lim,
+            wrap.audience,
           );
-          // Re-admission carries a full new set of wraps. Validate earlier wraps, then use the latest.
-          secrets.get(wrap.epoch)?.fill(0);
-          secrets.set(wrap.epoch, secret);
+          const id = keyId(wrap.audience, wrap.epoch);
+          // Every addressed wrap is checked, including superseded admissions.
+          secrets.get(id)?.fill(0);
+          secrets.set(id, secret);
         }
-        if (secrets.size !== recipients.length) {
-          const finding = caught(undefined, "KEY_UNAVAILABLE", "system");
-          finding.details = {
-            lockedEntries: applications.filter(({ subject }) => !secrets.has(subject.payload.epoch))
-              .length,
-          };
-          return { ok: false, error: finding };
-        }
-        const events: SystemReplay["events"][number][] = [];
+        const entries: SystemReplay["entries"][number][] = [];
         for (const application of applications) {
           location = application.location;
-          events.push({
-            entryId: location.entryId,
-            event: await decryptApplication(
-              application.subject,
-              secrets.get(application.subject.payload.epoch)!,
-              history.declaration.model,
-              lim,
-            ),
-            facts: application.facts,
-          });
+          const { audience, epoch } = application.subject.payload;
+          const secret = secrets.get(keyId(audience, epoch));
+          entries.push(
+            secret
+              ? {
+                  status: "readable",
+                  entryId: location.entryId,
+                  event: await decryptApplication(
+                    application.subject,
+                    secret,
+                    history.declaration.model,
+                    lim,
+                  ),
+                  facts: application.facts,
+                }
+              : {
+                  status: "locked",
+                  entryId: location.entryId,
+                  audience,
+                  epoch,
+                  facts: application.facts,
+                },
+          );
         }
         const session = Object.freeze({});
-        const active = orderedMembers(members);
+        const audiences = [...groups.keys()].sort().map((audience) => {
+          const group = groups.get(audience)!;
+          return {
+            audience,
+            members: orderedMembers(group.members),
+            epochs: group.recipients.map((recipient, epoch) => ({ epoch, recipient })),
+          };
+        });
         const output = freeze({
           entryFacts,
-          events,
-          members: active,
-          epochs: recipients.map((recipient, epoch) => ({ epoch, recipient })),
-          reader: reader.publicIdentity,
+          entries,
+          audiences,
+          reader: reader?.publicIdentity ?? null,
           session,
         });
         sessions.set(session, {
           head: history.head,
-          readerId: reader.publicIdentity.id,
-          members: active,
-          recipients,
+          readerId: reader?.publicIdentity.id ?? null,
+          groups,
           secrets,
         });
         stored = true;
@@ -384,12 +460,54 @@ export function createStandardSystemProfile(): SystemProfile {
         const actor = signer.publicIdentity;
         if (actor.id !== session.readerId || !equal(actor, current.reader))
           fail("CAPABILITY_DENIED", "system");
-        const members = new Map(session.members.map((member) => [member.identity.id, member]));
-        const recipients = [...session.recipients];
+        const groups = new Map(
+          [...session.groups].map(([id, group]) => [
+            id,
+            { members: new Map(group.members), recipients: [...group.recipients] },
+          ]),
+        );
+        const allRecipients = new Set([...groups.values()].flatMap((group) => group.recipients));
         const secrets = new Map(session.secrets);
         const entries: EntrySubject[] = [];
         for (const intent of intents) {
           const entry = { version: 1 as const, parent: history.head, nonce: nonce() };
+          const audience = audienceId(intent.audience);
+          if (intent.kind === "group.create") {
+            fields(intent, ["kind", "audience"], "SYSTEM_EVENT_INVALID");
+            if (audience === "document" || groups.has(audience))
+              fail("SYSTEM_EVENT_INVALID", "system");
+            if (!capabilitiesOf(groups.get("document")!.members, actor).includes("write"))
+              fail("CAPABILITY_DENIED", "system");
+            const secret = groupSecret();
+            generated.push(secret);
+            const recipient = ageRecipientFromSecret(secret);
+            if (allRecipients.has(recipient)) fail("SYSTEM_FAILED", "system");
+            allRecipients.add(recipient);
+            const wraps = [
+              {
+                identityId: actor.id,
+                ciphertext: await wrapKey(entry, actor, 0, recipient, secret, lim, audience),
+              },
+            ];
+            groups.set(audience, {
+              members: new Map([[actor.id, { identity: actor, capabilities: allCapabilities }]]),
+              recipients: [recipient],
+            });
+            secrets.set(keyId(audience, 0), secret);
+            entries.push({
+              ...entry,
+              kind: "system",
+              payload: {
+                type: "system.group.create",
+                version: 1,
+                data: { audience, epoch: 0, recipient, wraps },
+              },
+            });
+            continue;
+          }
+          const group = groups.get(audience);
+          if (!group) fail("SYSTEM_EVENT_INVALID", "system");
+          const { members, recipients } = group;
           if (intent.kind === "application") {
             const authority = capabilitiesOf(members, actor);
             if (
@@ -398,6 +516,7 @@ export function createStandardSystemProfile(): SystemProfile {
             )
               fail("CAPABILITY_DENIED", "system");
             const epoch = recipients.length - 1;
+            if (!secrets.has(keyId(audience, epoch))) fail("KEY_UNAVAILABLE", "author");
             const ciphertext = await encrypt(
               recipients[epoch],
               {
@@ -405,7 +524,7 @@ export function createStandardSystemProfile(): SystemProfile {
                 parent: entry.parent,
                 nonce: entry.nonce,
                 model: history.declaration.model,
-                audience: "document",
+                audience,
                 epoch,
                 event: intent.event,
               },
@@ -414,21 +533,25 @@ export function createStandardSystemProfile(): SystemProfile {
             entries.push({
               ...entry,
               kind: "application",
-              payload: { audience: "document", epoch, ciphertext },
+              payload: { audience, epoch, ciphertext },
             });
           } else if (intent.kind === "member.set") {
-            fields(intent, ["kind", "identity", "capabilities"], "SYSTEM_EVENT_INVALID");
+            fields(
+              intent,
+              ["kind", "audience", "identity", "capabilities"],
+              "SYSTEM_EVENT_INVALID",
+            );
             const target = identity(intent.identity);
             const capabilities = capabilitySet(intent.capabilities, false);
             const admission = checkSet(members, actor, target, capabilities);
             const history: { epoch: number; ciphertext: string }[] = [];
             if (admission) {
               for (const [epoch, recipient] of recipients.entries()) {
-                const secret = secrets.get(epoch);
+                const secret = secrets.get(keyId(audience, epoch));
                 if (!secret) fail("HISTORICAL_KEY_UNAVAILABLE", "author");
                 history.push({
                   epoch,
-                  ciphertext: await wrapKey(entry, target, epoch, recipient, secret, lim),
+                  ciphertext: await wrapKey(entry, target, epoch, recipient, secret, lim, audience),
                 });
               }
             }
@@ -439,35 +562,36 @@ export function createStandardSystemProfile(): SystemProfile {
               payload: {
                 type: "system.member.set",
                 version: 1,
-                data: { identity: target, capabilities, history },
+                data: { audience, identity: target, capabilities, history },
               },
             });
           } else {
-            fields(intent, ["kind", "identityId"], "SYSTEM_EVENT_INVALID");
+            fields(intent, ["kind", "audience", "identityId"], "SYSTEM_EVENT_INVALID");
             const target = identityId(intent.identityId);
             checkRemoval(members, actor, target);
             const secret = groupSecret();
             generated.push(secret);
             const recipient = ageRecipientFromSecret(secret);
-            if (recipients.includes(recipient)) fail("SYSTEM_FAILED", "system");
+            if (allRecipients.has(recipient)) fail("SYSTEM_FAILED", "system");
+            allRecipients.add(recipient);
             const epoch = recipients.length;
             members.delete(target);
             const wraps: { identityId: string; ciphertext: string }[] = [];
             for (const { identity } of orderedMembers(members)) {
               wraps.push({
                 identityId: identity.id,
-                ciphertext: await wrapKey(entry, identity, epoch, recipient, secret, lim),
+                ciphertext: await wrapKey(entry, identity, epoch, recipient, secret, lim, audience),
               });
             }
             recipients.push(recipient);
-            secrets.set(epoch, secret);
+            secrets.set(keyId(audience, epoch), secret);
             entries.push({
               ...entry,
               kind: "system",
               payload: {
                 type: "system.member.remove",
                 version: 1,
-                data: { identityId: target, epoch, recipient, wraps },
+                data: { audience, identityId: target, epoch, recipient, wraps },
               },
             });
           }

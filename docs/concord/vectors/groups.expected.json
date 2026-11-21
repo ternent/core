@@ -1,0 +1,141 @@
+{
+  "audiences": {
+    "accounts": "group:1_CGhBPM7zWuTZ1LTK1wUg",
+    "personal": "group:4cP_VsI0THbrKDMfaemO7Q"
+  },
+  "documentId": "commit:8d3caf35a912a8646a29fc8d4d0dedde1c9e493b0e6110fdc223dfead773169e",
+  "heads": {
+    "removed": "commit:76a2cc970b14c4b749a7a8281739d3acbaa267524a1d2b9cad9f5e8b0aa2ab13",
+    "readmitted": "commit:2a971b4fe0dfb1d04ed8bfa8ae4ea8a662633e915b8721003e3e5d43aa4a0cf8"
+  },
+  "readers": {
+    "owner": {
+      "removed": {
+        "projection": {
+          "values": {
+            "shared": "default history"
+          },
+          "locked": [
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:0",
+            "group:4cP_VsI0THbrKDMfaemO7Q:0",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:0",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:0",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:1"
+          ],
+          "actors": [
+            "document:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827"
+          ]
+        },
+        "coverage": "readable",
+        "lockedEntries": 5
+      },
+      "readmitted": {
+        "projection": {
+          "values": {
+            "shared": "default history"
+          },
+          "locked": [
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:0",
+            "group:4cP_VsI0THbrKDMfaemO7Q:0",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:0",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:0",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:1"
+          ],
+          "actors": [
+            "document:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827"
+          ]
+        },
+        "coverage": "readable",
+        "lockedEntries": 5
+      }
+    },
+    "creator": {
+      "removed": {
+        "projection": {
+          "values": {
+            "shared": "default history",
+            "account": "after removal",
+            "personal": "private description"
+          },
+          "locked": [],
+          "actors": [
+            "document:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:4cP_VsI0THbrKDMfaemO7Q:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:b62e867fa2f33afe62d5d6b1642e1621d543307846b2a57b897e710919b76709",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827"
+          ]
+        },
+        "coverage": "complete",
+        "lockedEntries": 0
+      },
+      "readmitted": {
+        "projection": {
+          "values": {
+            "shared": "default history",
+            "account": "after removal",
+            "personal": "private description"
+          },
+          "locked": [],
+          "actors": [
+            "document:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:4cP_VsI0THbrKDMfaemO7Q:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:b62e867fa2f33afe62d5d6b1642e1621d543307846b2a57b897e710919b76709",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827"
+          ]
+        },
+        "coverage": "complete",
+        "lockedEntries": 0
+      }
+    },
+    "bob": {
+      "removed": {
+        "projection": {
+          "values": {
+            "account": "after default removal"
+          },
+          "locked": [
+            "document:0",
+            "group:4cP_VsI0THbrKDMfaemO7Q:0",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:1"
+          ],
+          "actors": [
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:b62e867fa2f33afe62d5d6b1642e1621d543307846b2a57b897e710919b76709",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827"
+          ]
+        },
+        "coverage": "readable",
+        "lockedEntries": 3
+      },
+      "readmitted": {
+        "projection": {
+          "values": {
+            "account": "after removal"
+          },
+          "locked": ["document:0", "group:4cP_VsI0THbrKDMfaemO7Q:0"],
+          "actors": [
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:b62e867fa2f33afe62d5d6b1642e1621d543307846b2a57b897e710919b76709",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827",
+            "group:1_CGhBPM7zWuTZ1LTK1wUg:identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827"
+          ]
+        },
+        "coverage": "readable",
+        "lockedEntries": 2
+      }
+    }
+  },
+  "canWrite": {
+    "owner": true,
+    "creator": true,
+    "bob": false
+  },
+  "canonicalSha256": {
+    "removed": "a34c1bb297b3437219855d2bd1385ce85f306298b1fb5b5b217f49a9c7b55255",
+    "readmitted": "23bb5210b5c22c8d62efe3b480e60518298281f7a5b6bc84359208f0ece89441"
+  }
+}

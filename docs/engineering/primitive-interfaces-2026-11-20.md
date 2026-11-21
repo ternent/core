@@ -32,7 +32,7 @@ became one observable roundtrip test, not because a failure assertion was weaken
 
 ## Package-consumer coverage
 
-`scripts/pilot/primitives-consumer.txt` is installed into the isolated tarball
+`scripts/verify/primitives-consumer.txt` is installed into the isolated tarball
 consumer and run on both supported Node lanes. It exercises mnemonic restoration,
 serialization/validation, raw/contextual signing separation, recipient derivation,
 armored and binary encryption/decryption without setup, capability composition and

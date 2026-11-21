@@ -1,11 +1,11 @@
 # Alpha conformance and delivery gates
 
-Shipping design update, 2026-11-20: proposed independent-group acceptance cases
-G01–G19 are in the [group design matrix](group-profile-design.md#6-concrete-scenario-and-acceptance-matrix),
-with a [saved semantic scenario](examples/independent-groups.json). These are planned
-checks, not executed tests or cryptographic vectors. Single-audience read/locked
-expectations below must be reconciled with explicit readable coverage in B03/B04.
-The current library-first release does not require the deferred board application.
+Shipping update, 2026-11-20: independent groups and readable coverage are implemented.
+The [group matrix](group-profile-design.md#6-concrete-scenario-and-acceptance-matrix)
+remains the scenario checklist; [executed evidence](../engineering/independent-groups-2026-11-20.md)
+identifies tests and actual verification. Existing owner-only fixed vectors remain
+unchanged. Draft gates are now implemented; B12 now supplies reusable storage/conflict reference checks. The
+library release does not require the deferred board application.
 
 Status: implementation acceptance contract, 2026-10-21. Case IDs are stable test
 names. A coding agent implements these as one-shot tests crossing the public interface;
@@ -35,7 +35,7 @@ part of a document or public report. Alpha has no default logging callback.
 | `SYSTEM_EVENT_INVALID`, `SYSTEM_NO_CHANGE`, `LAST_ADMINISTRATOR`                        | system / malformed transition, no-op member set, removal/demotion of last administrator                                             |
 | `UNSUPPORTED_SYSTEM_EVENT`                                                              | system / unknown type/version or profile event not yet implemented; incompatible inspection                                         |
 | `CAPABILITY_DENIED`                                                                     | system / historical or current actor lacks required authority                                                                       |
-| `READ_ACCESS_REQUIRED`, `KEY_UNAVAILABLE`                                               | system / host cannot completely read this selected head; locked inspection                                                          |
+| `READ_ACCESS_REQUIRED`, `KEY_UNAVAILABLE`                                               | system / full-replay model requires unavailable events or no reader; locked inspection                                              |
 | `KEY_WRAP_INVALID`, `DECRYPTION_INVALID`, `EVENT_CONTEXT_INVALID`                       | system / decryptable-addressed wrap invalid, ciphertext authentication failure with available key, or decrypted contextual mismatch |
 | `HISTORICAL_KEY_UNAVAILABLE`                                                            | author / cannot author admission carrying every epoch key                                                                           |
 | `COMMAND_UNSUPPORTED`, `COMMAND_INVALID`, `COMMAND_REJECTED`, `NO_EVENTS`               | author / command absent, validation failure, domain decision rejection, or empty emitted event list                                 |
@@ -58,7 +58,7 @@ retroactively invalidate signatures.
 `open` reason precedence is invalid protocol, incompatible protocol, unavailable
 requirements, freshness, invalid/unsupported system, locked, then model failure.
 Known system authority/event failure gives reason invalid; unsupported event gives
-incompatible. Missing read/key gives locked. Model unknown event gives incompatible;
+incompatible. Unavailable events give locked for a full model; an opted-in model may publish readable/scoped coverage. Model unknown event gives incompatible;
 other model failure gives invalid. Report which layer failed. A fresh valid candidate
 without an anchor reports freshness unanchored, never fresh/latest. Input parse errors
 use integrity invalid, checked counts zero, no trusted history, and reason invalid.
@@ -108,28 +108,28 @@ bound to the same parent. No reissuing commands to establish replay determinism.
 
 ## R: create, commit, export, open, verify, replay, inspect (first slice)
 
-| ID  | Action                                                                                 | Required observation                                                                            |
-| --- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| R01 | Create register with owner and standard profile                                        | One signed genesis/init; owner all four rights; initial { value: "" }; ready                    |
-| R02 | Immediate set({value:"hello Concord"})                                                 | Exactly one child commit and event; ready value; storage not invoked                            |
-| R03 | Export then open with model/profile/owner                                              | Same doc ID/head, committed value, no private material or projection in wire                    |
-| R04 | Verify export without model/profile/reader                                             | Integrity valid independently; no extension execution                                           |
-| R05 | Replay identical saved export twice, then new open                                     | Equal projections and reports; no fresh key/time/ID generation during replay                    |
-| R06 | Open owner.document using public test seed                                             | Matches literal expected projection, IDs, event plaintext and key material derivation           |
-| R07 | Open without reader or with unrelated reader                                           | Locked inspection, READ_ACCESS_REQUIRED, no projection/writes; byte-exact inspection export     |
-| R08 | Open with authorized decrypt-only reader                                               | Ready same projection, canWrite false; all mutations READ_ONLY_RUNTIME                          |
-| R09 | Tampered reachable record                                                              | Invalid inspection, no model calls, raw evidence/report available                               |
-| R10 | Omit or mismatch required model/profile                                                | Incompatible inspection, exact missing refs; integrity remains independently verifiable         |
-| R11 | Correctly sign event encrypted to wrong epoch key or corrupt age bytes and rehash/sign | Integrity valid, DECRYPTION_INVALID with available expected key; no projection                  |
-| R12 | Correctly sign decryptable plaintext with wrong parent/nonce/model/epoch               | EVENT_CONTEXT_INVALID, not a reducer error                                                      |
-| R13 | Valid signed unknown event, invalid data, reducer rejection/throw                      | EVENT_UNSUPPORTED / EVENT_INVALID / MODEL_TRANSITION_INVALID / MODEL_FAILED; no partial publish |
-| R14 | Unknown command, invalid input, decision rejection, empty event list                   | Specific author error, same export/projection; no new commit                                    |
-| R15 | Inject sign/encrypt failure or candidate replay failure                                | Specific error; previous export, projection, draft unchanged                                    |
-| R16 | Parallel dispatch calls; reads while encryption awaits                                 | Invocation order, parents chained correctly; reads see last published state                     |
-| R17 | Mutate caller input bytes, returned bytes, projection or reports                       | Internal snapshot/history/projection unaffected                                                 |
-| R18 | Replay on ready handle, verify on inspection, export malformed input                   | No bypass or upgrade of trust; original bytes remain available                                  |
-| R19 | Genesis init owner mismatch; missing/wrong owner wrap; duplicate init                  | Integrity can be valid; SYSTEM_EVENT_INVALID or KEY_WRAP_INVALID; no ready state                |
-| R20 | No-command genesis opened without reader                                               | Locked, lockedEntries 0, no projection; owner is still private-profile member                   |
+| ID  | Action                                                                                 | Required observation                                                                                           |
+| --- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| R01 | Create register with owner and standard profile                                        | One signed genesis/init; owner all four rights; initial { value: "" }; ready                                   |
+| R02 | Immediate set({value:"hello Concord"})                                                 | Exactly one child commit and event; ready value; storage not invoked                                           |
+| R03 | Export then open with model/profile/owner                                              | Same doc ID/head, committed value, no private material or projection in wire                                   |
+| R04 | Verify export without model/profile/reader                                             | Integrity valid independently; no extension execution                                                          |
+| R05 | Replay identical saved export twice, then new open                                     | Equal projections and reports; no fresh key/time/ID generation during replay                                   |
+| R06 | Open owner.document using public test seed                                             | Matches literal expected projection, IDs, event plaintext and key material derivation                          |
+| R07 | Open without reader or with unrelated reader                                           | Full model locked: READ_ACCESS_REQUIRED without reader, KEY_UNAVAILABLE for missing keys; no projection/writes |
+| R08 | Open with authorized decrypt-only reader                                               | Ready same projection, canWrite false; all mutations READ_ONLY_RUNTIME                                         |
+| R09 | Tampered reachable record                                                              | Invalid inspection, no model calls, raw evidence/report available                                              |
+| R10 | Omit or mismatch required model/profile                                                | Incompatible inspection, exact missing refs; integrity remains independently verifiable                        |
+| R11 | Correctly sign event encrypted to wrong epoch key or corrupt age bytes and rehash/sign | Integrity valid, DECRYPTION_INVALID with available expected key; no projection                                 |
+| R12 | Correctly sign decryptable plaintext with wrong parent/nonce/model/epoch               | EVENT_CONTEXT_INVALID, not a reducer error                                                                     |
+| R13 | Valid signed unknown event, invalid data, reducer rejection/throw                      | EVENT_UNSUPPORTED / EVENT_INVALID / MODEL_TRANSITION_INVALID / MODEL_FAILED; no partial publish                |
+| R14 | Unknown command, invalid input, decision rejection, empty event list                   | Specific author error, same export/projection; no new commit                                                   |
+| R15 | Inject sign/encrypt failure or candidate replay failure                                | Specific error; previous export, projection, draft unchanged                                                   |
+| R16 | Parallel dispatch calls; reads while encryption awaits                                 | Invocation order, parents chained correctly; reads see last published state                                    |
+| R17 | Mutate caller input bytes, returned bytes, projection or reports                       | Internal snapshot/history/projection unaffected                                                                |
+| R18 | Replay on ready handle, verify on inspection, export malformed input                   | No bypass or upgrade of trust; original bytes remain available                                                 |
+| R19 | Genesis init owner mismatch; missing/wrong owner wrap; duplicate init                  | Integrity can be valid; SYSTEM_EVENT_INVALID or KEY_WRAP_INVALID; no ready state                               |
+| R20 | No-command genesis opened without reader                                               | Locked, lockedEntries 0, no projection; owner is still private-profile member                                  |
 
 For R11–R13/R19, an offline fixture builder must explicitly rehash affected entries,
 rebuild ordered commit subjects, re-sign using public test seeds, and rebind head/doc
@@ -139,6 +139,9 @@ specific field under test. Reference outputs remain literal fixture files, not v
 computed by the production verifier under test.
 
 ## D and S: grouped authoring and complete standard profile (Step 4)
+
+B05 implements D01–D05 and cross-group command batches; see the
+[draft implementation evidence](../engineering/draft-authoring-2026-11-20.md).
 
 | ID  | Action                                                                         | Required observation                                                                                               |
 | --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
@@ -152,13 +155,13 @@ computed by the production verifier under test.
 | S03 | Owner grants bounded grant privilege; delegate adds editor                     | Delegation follows exact subset/target rules; no privilege amplification                                           |
 | S04 | Set same rights, remove absent member, demote/remove last administrator        | SYSTEM_NO_CHANGE, SYSTEM_EVENT_INVALID, LAST_ADMINISTRATOR                                                         |
 | S05 | Remove editor after its earlier valid task event                               | Earlier authority remains valid; future epoch has exactly remaining members; old epoch not rewritten               |
-| S06 | Removed editor appends after removal                                           | CAPABILITY_DENIED; old keys do not grant write or current read                                                     |
+| S06 | Removed editor appends after removal                                           | CAPABILITY_DENIED; retained history stays readable but old keys do not unlock future epochs                        |
 | S07 | Removed editor appends from pre-removal parent                                 | Valid separate variant; diverged from revocation head; no automatic merge or ordering                              |
 | S08 | Add reader after several removals/epochs                                       | Explicit wraps for every historical epoch; full reconstruction; unavailable author key blocks admission atomically |
 | S09 | Malformed host-addressed wrap; missing/reordered/duplicate member wraps        | KEY_WRAP_INVALID / SYSTEM_EVENT_INVALID; do not certify other recipients' encrypted plaintext                      |
 | S10 | System removal then application in same signed commit                          | New epoch required; actor rights evaluated per position; removed actor cannot authorize a later commit             |
 | S11 | Self-removal while another administrator remains                               | SYSTEM_EVENT_INVALID; original head/projection unchanged; a different administrator can remove the identity        |
-| S12 | Add identity after its removal, or disable write while retaining read          | Re-admission carries all epochs; canRead and canWrite remain independent                                           |
+| S12 | Add identity after its removal, or disable write while retaining read          | Re-admission carries all epochs; readable history and current canWrite remain independent                          |
 
 ## B and T: board and actual package consumers
 
@@ -169,7 +172,11 @@ at decision and reducer seams. B03 proves viewer/editor/owner presets compile to
 rules. B04 runs the full board walkthrough with saved artifacts and divergent heads.
 B05 proves expected-head write checks atomically: two candidates use the same expected
 head, exactly one succeeds, the other returns HEAD_CONFLICT and remains exportable.
-B06 reopens publication, simulates failed write, and proves no draft persistence.
+B06 reopens publication, simulates failed write, and proves no draft persistence. These storage
+observations are implemented independently of the deferred board model in
+`test/storage.test.ts`; see [the boundary contract](storage-boundary.md). The new
+in-memory expected-head proof covers writers sharing one store instance, not a
+production provider or a cross-process update transaction.
 
 T01 checks every exported JS/types path exists in packed tarballs. T02 installs the
 exact candidate set in an isolated consumer outside the workspace, imports every public

@@ -1,7 +1,13 @@
 import { decodeBase64Url } from "@ternent/identity";
 import { fail } from "../common/errors.js";
 import { encodeJson } from "./json.js";
-import type { Limits, Snapshot, CommitSubject, EntrySubject } from "./types.js";
+import type { AudienceId, Limits, Snapshot, CommitSubject, EntrySubject } from "./types.js";
+export function isAudienceId(value: unknown): value is AudienceId {
+  if (value === "document") return true;
+  if (typeof value !== "string" || !/^group:[A-Za-z0-9_-]{22}$/.test(value)) return false;
+  const decoded = decodeBase64Url(value.slice(6));
+  return decoded.ok && decoded.value.length === 16;
+}
 export const defaults: Limits = {
   maxBytes: 16 * 1024 * 1024,
   maxCommits: 10_000,
@@ -120,7 +126,7 @@ export function entrySubject(
   } else if (input.kind === "application") {
     closed(input.payload, ["audience", "epoch", "ciphertext"], `${path}/payload`);
     if (
-      input.payload.audience !== "document" ||
+      !isAudienceId(input.payload.audience) ||
       !Number.isSafeInteger(input.payload.epoch) ||
       Number(input.payload.epoch) < 0
     )

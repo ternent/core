@@ -9,7 +9,9 @@ export type ModelRef = { id: string; version: number };
 export type Declaration = { system: ModelRef; model: ModelRef };
 export type DomainEvent = { type: string; version: number; data: Json };
 export type SystemEvent = DomainEvent & { data: JsonObject };
-export type ProtectedEvent = { audience: "document"; epoch: number; ciphertext: string };
+export type GroupId = `group:${string}`;
+export type AudienceId = "document" | GroupId;
+export type ProtectedEvent = { audience: AudienceId; epoch: number; ciphertext: string };
 type EntryBase = { version: 1; parent: CommitId | null; nonce: string };
 export type EntrySubject = EntryBase &
   ({ kind: "system"; payload: SystemEvent } | { kind: "application"; payload: ProtectedEvent });

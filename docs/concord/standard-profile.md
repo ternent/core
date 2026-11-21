@@ -1,271 +1,220 @@
 # Standard system profile 1
 
-Shipping design update, 2026-11-20: [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
-accepts independent group memberships. The [group design draft](group-profile-design.md)
-specifies the proposed multi-group changes for B03/B04. The single-audience contract
-below describes the existing implementation; it is not the final shipping scope.
+Status: implemented pre-release contract, 2026-11-20. Profile reference:
+`{ id: "concord.standard", version: 1 }`. This revises the unpublished alpha in
+place; no compatibility with older executables is promised. Genesis and the fixed
+owner-only vectors retain their exact bytes. See [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
+and [ADR 0016](../adr/0016-route-each-command-to-one-audience.md).
 
-Status: implementation contract, 2026-10-21. Profile reference:
-`{ id: "concord.standard", version: 1 }`. This profile has one document-wide private
-audience, named `document`, and capability kinds `read`, `write`, `grant`, `administer`.
-There are no profiles, role records, implicit accounts, or application policy here.
+## Authority and privacy
 
-## Authority and privacy model
+`document` is the default group. Additional groups have independent members, keys,
+and epochs. A `GroupId` is `group:` plus canonical base64url of 16 random bytes;
+`AudienceId` is `"document" | GroupId`. Group IDs cannot be reused in a document.
+Default-group membership is not required to join another group. Default-group
+ownership gives no implicit read, write, grant or administer in other groups.
 
-Genesis establishes its signer as the initial owner, holding all four capabilities.
-Capabilities are a set; their wire array uses the order `read`, `write`, `grant`,
-`administer`, with no duplicates. Every active member MUST have read; the other
-capabilities are independent. A viewer has `[read]`, an editor `[read, write]`, and
-an owner all four. These are caller presets rather than stored roles.
+Genesis gives its signer all four capabilities in `document`. An actor with write
+in `document` may create an independent group without owner approval; only its
+creator receives the initial key and all four capabilities in that group.
 
-The audience's active members are exactly the current identities with nonempty
-capabilities. A membership change does not change what earlier entries authorized.
-At least one administrator MUST remain. `grant` permits adding a member or replacing
-another member's capabilities with a subset of `[read, write]`, provided the actor
-also holds each capability being granted and the target currently has neither grant
-nor administer. `administer` permits setting any capability set or removing a member.
-Neither privilege bypasses the prohibition on removing the final administrator.
-An administrator need not also have grant. The genesis preset includes both.
+Every active member has read. Capability arrays contain unique values in order
+`read`, `write`, `grant`, `administer`. A grant holder may give a subset of read/write
+that they hold, and cannot edit a member with grant/administer. An administrator may
+set any nonempty set containing read or remove a member. At least one administrator
+must remain in each group. Self-removal is forbidden: another administrator must do
+it. Removing the last administrator fails `LAST_ADMINISTRATOR`; other self-removal
+fails `SYSTEM_EVENT_INVALID`. Unchanged sets fail `SYSTEM_NO_CHANGE`.
 
-Every application entry requires its signer to be an active member with write
-immediately before that entry in history. A conforming model may require additional
-capabilities from the same four and inspect historical system facts; it cannot weaken
-write or read checks. Replay MUST check historical authority, not the final membership.
+Application entries require historical write in their selected audience, plus the
+model's required capabilities there. Later grants never authorize an earlier signer.
+Admission and re-admission deliver every historical key of that group. Removal rotates
+only its future key; existing historical keys and plaintext remain readable. Current
+membership controls authoring, not suppression of decryptable history. Removing a
+member from `document` changes no other group's membership, keys or rights.
 
-For this bounded alpha, admitting a member explicitly gives them the complete application
-history. The member admission record carries wraps for all existing epochs. This is
-required for a complete projection; partial-history admission is outside profile 1.
-Authority to read at the selected head and possession of historical keys are checked
-separately. A removed member may retain old keys, but the normal runtime exposes only
-inspection for a head at which they lack read. They can still open an older authorized
-snapshot, and revocation cannot prevent out-of-band decryption of material they hold.
+Group labels/descriptions belong in encrypted application events. Public group IDs,
+signers, membership/capability changes, wrap targets, epochs/recipients, linkage,
+counts/sizes and signed commit metadata remain observable. This profile does not
+hide membership or traffic patterns. Other recipients' decryptability is always
+reported as `unverified`.
 
-## Group keys and key wraps
+## Keys and contextual binding
 
-Each epoch has a fresh clamped 32-byte X25519 scalar and its age recipient. This is
-audience material, not a second identity key. Private group scalars MUST NOT appear
-in cleartext in the document. Generate 32 random bytes, clamp as X25519, and encode
-the resulting scalar as B(bytes); recipients derive from scalar multiplication.
+Each group epoch uses a fresh clamped 32-byte X25519 scalar and its age recipient.
+Generate 32 random bytes, clamp as X25519 and encode B(bytes). These are audience
+keys, not additional identities. Private scalars never appear in public JSON.
+On creation or rotation, reject a recipient already recorded in any audience/epoch.
+This detects declared key reuse, not an authorized author disclosing a secret.
 
-A wrap is a binary age file encrypted to exactly one member's derived identity
-recipient. Its canonical plaintext is:
+A wrap is a binary age file encrypted to one member's derived identity recipient.
+Its canonical plaintext is:
 
 ```ts
 type KeyPlaintext = {
   context: "concord.audience-key/1";
-  parent: CommitId | null; // containing system entry parent
-  nonce: Nonce; // containing system entry nonce
-  audience: "document";
+  parent: CommitId | null;
+  nonce: Nonce;
+  audience: AudienceId;
   epoch: number;
-  identityId: string; // target member
-  recipient: string; // declared group epoch recipient
-  secret: string; // B(clamped 32-byte group scalar)
+  identityId: string;
+  recipient: string;
+  secret: string; // B(clamped 32-byte scalar)
 };
 type Wrap = { identityId: string; ciphertext: string };
 type HistoricalWrap = { epoch: number; ciphertext: string };
 ```
 
-Decrypting a wrap MUST check canonical plaintext bytes, every context field, scalar
-clamping, and that its derived recipient equals the public epoch recipient. Bad wraps
-addressed to this host yield `KEY_WRAP_INVALID`. Missing host capability yields locked
-inspection. Other recipients' encrypted wraps cannot be certified as decryptable by
-this host; a verification report MUST state that limitation. Do not claim knowledge of
-their plaintext or guaranteed delivery. A future member with an invalid historical
-wrap will inspect rather than reconstruct an incomplete projection.
+Every addressed wrap must decrypt and match canonical bytes, all context fields,
+scalar clamping and the declared recipient derived from that scalar. A malformed
+addressed wrap fails `KEY_WRAP_INVALID`, even if a later admission supplies a valid
+replacement. Other recipients' encrypted contents cannot be verified by this host.
 
-Application entries encrypt their canonical event plaintext to the single epoch
-recipient, using fresh age file material each time. Recipients of group wraps are
-public membership metadata. A ciphertext's header cannot prove which parties know
-its file key; authors must obey the recipient contract, and membership/wrap validation
-does not claim cryptographic proof that an authorized author kept plaintext secret.
+Each application entry encrypts canonical [event plaintext](alpha-protocol.md) once
+to the selected group's current epoch recipient, with fresh age file material. Check
+parent, nonce, model, audience and epoch on decryption. An available key with failed
+authentication/context is invalid, not locked. Cryptography stays in Identity/Armour;
+Armour uses typage's `age-encryption` implementation, with no WASM initialization.
 
-## Closed system event schemas
+## Closed system events
 
-Every event has `{ type, version: 1, data }`. The exact data shapes below are
-normative. Identity arrays and wrap arrays sort by identity ID, using ASCII order;
-historical wraps sort by increasing epoch. Duplicate or missing elements fail.
-All referenced identities pass protocol identity validation.
-
-### `system.init`
+Every event is `{ type, version: 1, data }`. All data shapes below are closed.
+Wrap arrays sort by identity ID using ASCII order; historical wraps sort by increasing
+epoch. Every referenced identity must validate. Duplicate, omitted and extra elements
+fail. Unknown event type/version yields `UNSUPPORTED_SYSTEM_EVENT`, never a no-op.
 
 ```ts
+// system.init: only entry in genesis, owner equals containing commit signer.
 type InitData = {
   audience: "document";
   epoch: 0;
   recipient: string;
   owner: PublicIdentity;
-  wraps: [Wrap];
+  wraps: [Wrap]; // exactly the owner
 };
-```
-
-Genesis MUST contain exactly one entry, `system.init`. Owner equals the genesis
-signer in every field. Its wrap is addressed to that owner for epoch 0. This entry
-implicitly grants the owner all four capabilities and establishes the first audience
-epoch. No application entries or additional system events in genesis. `system.init`
-anywhere else fails `SYSTEM_EVENT_INVALID`. The declarations live in the signed
-genesis commit, so the entry needs no self-referential document ID.
-
-### `system.member.set`
-
-```ts
+// system.group.create: actor has document.write; new ID, fresh key, epoch zero.
+type GroupCreateData = {
+  audience: GroupId;
+  epoch: 0;
+  recipient: string;
+  wraps: [Wrap]; // exactly the containing commit signer
+};
+// system.member.set: audience exists; authority is checked in that audience.
 type MemberSetData = {
+  audience: AudienceId;
   identity: PublicIdentity;
-  capabilities: Capability[]; // nonempty and includes read
+  capabilities: Capability[];
   history: HistoricalWrap[];
 };
-```
-
-For a new or previously removed member, history MUST contain exactly one wrap for
-every epoch from 0 through the current epoch, addressed to the target. Admission
-does not rotate the epoch. For an existing member, history MUST be empty; its existing
-historical access persists. A changed public key means a different identity; an ID
-cannot be rebound. Setting an unchanged capability set fails `SYSTEM_NO_CHANGE`.
-Evaluate grant/administer against the actor's facts immediately before the event;
-then update facts for following entries. This event cannot remove read or membership.
-
-An author admitting a new member must decrypt all historical group secrets to create
-their wraps. If unavailable, authoring fails `HISTORICAL_KEY_UNAVAILABLE` atomically.
-No network key requests, recovery, or partially admitted member state.
-
-### `system.member.remove`
-
-```ts
+// system.member.remove: active target, authorized administrator, fresh rotation.
 type MemberRemoveData = {
+  audience: AudienceId;
   identityId: string;
-  epoch: number; // previous current epoch + 1
-  recipient: string; // fresh group epoch recipient
-  wraps: Wrap[]; // exactly all remaining active members
+  epoch: number; // selected group's previous epoch + 1
+  recipient: string;
+  wraps: Wrap[]; // exactly the selected group's remaining active members
 };
 ```
 
-Requires administer, an active target, and at least one remaining administrator.
-Remove all target capabilities and active membership, create the new epoch, and
-wrap its fresh key to every remaining member, sorted by ID. Reject a recipient
-equal to any previous epoch recipient. No wrap to the removed identity. Earlier
-epoch records and wraps remain unchanged. Application entries after this event
-MUST use the new epoch, including later entries of the same commit. Self-removal
-is forbidden in profile 1 (`SYSTEM_EVENT_INVALID`); another administrator can remove
-the identity. This keeps every successful authoring operation readable to its author
-and avoids a special commit path that cannot complete application reconstruction.
+New/re-admitted members receive exactly one wrap for every epoch of their selected
+group. Existing members' capability changes have empty history. Admission does not
+rotate. Authoring without any required historical secret fails
+`HISTORICAL_KEY_UNAVAILABLE` atomically. Removal wraps the fresh epoch to every
+remaining member, sorted by ID, and no removed member. Other groups are untouched.
+Later entries of the same commit observe updated authority and epoch.
 
-No free-form `rotate`, separate identity registry, arbitrary permissions, or system
-metadata events exist in profile 1. Future system versions can add semantics without
-making profile-1 readers silently ignore unknown security events.
+No group deletion, public label fields, generic rotate event, role/account registry,
+anonymous envelope or implicit cross-group privilege exists in profile 1.
 
-First route type/version: an unknown or unimplemented one gives UNSUPPORTED_SYSTEM_EVENT.
-For a supported event, validation precedence is closed schema/identity/array encoding,
-actor authority, target existence, unchanged transition, last-administrator protection,
-self-removal prohibition, then epoch/wrap set invariants. Thus a last administrator's
-attempt to remove itself reports LAST_ADMINISTRATOR; a non-final administrator's
-self-removal reports SYSTEM_EVENT_INVALID. Ciphertext decryption follows the complete
-public pass, not this per-entry sequence.
+## Two-stage replay and coverage
 
-## Two-stage replay
+Protocol verification checks every reachable record before resolving exact model and
+profile implementations from the host. No document-provided code is loaded.
 
-After complete protocol verification, resolve the exact declared profile and model
-from a host allowlist. Do not fetch modules, evaluate document strings, or substitute
-the newest version. An absent implementation yields incompatible inspection.
+Stage A first validates the entire public authority history: group creation,
+membership, epoch and historical signer write for every application envelope. It
+records immutable per-entry facts. No decryption or model callback runs until the
+complete public pass succeeds, including groups hidden from the reader.
 
-Stage A starts from empty facts and scans genesis-to-head, commit order then entry
-order. It validates system event transitions and application outer envelope authority,
-records immutable per-entry facts, and accumulates epoch/wrap records. It runs for
-every entry even if this host has no decryption key. An unknown system event produces
-`UNSUPPORTED_SYSTEM_EVENT`, not a no-op. No application reducers run in Stage A.
+Then validate every wrap addressed to the reader across the selected history,
+including grants before removal and later historical admissions. Decrypt each
+application entry whose audience/epoch key is available. Return exactly one readable
+entry or locked marker per application entry in order. No reader means no unwrap
+attempts and all application entries locked. Retained old keys remain usable after
+removal; unavailable future epochs stay locked. Never trial-decrypt unrelated keys.
 
-Once public authority checks complete, evaluate the host reader's read at the selected
-head. No capability, or absent active read, gives `READ_ACCESS_REQUIRED`. With an active
-reader, unwrap its available epoch records across the whole selected history, including
-historical wraps addressed to it by a later admission. Later access may decrypt earlier
-entries but MUST NOT retrospectively authorize their signer. Verify all wraps addressed
-to the reader, even duplicate grants of an already held epoch. A profile author must
-use the appropriate latest admission after removal/re-admission; old retained keys are
-not evidence of active read.
+Stage B replays the whole resulting stream. A model without `reduceLocked` requires
+all events; any locked entry returns locked inspection before even `initial` runs.
+Without a reader this full model also returns locked inspection for private genesis.
+A model with `reduceLocked` explicitly decides what public locked markers mean in
+its own state. The hook gets no fabricated event payload, reader identity or secrets.
+Any hook/reducer/validation/requirement failure aborts the entire projection.
 
-Decrypt every application entry with its recorded epoch, validate context, then pass
-the model its event and immutable facts from that entry's original position. If any
-required epoch is missing, count affected entries and return locked inspection. Never
-skip unreadable entries and call the remainder a complete projection. An active reader
-with all epoch keys may open without signing capability and remains read-only.
+Successful ready state and `replay()` carry `coverage: "complete"` for zero locked
+entries, otherwise `"readable"`, and the exact `lockedEntries` count. Inspection's
+application status is respectively `valid` or `scoped`. Scoped success validates
+readable semantics only; it does not certify hidden event types, model requirements
+or transitions. `canWrite` means the supplied signer has write in at least one group;
+each command still checks its selected audience independently.
 
-Stage B folds a fresh model initial state over all validated decrypted application
-events. Unknown event type/version, invalid data, additional model-required capability
-failure, invalid state transition, non-JSON projection, or reducer exception aborts the
-whole pass. Publish only after both stages succeed. No mutable security objects or
-raw keys cross into application code. External side effects from extensions are a
-contract violation; there are no publish hooks in this alpha interface.
+After a successful complete system pass, inspection exposes immutable `entries` and
+`audiences`, even if later model replay fails. They are null if no complete system
+result exists. Failed replay never exposes a trusted intermediate projection.
 
-## System extension interface
+## Public system seam
 
-`@ternent/concord/system` exposes the standard profile factory and specialist types.
-The host passes a single profile implementation per exact reference. Alpha does not
-compose order-dependent plugin arrays; a custom profile must define its own versioned
-complete semantics and conformance vectors.
+`@ternent/concord/system` exports `createStandardSystemProfile`, `createGroup`,
+`setMember`, `removeMember` and specialist types. Member helpers default to
+`document` only when audience is omitted; null or invalid IDs fail. Callers never
+supply actor, key, epoch, recipient or ciphertext. Group creation returns the generated
+ID with its receipt only on successful publication.
 
 ```ts
-type VerifiedHistory = {
-  // Private runtime brand prevents accidental construction; no public constructor.
-  readonly documentId: CommitId;
-  readonly head: CommitId;
-  readonly declaration: Declaration;
-  readonly ordered: readonly { commit: CommitRecord; entry: EntryRecord }[];
+type ReplayItem =
+  | { status: "readable"; entryId: EntryId; event: DomainEvent; facts: SystemFacts }
+  | { status: "locked"; entryId: EntryId; audience: AudienceId; epoch: number; facts: SystemFacts };
+type AudienceState = {
+  audience: AudienceId;
+  members: readonly Member[];
+  epochs: readonly { epoch: number; recipient: string }[];
+};
+type SystemReplay = {
+  entryFacts: readonly { entryId: EntryId; facts: SystemFacts }[];
+  entries: readonly ReplayItem[];
+  audiences: readonly AudienceState[]; // sorted by audience ID
+  reader: PublicIdentity | null;
+  session: object; // opaque; keys stay in profile-private WeakMap
 };
 type ApplicationIntent = {
   kind: "application";
   event: DomainEvent;
   required: readonly Capability[];
-  audience: "document";
+  audience: AudienceId;
 };
 type SystemIntent =
-  | { kind: "member.set"; identity: PublicIdentity; capabilities: readonly Capability[] }
-  | { kind: "member.remove"; identityId: string };
-type SystemReplay = {
-  entryFacts: readonly { entryId: EntryId; facts: SystemFacts }[];
-  events: readonly { entryId: EntryId; event: DomainEvent; facts: SystemFacts }[];
-  members: readonly { identity: PublicIdentity; capabilities: readonly Capability[] }[];
-  epochs: readonly { epoch: number; recipient: string }[];
-  reader: PublicIdentity;
-  session: object; // opaque token; secrets kept in profile-private WeakMap
-};
-type SystemProfile = {
-  ref: ModelRef;
-  bootstrap(input: {
-    signer: IdentityCapability;
-    limits: Limits;
-  }): Promise<Result<EntrySubject, ConcordError>>; // one parent-null init entry
-  replay(input: {
-    history: VerifiedHistory;
-    reader: ReaderCapability | undefined;
-    limits: Limits;
-  }): Promise<Result<SystemReplay, ConcordError>>;
-  prepare(input: {
-    history: VerifiedHistory;
-    current: SystemReplay;
-    signer: IdentityCapability;
-    intents: readonly (ApplicationIntent | SystemIntent)[];
-    limits: Limits;
-  }): Promise<Result<readonly EntrySubject[], ConcordError>>;
-};
+  | { kind: "group.create"; audience: GroupId }
+  | {
+      kind: "member.set";
+      audience: AudienceId;
+      identity: PublicIdentity;
+      capabilities: readonly Capability[];
+    }
+  | { kind: "member.remove"; audience: AudienceId; identityId: string };
 ```
 
-`VerifiedHistory` is runtime-issued and branded, not a public assertion a caller can
-construct by casting JSON. Values passed across this interface are deeply immutable;
-the runtime checks the profile's output covers exactly the expected application entry
-IDs in order, with facts bound to their commit signer. `SystemReplay` is successful
-only for an active reader with complete keys. Its session token has no public fields
-or serialization, and private key material stays in the profile's WeakMap. Failure
-returns ConcordError; locked errors carry `details.lockedEntries`, public transition
-errors identify their record, and no partially decrypted output is returned.
-`bootstrap` owns initial audience material, its owner wrap, and the init entry nonce;
-the runtime owns the genesis declaration, commit nonce, subject, and signature.
-`ApplicationIntent` has validated event, required capability set, and fixed document
-audience. `SystemIntent` is `member.set` or `member.remove` with target identities and
-capabilities; callers never supply epoch secrets or ciphertext. `prepare` generates
-nonces, wraps, and ciphertext through Identity/Armour; the runtime constructs commit
-subjects and signatures and verifies/replays the complete candidate before publishing.
+`SystemProfile` has bootstrap, replay and prepare, using runtime-branded verified
+history. Bootstrap owns the init nonce/key/wrap. Prepare generates entry nonces,
+wraps and ciphertext through Identity/Armour. The runtime owns the signed commit,
+checks total ordered entry coverage and signer/audience binding, and verifies/replays
+the complete candidate before atomically publishing bytes, state and report.
+Sessions are not serializable and never expose key material. Values crossing the
+seam are immutable. Custom profiles are trusted host code with explicit versioned
+semantics, not untrusted plugins supplied by a document.
 
-The root application interface hides this specialist seam. During the first slice,
-only `system.init` authoring is required. The standard implementation must advertise
-its event support internally and return incompatible inspection for recognized but
-unimplemented profile-1 events; it cannot claim profile-1 conformance until all three
-events pass vectors. Do not invent a temporary public profile ID or downgrade to
-plaintext during that increment.
+Commands validate input, select one audience with `commands[name].audience` (default
+`document`), check write there, then decide with that group's current signer facts.
+Every emitted event must select that same audience using the model's `audience`
+hook (default `document`). Replay checks event selection against its signed envelope.
+Mixed-audience commands fail before encryption/signing. Draft mode now groups
+several commands across audiences into one atomic commit; each command retains this
+single-audience rule. System management requires an immediate-mode handle.

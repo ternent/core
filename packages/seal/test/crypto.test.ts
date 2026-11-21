@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { parseIdentity } from "@ternent/identity";
-import { createSealIdentity, createSealMnemonicIdentity, exportIdentityJson } from "../src";
+import {
+  createSealIdentity,
+  createSealMnemonicIdentity,
+  exportIdentityJson,
+} from "../src/index.js";
 
 describe("seal crypto", () => {
   it("creates and serializes a seal identity", async () => {
@@ -18,4 +22,12 @@ describe("seal crypto", () => {
     expect(created.mnemonic.split(/\s+/).length).toBe(12);
     expect(created.identity.format).toBe("ternent-identity");
   });
+});
+
+it("rejects serialized signers whose seed does not match the claimed public key", async () => {
+  const { resolveSealSigner } = await import("../src/crypto.js");
+  const identity = await createSealIdentity();
+  const other = await createSealIdentity();
+  const mismatched = { ...identity, material: { ...identity.material, seed: other.material.seed } };
+  await expect(resolveSealSigner({ identity: mismatched })).rejects.toThrow(/publicKey|seed/i);
 });

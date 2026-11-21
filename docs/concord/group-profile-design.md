@@ -1,10 +1,11 @@
 # Independent groups and readable replay
 
-Status: B01 design draft, 2026-11-20. Independent membership is accepted in
-[ADR 0015](../adr/0015-keep-audience-memberships-independent.md). Schemas and
-interfaces below are the proposed implementation contract for B03/B04, not current
-exports or tested multi-group behavior. The current implementation remains the
-single-audience [standard profile](standard-profile.md).
+Status: implemented B03/B04 design rationale, 2026-11-20. Independent membership and
+one audience per command are accepted in [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
+and [ADR 0016](../adr/0016-route-each-command-to-one-audience.md). The normative
+[standard profile](standard-profile.md) and runtime/model types now implement these
+interfaces. The acceptance matrix remains a scenario checklist; executed evidence
+is recorded in [the implementation note](../engineering/independent-groups-2026-11-20.md).
 
 ## 1. Scope and evidence
 
@@ -32,7 +33,7 @@ on removal. Reuse the current standard profile's stronger validation/rotation ru
 - Signed-history integrity, signer binding, atomic publication, read-only handles,
   deterministic replay and explicit divergence remain mandatory.
 
-### Proposed implementation choices
+### Implementation choices
 
 Reuse the existing four capabilities and membership rules per audience. Keep group
 titles/descriptions in encrypted application events rather than adding system
@@ -40,10 +41,9 @@ profile policy. Add an explicit model hook for locked entries; models that requi
 all events continue to return locked inspection when any event is unavailable.
 
 This is a pre-release revision of the intended v1 contract. No old/new runtime
-compatibility layer is requested. Proposed authoring still declares
+compatibility layer is requested. Authoring still declares
 `{ id: "concord.standard", version: 1 }` and uses the existing suite/container/hash
-domains. Before implementation, revise the normative profile/protocol/model docs
-together. Existing fixed single-audience vectors remain unchanged where their
+domains. The normative profile/protocol/model docs are revised together. Existing fixed single-audience vectors remain unchanged where their
 bytes still satisfy the revised contract; do not regenerate them just to pass.
 Old executables need not understand new groups; no interoperability claim is made.
 
@@ -206,7 +206,7 @@ type ReplayItem =
   | { status: "readable"; entryId: EntryId; event: DomainEvent; facts: SystemFacts }
   | { status: "locked"; entryId: EntryId; audience: AudienceId; epoch: number; facts: SystemFacts };
 type LockedEvent = { audience: AudienceId; epoch: number };
-// Proposed replacement for the current document-only replay output:
+// Exhaustive audience-scoped replay output:
 type SystemReplay = {
   entryFacts: readonly { entryId: EntryId; facts: SystemFacts }[];
   entries: readonly ReplayItem[]; // exhaustive application entries, in order
@@ -220,7 +220,7 @@ type SystemReplay = {
 };
 ```
 
-Proposed model additions:
+Model additions:
 
 ```ts
 // On each command definition, after input validation and before decide():
@@ -241,14 +241,13 @@ they never cause implicit group creation or plaintext downgrade.
 
 This resolves the otherwise circular need to decide events before discovering which
 audience's permission facts to pass into the decision. A single command does not
-span audiences in this draft; explicit draft mode may group several commands from
+span audiences in this contract; explicit draft mode groups several commands from
 different audiences into one atomic commit. Cross-group domain operations must be
 modeled explicitly rather than treated as a runtime migration or permission bypass.
 Sam accepted one audience per command on 2026-11-20; see
 [ADR 0016](../adr/0016-route-each-command-to-one-audience.md). Moving an item between
-groups uses several commands in an explicit draft commit. This routing rule and
-independent membership are accepted; the remaining interface details are the draft
-implementation contract.
+groups uses several commands in an explicit draft commit, implemented by B05 after
+the B03/B04 group slice.
 
 An absent `reduceLocked` means the model requires every event. If any entry is locked,
 return locked inspection before invoking initial/reducer callbacks. An explicit hook
@@ -262,7 +261,7 @@ application-specific repair or silently ignore a missing target. A hook exceptio
 invalid result/state or readable-event/model failure aborts the entire pass. Publish
 snapshot, projection, inspection and coverage together only after success.
 
-Proposed public result additions:
+Public result additions:
 
 ```ts
 // Required on every ready state; replay() returns this metadata with projection.
@@ -284,7 +283,7 @@ Inspection remains available for raw readable evidence after failure, but must n
 label a failed or incomplete model pass as trusted projection. No new universal
 raw-decryption/export format is introduced in this design.
 
-Concretely, propose `InspectionReport.entries: readonly ReplayItem[] | null`:
+The runtime exposes `InspectionReport.entries: readonly ReplayItem[] | null`:
 populate it only after the full system pass succeeds, retain it if the later model
 pass fails, and return immutable copies. `null` means a complete system-evaluated
 entry stream is unavailable. Entry evidence is distinct from projection and from
@@ -295,7 +294,7 @@ when they cannot produce an application projection.
 
 ## 5. Authoring interface and failure behavior
 
-Proposed `/system` operations:
+Public `/system` operations:
 
 ```ts
 createGroup(handle): Promise<Result<CommitReceipt & { audience: GroupId }>>;
@@ -309,15 +308,17 @@ commands still dispatch through the model; individual emitted events may choose
 their command's selected audience only. A grouped commit can contain commands for
 different audiences only when the author has the required rights in each.
 
-Keep immediate system authoring and the existing draft guards. One operation is one
+Keep immediate system authoring; draft-specific guards are implemented by B05. One operation is one
 verified/replayed commit. Failed validation/encryption/signing/replay retains the
 previous head, bytes, projection and draft. App commands on a readable view are
 permitted only after a successful model pass; the model decides whether visible
 state is sufficient, and normal scoped capability checks still apply. Nothing
 certifies hidden whole-document model invariants on such a view.
 
-`canWrite` means a signer has current write and the current epoch key in at least
-one audience, not permission for every command/group. System administration checks
+`canWrite` means a signer has current write in at least
+one audience, not permission for every command/group. The standard profile validates
+addressed key delivery during replay and requires the current key before protection.
+System administration checks
 its own privileges, including administer without write, as in the existing profile.
 A signer-free handle always rejects mutations. Inspection-only handles cannot author.
 
@@ -383,13 +384,9 @@ facts and full candidate replay can also dominate cost. These are operation coun
 not measured latency or a claim of linear total runtime. Measure history size, epoch
 count, membership and reader coverage before introducing cache/incremental replay.
 
-For B03 implement group transitions/authoring and their public negative cases. For
-B04 implement the exhaustive readable/locked stream, model hook/coverage and atomic
-publication checks. Update `standard-profile.md`, `alpha-protocol.md`, the blueprint,
-conformance and public docs in the same migration so the new profile has one
-normative definition. Keep this draft as design rationale, not a parallel runtime.
-
-This B01 pass changes documentation/scenario data only. No group implementation,
-behavior test, signed group vector, benchmark, package publication or remote CI run
-is claimed. The earlier active-workspace baseline and its Chromium launch limitation
-remain recorded in [the shipping inventory](../engineering/shipping-inventory-2026-11-20.md).
+B03/B04 now implement these transitions, readable/locked output, model hooks and
+coverage. Normative profile/protocol/blueprint docs change with the implementation.
+Drafts are implemented by B05; reusable storage conflict proof and full release
+delivery remain subsequent backlog items. No benchmark, npm publication or remote verification of this new slice
+is implied; the [implementation note](../engineering/independent-groups-2026-11-20.md)
+records actual checks and remaining limits.

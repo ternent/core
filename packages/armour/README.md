@@ -47,7 +47,7 @@ const encrypted = await encryptTextForIdentities({ identities: [identity], text:
 const text = await decryptTextWithIdentity({ identity, data: encrypted });
 ```
 
-Original sources/configuration are retained in `legacy/` and are not published.
+Historical implementations are available in Git.
 
 Armour owns neither signing semantics, document envelopes, authorization nor storage.
 Identity owns key derivation. Concord owns its signed history and private system profile.

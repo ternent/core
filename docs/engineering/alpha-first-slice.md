@@ -1,3 +1,5 @@
+Current repository state: [repository hygiene](repository-hygiene.md). The observations below describe the earlier slice.
+
 # Identity, Armour and the Concord first slice
 
 2026-11-20 follow-up: [B02's primitive-interface note](primitive-interfaces-2026-11-20.md)
@@ -30,7 +32,7 @@ mixing document semantics into the primitives.
 Original package sources, tests, metadata, guidance and configurations are retained
 under each migrated package's `legacy/` directory. These are reference snapshots,
 excluded from checks and publication. Identity's retained implementation is active
-at `src/legacy.ts`; Armour's existing helpers remain active over the new private
+at `src/serialized.ts`; Armour's existing helpers remain active over the new private
 engine port. Neither is a wrapper around the previous Concord runtime.
 
 The existing edit to `packages/workspace/test/runtime-core.test.ts` is outside this

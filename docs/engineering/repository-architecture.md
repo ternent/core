@@ -1,5 +1,7 @@
 # Ternent repository architecture
 
+Current implementation: [repository hygiene](repository-hygiene.md).
+
 Status: accepted target design, 2026-10-21; R1 implementation is described in
 [the tooling pilot](tooling-pilot.md). Identity, Armour and the private Concord first slice are now active
 ([migration evidence](alpha-first-slice.md)); other product migration and account

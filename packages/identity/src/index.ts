@@ -20,8 +20,8 @@ export {
   validateMnemonic,
   verifyBytes,
   verifyUtf8,
-} from "./legacy.js";
-export type { IdentityMaterial, MnemonicWordCount, SerializedIdentity } from "./legacy.js";
+} from "./serialized.js";
+export type { IdentityMaterial, MnemonicWordCount, SerializedIdentity } from "./serialized.js";
 export {
   ageRecipientFromPublicIdentity,
   ageRecipientFromSecret,

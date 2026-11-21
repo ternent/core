@@ -1,9 +1,8 @@
 # Concord alpha protocol 1
 
-Shipping design update, 2026-11-20: the [group design draft](group-profile-design.md#3-minimal-wire-changes)
-proposes generalizing audience fields and closed system event data for independent
-groups. The schema below remains the current single-audience implementation contract
-until that migration lands; no multi-group conformance is claimed.
+Shipping update, 2026-11-20: independent groups and readable replay are implemented.
+The [standard profile](standard-profile.md) and [group contract](group-profile-design.md)
+define the pre-release revision; canonical encoding, hashing and signatures are unchanged.
 
 Status: implementation contract, 2026-10-21. Read with the
 [blueprint](implementation-blueprint.md), [standard profile](standard-profile.md),
@@ -140,14 +139,14 @@ type SystemEvent = {
   data: JsonObject; // exact per-event schema in standard-profile.md
 };
 type ProtectedEvent = {
-  audience: "document";
+  audience: AudienceId;
   epoch: number; // safe integer >= 0
   ciphertext: string; // B(binary age file)
 };
 ```
 
-One public document audience suffices for the board proof. Additional audience
-names require a new profile version. Application event names and data stay inside
+`AudienceId` is `"document"` or `"group:" + B(16 random bytes)`, with a canonical
+base64url suffix. The profile validates existence and authority for that audience. Application event names and data stay inside
 ciphertext. The public envelope discloses signer identities, membership/capability
 changes, epoch recipients, parent relationships, entry counts, sizes, and signed
 commit messages. Messages and container annotations MUST NOT be advertised as private.
@@ -160,7 +159,7 @@ type EventPlaintext = {
   parent: CommitId; // application entries are forbidden in genesis
   nonce: Nonce; // equals outer entry nonce
   model: ModelRef; // equals genesis declaration
-  audience: "document";
+  audience: AudienceId;
   epoch: number; // equals outer epoch
   event: { type: string; version: number; data: Json };
 };

@@ -3,8 +3,8 @@
 Current shipping decision, 2026-11-20: keep the default `document` audience and
 independent group memberships; default-group removal has no implicit effect on
 other groups. [ADR 0015](../adr/0015-keep-audience-memberships-independent.md) records
-Sam's acceptance. The [group design](group-profile-design.md) is the proposed
-schema/replay contract for implementation; current code still has one audience.
+Sam's acceptance. The [group design](group-profile-design.md) records the schema/replay contract now
+implemented by B03/B04. B05 implements draft batches; B12 now implements the reusable storage/conflict reference proof.
 
 This brief provides project context for Codex and ChatGPT. The working agreement
 is in [AGENTS.md](../../AGENTS.md). In a ChatGPT conversation without repository
@@ -26,28 +26,25 @@ canonical language in [the root glossary](../../CONTEXT.md). Those documents sup
 the current package specifications when defining the new product.
 
 Product reference: [ternent.dev/concord](https://ternent.dev/concord). The current
-[Concord spec](../../packages/concord/SPEC.md),
-[Concord README](../../packages/concord/README.md), and
-[Ledger spec](../../packages/ledger/SPEC.md) describe legacy implementations and may
-provide useful test cases. They are not the clean-rebuild contract.
+[Concord spec](../../packages/concord/SPEC.md) and
+[Concord README](../../packages/concord/README.md) describe the active alpha.
 
-## Legacy repository map
+## Repository map
 
-The following map describes the half-migrated implementation. It is useful for finding
-evidence, not as the target package architecture.
+| Area | Starting point |
+| --- | --- |
+| Document parsing, signatures and linkage | `packages/concord/src/protocol/` |
+| Lifecycle, drafts and atomic publication | `packages/concord/src/runtime.ts` |
+| Private host validation and model replay | `packages/concord/src/runtime/` |
+| Authority, audiences and key distribution | `packages/concord/src/system/` |
+| Memory storage and conflict reference | `packages/concord/src/testing/` |
+| Package selection | `pnpm-workspace.yaml` |
+| Repository acceptance checks | `scripts/verify/` |
 
-| Area                             | Starting point                                            |
-| -------------------------------- | --------------------------------------------------------- |
-| Command and replay runtime       | `packages/concord/src/app.ts`                             |
-| History and verification         | `packages/ledger/src/ledger.ts`                           |
-| Application-facing API           | `packages/workspace/src/runtimeCore/createRuntimeCore.ts` |
-| Replay and storage orchestration | `packages/workspace/src/runtime/createApp.ts`             |
-| Permissions                      | `packages/workspace/src/plugins/permissions.ts`           |
-| Privacy                          | `packages/workspace/src/runtime/privacy.ts`               |
-| Storage providers                | `packages/workspace/src/runtime/storageProviders/`        |
-| Workspace lifecycle              | `packages/workspace/src/workspaceLifecycle.ts`            |
-| Package selection                | `pnpm-workspace.yaml`                                     |
-| Release workflows                | `.github/workflows/`                                      |
+The copied legacy archives, retired Ledger and Utils products, and obsolete
+publish workflows were removed on 2026-11-21. Git retains their history.
+Workspace remains excluded pending retirement; UI migration remains B08–B10.
+The migration evidence below is historical, including references to removed paths.
 
 ## Migration context
 
@@ -95,8 +92,8 @@ is an architectural migration rather than a reason to replace proven primitives.
 
 Standard member events and the [local handshake pilot](../../apps/handshake/README.md)
 are implemented. The handshake exercises private immediate commits with two writers and
-an invited reader. Explicit drafts and the reusable expected-head storage proof remain
-separate core increments. The product priority below supersedes the earlier choice of
+an invited reader. The reusable expected-head storage proof is implemented in the testing subpath;
+[its contract](storage-boundary.md) limits atomicity to a shared reference instance. The product priority below supersedes the earlier choice of
 hosted receipt exchange as the next milestone; the handshake remains implementation
 and acceptance evidence.
 
@@ -145,15 +142,13 @@ list into a separate document would change that demonstration and is not the cho
 substitute for it. The application remains a reference for behaviour, not evidence that
 every legacy security mechanism is correct.
 
-The current alpha is narrower than this requirement. Standard profile 1 has one
-document-wide private audience; protocol `ProtectedEvent`, system authoring intents and
-runtime dispatch also fix the audience to `document`. Supporting the example therefore
-needs an explicit architecture/format compatibility decision, not just a UI or storage
-adapter change. Detailed schemas and compatibility policy have not yet been agreed.
-Design work must distinguish verification of the complete signed history from replay
-of a reader's authorized application view, specify cross-group model dependencies and
-metadata visibility, and retain failure on tampering or missing required inputs. A
-scoped projection must not be presented as full-document application reconstruction.
+The alpha now implements independent groups and explicit readable/locked replay.
+The pre-release profile revision, per-group authority/epochs and command routing are
+specified in [the standard profile](standard-profile.md). Full signed history remains
+verified; models opt into locked markers rather than silently omitting hidden events.
+Successful scoped projections carry readable coverage and never certify hidden
+application semantics. The [implementation note](../engineering/independent-groups-2026-11-20.md)
+records executed checks and limits.
 
 Sam's metadata preference is to encrypt whatever can be encrypted. Treat application
 content, group titles and descriptive metadata as private by default. Minimize exposure

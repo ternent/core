@@ -23,8 +23,9 @@ and import isolation, Node compatibility lanes and Chromium cryptography. Genera
 minimal Vue render/CSS consumer in a temporary directory. Retire SFC, documentation
 routing, profile portability and handshake proof products; their removal does not
 remove a library contract. [ADR 0013](0013-pilot-candidate-isolation.md)'s exact candidate
-overrides remain the local isolation method, with final registry-range verification
-still required before release.
+overrides were the initial isolation method. The consumer gate now uses an isolated
+candidate registry without sibling overrides, checking dependency ranges as described
+in the [repository guide](../engineering/repository-hygiene.md#acceptance-boundaries).
 
 Consolidate contributor guidance in [CONTRIBUTING.md](../../CONTRIBUTING.md) and the
 [repository guide](../engineering/repository-hygiene.md). Keep the current release

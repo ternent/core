@@ -62,5 +62,7 @@ jobs:
           path: |
             artifacts/check.json
             artifacts/consumers.json
+            artifacts/candidate-registry.log
+            artifacts/registry-*.log
             artifacts/browser.png
             artifacts/candidates-*/*.tgz

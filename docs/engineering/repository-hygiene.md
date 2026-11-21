@@ -49,6 +49,7 @@ Applications and demos should consume published libraries from separate projects
 | publint    | 0.3.25                              | Standard built-package and exact-tarball validation               |
 | Vue        | 3.5.46                              | Runtime in the temporary browser consumer                         |
 | Playwright | 1.65.1                              | Chromium execution against installed candidates                   |
+| Verdaccio  | 7.1.2                               | Disposable local candidate registry with no uplinks               |
 
 Volar, vue-tsc, unplugin-vue and the Vue Vite plugin are no longer direct repository
 dependencies or explicit requirements. Declaration tooling may still resolve Vue
@@ -72,20 +73,23 @@ required scripts and workspace dependency policy. Standard publint validates pac
 artifacts; it does not replace behavior, declaration or browser checks.
 
 The consumer harness packs each library once, records SHA-256, runs strict publint
-on those bytes, and installs the candidates outside the workspace with explicit
-candidate overrides. It exercises Node 22.18, Node 24.21 and the development runtime;
-CI requires the compatibility executables explicitly. It retains fixed crypto
+on those bytes, and installs the candidates by name/version outside the workspace
+from a disposable loopback registry, without sibling overrides. It exercises Node
+22.18, Node 24.21 and the development runtime; CI requires the compatibility
+executables explicitly. It retains fixed crypto
 vectors, public declarations and intended compiler failures, CLI behavior, protocol
 and library import isolation, Armour codecs, Ledger lifecycle, Concord groups/drafts/
 storage and Seal proof/artifact behavior. A temporary plain Vite+ Vue production
 build executes those browser proofs in Chromium and checks CSS/interaction.
 Deliberately failing lint, format and behavior inputs check useful failure propagation.
 
-These overrides prevent fallback to registry predecessors but do not prove final
-published sibling ranges. That separate release gate remains on the
+The candidate registry cannot proxy `@ternent/*` to published predecessors. Missing
+candidates and incompatible transitive sibling ranges must fail resolution, and
+installed candidate integrity is checked against the retained tarballs. Real public
+registry publication and fresh published consumption remain on the
 [release backlog](release-and-deployment.md#release-backlog).
 Reports are `artifacts/check.json`, `artifacts/consumers.json`,
-`artifacts/browser.png` and retained candidate tarballs. They describe their own run;
+`artifacts/browser.png`, registry logs and retained candidate tarballs. They describe their own run;
 older test counts, builds or remote CI results do not certify newer edits.
 
 ## Automation and retained documentation

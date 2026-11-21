@@ -30,7 +30,9 @@ tests also need `age` 1.3.1; CI installs its checksum-verified official binary.
 For a small formatting change, use explicit paths with `pnpm exec vp fmt`.
 Package `check:artifact` scripts run `publint --strict --pack false` on built
 outputs. The root artifact check also lints each exact tarball before installing
-it outside the workspace.
+it by name/version outside the workspace through a disposable loopback registry.
+Sibling packages resolve only from that candidate registry, without overrides;
+negative probes verify missing candidates and incompatible dependency ranges fail.
 
 Local packed checks use the current Node executable. Set `CONCORD_NODE22` and
 `CONCORD_NODE24` to explicit executable paths to include compatibility lanes.

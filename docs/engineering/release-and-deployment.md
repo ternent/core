@@ -21,10 +21,13 @@ memory; consumers own commit cadence and any draft persistence/recovery under
 [ADR 0019](../adr/0019-keep-draft-persistence-with-consumers.md). There is no pending
 library persistence feature or UI migration required for release.
 
-Current candidate acceptance uses exact packed tarballs with sibling overrides in
-an external directory. It checks strict publint, runtime behavior, declarations,
-CLI, fixed vectors, import isolation and Chromium. This prevents accidental use of
-published predecessors, but does not establish final registry dependency resolution.
+Current candidate acceptance serves exact packed tarballs from a disposable loopback
+registry and installs by package name/version in an external directory, without
+sibling overrides. The registry cannot proxy `@ternent/*` to published predecessors.
+It checks candidate integrity, strict publint, runtime behavior, declarations,
+CLI, fixed vectors, import isolation and Chromium. Deliberate missing-candidate and
+incompatible sibling-range probes must fail. This establishes candidate dependency
+resolution, not publication or consumption from the public registry.
 No verified-artifact publisher is installed. Legacy tag/package publishers have been
 retired; merging or tagging the repository does not publish this candidate set.
 
@@ -33,15 +36,15 @@ retired; merging or tagging the repository does not publish this candidate set.
 The identifiers below retain the useful remaining shipping work without carrying
 forward completed migration slices or cancelled UI/tooling products.
 
-| Item                        | Deliverable                                                                                                                  | Observable exit                                                                                                                                                                   |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B13 — Candidate registry    | Serve all five final-name/version tarballs from an isolated temporary registry; install without sibling file overrides       | All expected digests are exercised; a wrong/missing sibling range fails instead of resolving a predecessor; existing Node/browser/type/CLI/vector/isolation checks pass           |
-| B14 — Planner and publisher | Changesets version intent, immutable digest-bound release plan, retained artifacts, dependency-ordered retryable publication | Saved-response/argv tests cover no-op, missing/invalid plan, private exclusion, tampering, identical retry, collision, partial publication and interrupted channel promotion      |
-| B15 — Workflow chain        | One version-PR path and one least-privilege publisher; same-SHA eligible artifact handoff and setup instructions             | Dry runs prove trigger/plan selection, private exclusions and retry behavior; no competing publisher remains; workflow identity and onboarding requirements are documented        |
-| B16 — Registry acceptance   | Verify existing versions/tags and trusted publisher settings; authorized test-channel proof and fresh published consumption  | Registry integrity matches retained tarballs; exact published versions work outside this checkout without overrides; receipts record incomplete as well as complete channel state |
+| Item                        | Deliverable                                                                                                                    | Observable exit                                                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B13 — Candidate registry    | Implemented: serve all five final-name/version tarballs from an isolated temporary registry; install without sibling overrides | Candidate digests and resolution failure probes are checked by the consumer gate; each run's reports record the Node/browser/type/CLI/vector/isolation results                    |
+| B14 — Planner and publisher | Changesets version intent, immutable digest-bound release plan, retained artifacts, dependency-ordered retryable publication   | Saved-response/argv tests cover no-op, missing/invalid plan, private exclusion, tampering, identical retry, collision, partial publication and interrupted channel promotion      |
+| B15 — Workflow chain        | One version-PR path and one least-privilege publisher; same-SHA eligible artifact handoff and setup instructions               | Dry runs prove trigger/plan selection, private exclusions and retry behavior; no competing publisher remains; workflow identity and onboarding requirements are documented        |
+| B16 — Registry acceptance   | Verify existing versions/tags and trusted publisher settings; authorized test-channel proof and fresh published consumption    | Registry integrity matches retained tarballs; exact published versions work outside this checkout without overrides; receipts record incomplete as well as complete channel state |
 
-B13 feeds B14's final artifact proof; B15 wires that proof into automation; B16 needs
-real account inputs and explicit release authorization. Implementations must inspect
+B13's consumer gate feeds B14's final artifact proof; B15 wires that proof into
+automation; B16 needs real account inputs and explicit release authorization. Implementations must inspect
 current npm/GitHub policy and supported tool versions rather than treating older
 external service details as permanent. No account setting has been established by
 this document. The separate Seal Action's package/version configuration and any

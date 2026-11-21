@@ -102,6 +102,45 @@ a retryable publisher. CI exercises the pinned Seal Action over the candidate bu
 with a disposable identity, retaining `artifacts/release/`. That proof establishes
 test integration; production release trust uses a separately configured public key.
 
+## Replay performance follow-up
+
+Incremental replay is a candidate optimisation, not an implemented API or a change
+to the trust model. The original Ledger offered `replay(from, to)`; current Ledger
+offers `replay({ includeStaged })` and current Concord offers `replay()`. A cursor
+alone does not reconstruct the state preceding it.
+
+A locally trusted cache could retain the projection at a verified committed head
+and apply only a validated descendant suffix. It must bind the document, head,
+model/system implementations, reader/key availability and replay coverage. Concord
+also needs the authority, membership and epoch/key state required to interpret the
+suffix; a projection and entry index alone are insufficient. Draft previews never
+serve as verified committed checkpoints.
+
+Important invalidation cases:
+
+- A branch change requires a compatible ancestor checkpoint or full replay; an
+  entry count or timestamp cannot identify the same verified prefix.
+- Newly acquired historical keys can make previously locked entries readable.
+  Admission/readmission already has this behaviour. Rebuild the affected application
+  projection from a suitable earlier checkpoint or genesis rather than applying only
+  newly appended events. A changed reader/model/system also invalidates incompatible
+  cached state.
+- A cache restored from untrusted storage is not trustworthy merely because it names
+  a valid head, carries a checksum or has a signature. Establish its provenance and
+  correctness under an explicit checkpoint policy or reconstruct from verified
+  history. Keep secret system/key state outside portable public snapshots.
+- An incoming snapshot must agree with the trusted prefix. Reuse the verified prefix
+  itself or establish that agreement; never skip altered historical bytes based only
+  on the supplied head identifier. Validate new linkage/signatures and historical
+  authority before publishing any extended projection.
+
+Incremental application reduction alone does not remove repeated full-history
+verification, decryption, serialisation and copying. Measure those costs separately
+on representative document sizes/commit patterns before choosing an implementation.
+Full replay remains the correctness reference. Any optimisation must match it for
+unchanged capabilities, and explicitly invalidate/rebuild when earlier readability
+changes. No performance budget or persisted checkpoint format is established here.
+
 ## Automation and retained documentation
 
 One read-only CI workflow installs the frozen lockfile, pinned age reference and

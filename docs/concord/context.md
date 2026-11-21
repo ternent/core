@@ -1,5 +1,12 @@
 # Concord project brief
 
+Current repository and staging scope, 2026-11-21: [ADR 0019](../adr/0019-keep-draft-persistence-with-consumers.md)
+keeps draft persistence with consumers; [ADR 0020](../adr/0020-simplify-core-around-five-libraries.md)
+limits the active workspace to the five public libraries and removes the tooling
+profiles, fixtures and handshake app. The [repository guide](../engineering/repository-hygiene.md)
+describes current checks. References below to retired proof products record earlier
+implementation context; their source remains in Git.
+
 Current ownership decision, 2026-11-21: Concord consumes one Ledger-owned container
 and history lifecycle, accepting a break from the current Concord alpha format.
 [ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md) records the accepted
@@ -102,7 +109,7 @@ scope, reused implementation, supported consumers and executed acceptance checks
 Existing helper behavior is preserved where it matches the accepted contracts; this
 is an architectural migration rather than a reason to replace proven primitives.
 
-Standard member events and the [local handshake pilot](../../apps/handshake/README.md)
+Standard member events and the [local handshake pilot](https://github.com/ternent/core/blob/a901ad8637dbe1860856240c39ef093d2bf4a36f/apps/handshake/README.md)
 are implemented. The handshake exercises private immediate commits with two writers and
 an invited reader. The reusable expected-head storage proof is implemented in the testing subpath;
 [its contract](storage-boundary.md) limits atomicity to a shared reference instance. The product priority below supersedes the earlier choice of

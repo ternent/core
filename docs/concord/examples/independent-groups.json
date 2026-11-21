@@ -1,0 +1,93 @@
+{
+  "format": "concord.design.scenario",
+  "version": 1,
+  "status": "proposed-expectations-not-a-signed-vector",
+  "actors": ["owner", "alice", "bob"],
+  "audiences": {
+    "default": "document",
+    "accounts": "group:AAAAAAAAAAAAAAAAAAAAAA",
+    "personal": "group:AQEBAQEBAQEBAQEBAQEBAQ"
+  },
+  "notes": "Audience labels, actor names and entry labels are scenario notation, not public wire metadata. Fixed group IDs are fixture-only. Every successful operation is one immediate commit; denied operations leave history unchanged.",
+  "operations": [
+    { "by": "owner", "action": "createDocument" },
+    {
+      "by": "owner",
+      "action": "setMember",
+      "audience": "default",
+      "identity": "alice",
+      "capabilities": ["read", "write"]
+    },
+    { "by": "owner", "action": "append", "audience": "default", "entry": "shared-0" },
+    { "by": "alice", "action": "createGroup", "audience": "accounts" },
+    { "by": "alice", "action": "createGroup", "audience": "personal" },
+    { "by": "alice", "action": "append", "audience": "accounts", "entry": "accounts-0" },
+    { "by": "alice", "action": "append", "audience": "personal", "entry": "personal-0" },
+    {
+      "by": "alice",
+      "action": "setMember",
+      "audience": "accounts",
+      "identity": "bob",
+      "capabilities": ["read", "write"]
+    },
+    {
+      "by": "owner",
+      "action": "setMember",
+      "audience": "accounts",
+      "identity": "owner",
+      "capabilities": ["read", "write", "grant", "administer"],
+      "expectedError": "CAPABILITY_DENIED"
+    },
+    { "by": "owner", "action": "removeMember", "audience": "default", "identity": "alice" },
+    { "by": "owner", "action": "append", "audience": "default", "entry": "shared-1" },
+    { "by": "alice", "action": "append", "audience": "accounts", "entry": "accounts-1" },
+    { "by": "alice", "action": "createGroup", "expectedError": "CAPABILITY_DENIED" },
+    { "by": "alice", "action": "removeMember", "audience": "accounts", "identity": "bob" },
+    { "by": "alice", "action": "append", "audience": "accounts", "entry": "accounts-2" },
+    {
+      "by": "bob",
+      "action": "append",
+      "audience": "accounts",
+      "expectedError": "CAPABILITY_DENIED"
+    },
+    { "action": "observe", "checkpoint": "before-readmission" },
+    {
+      "by": "alice",
+      "action": "setMember",
+      "audience": "accounts",
+      "identity": "bob",
+      "capabilities": ["read", "write"]
+    },
+    { "action": "observe", "checkpoint": "after-readmission" }
+  ],
+  "expected": {
+    "before-readmission": {
+      "currentEpochs": { "default": 1, "accounts": 1, "personal": 0 },
+      "owner": {
+        "readable": ["shared-0", "shared-1"],
+        "locked": ["accounts-0", "personal-0", "accounts-1", "accounts-2"],
+        "coverage": "readable"
+      },
+      "alice": {
+        "readable": ["shared-0", "accounts-0", "personal-0", "accounts-1", "accounts-2"],
+        "locked": ["shared-1"],
+        "coverage": "readable"
+      },
+      "bob": {
+        "readable": ["accounts-0", "accounts-1"],
+        "locked": ["shared-0", "personal-0", "shared-1", "accounts-2"],
+        "coverage": "readable"
+      }
+    },
+    "after-readmission": {
+      "currentEpochs": { "default": 1, "accounts": 1, "personal": 0 },
+      "bob": {
+        "readable": ["accounts-0", "accounts-1", "accounts-2"],
+        "locked": ["shared-0", "personal-0", "shared-1"],
+        "coverage": "readable"
+      },
+      "bobKeyEpochs": { "accounts": [0, 1] },
+      "bobMembership": { "default": false, "accounts": true, "personal": false }
+    }
+  }
+}

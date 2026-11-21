@@ -1,0 +1,38 @@
+{
+  "name": "@ternent-fixtures/app",
+  "version": "0.0.0-pilot.0",
+  "private": true,
+  "license": "ISC",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "fmt:check": "vp fmt --check .",
+    "lint": "vp lint --type-aware .",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vp test run",
+    "build": "vp build",
+    "check:artifact": "ternent-tooling validate . --built",
+    "check": "vp run verify",
+    "dev": "vp dev"
+  },
+  "dependencies": {
+    "@ternent-fixtures/library": "workspace:^",
+    "@ternent-fixtures/vue-library": "workspace:^",
+    "vue": "3.5.46"
+  },
+  "devDependencies": {
+    "@ternent/tooling": "workspace:*",
+    "@vitejs/plugin-vue": "6.0.11",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite-plus": "1.7.0",
+    "vue-tsc": "3.3.14"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "ternent": {
+    "profile": "vue-app"
+  }
+}

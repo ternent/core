@@ -1,0 +1,95 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { identityFromSeed } from "@ternent/armour";
+import { createDocument, openDocument } from "@ternent/concord";
+import { createGroup, createStandardSystemProfile, setMember, removeMember } from "@ternent/concord/system";
+import { verifyDocument } from "@ternent/concord/protocol";
+const value = result => { assert.equal(result.ok, true, result.error?.code); return result.value; };
+const ok = value => ({ok:true,value});
+const checkInput = input => input && typeof input === "object" &&
+  typeof input.audience === "string" && typeof input.key === "string" &&
+  typeof input.value === "string" && typeof input.admin === "boolean"
+  ? ok(input) : {ok:false,error:{code:"INVALID_INPUT",message:"Expected group value"}};
+const model = {
+  ref:{id:"concord.test.independent-groups",version:1},
+  initial:()=>({values:{},locked:[],actors:[]}),
+  commands:{put:{validate:checkInput,audience:input=>input.audience,
+    decide:data=>ok([{type:"group.value",version:1,data}])}},
+  validateEvent:event=>event?.type === "group.value" && event.version === 1 && checkInput(event.data).ok
+    ? ok(event) : {ok:false,error:{code:"INVALID_EVENT",message:"Expected group event"}},
+  audience:event=>event.data.audience,
+  requirements:event=>event.data.admin ? ["administer"] : ["write"],
+  reduce:(state,event,facts)=>ok({values:{...state.values,[event.data.key]:event.data.value},
+    locked:[...state.locked],actors:[...state.actors,`${facts.audience}:${facts.actor.id}`]}),
+  reduceLocked:(state,entry)=>ok({...state,locked:[...state.locked,`${entry.audience}:${entry.epoch}`]}),
+};
+const fixed = JSON.parse(readFileSync("owner.expected.json","utf8"));
+const expected = JSON.parse(readFileSync("groups.expected.json","utf8"));
+const identities = {
+  owner:value(await identityFromSeed(new Uint8Array(Buffer.from(fixed.identitySeedHex,"hex")))),
+  creator:value(await identityFromSeed(new Uint8Array(32).fill(2))),
+  bob:value(await identityFromSeed(new Uint8Array(32).fill(3))),
+};
+for (const stage of ["removed","readmitted"]) {
+  const bytes = new Uint8Array(readFileSync(`groups.${stage}.document.json`));
+  assert.equal((await verifyDocument(bytes)).integrity,"valid");
+  for (const [name,signer] of Object.entries(identities)) {
+    const handle = await openDocument({bytes,model,system:createStandardSystemProfile(),signer});
+    assert.deepEqual(value(await handle.replay()),expected.readers[name][stage]);
+    assert.deepEqual(value(await handle.replay()),value(await handle.replay()));
+    assert.equal(handle.state().canWrite,expected.canWrite[name]);
+    assert.equal(handle.state().head,expected.heads[stage]);
+    assert.equal(createHash("sha256").update(handle.export()).digest("hex"),expected.canonicalSha256[stage]);
+    assert.equal(handle.inspect().application,name === "creator" ? "valid" : "scoped");
+    assert.equal(handle.inspect().entries.length,6);
+  }
+  const full = {...model,reduceLocked:undefined};
+  const blocked = await openDocument({bytes,model:full,system:createStandardSystemProfile(),reader:identities.bob});
+  assert.equal(blocked.state().reason,"locked");
+}
+const host = value(await createDocument({model,system:createStandardSystemProfile(),identity:identities.owner}));
+const group = value(await createGroup(host)).audience;
+value(await host.dispatch("put",{audience:group,key:"label",value:"encrypted group title",admin:false}));
+value(await setMember(host,{audience:group,identity:identities.bob.publicIdentity,capabilities:["read","write"]}));
+const bob = await openDocument({bytes:host.export(),model,system:createStandardSystemProfile(),signer:identities.bob});
+value(await bob.dispatch("put",{audience:group,key:"entry",value:"independent writer",admin:false}));
+assert.equal((await createGroup(bob)).error.code,"CAPABILITY_DENIED");
+const latest = await openDocument({bytes:bob.export(),model,system:createStandardSystemProfile(),signer:identities.owner});
+value(await removeMember(latest,{audience:group,identityId:identities.bob.publicIdentity.id}));
+value(await latest.dispatch("put",{audience:group,key:"entry",value:"future private epoch",admin:false}));
+const removed = await openDocument({bytes:latest.export(),model,system:createStandardSystemProfile(),signer:identities.bob});
+assert.equal(removed.state().coverage,"readable");
+assert.equal(removed.state().lockedEntries,1);
+assert.equal(removed.state().projection.values.entry,"independent writer");
+assert.equal(removed.state().canWrite,false);
+console.log(`Independent group fixed vectors and public authoring passed on ${process.version}`);
+
+let failSigning = true;
+const signer = {...identities.owner,sign:message=>failSigning
+  ? Promise.resolve({ok:false,error:{code:"INJECTED",message:"Injected signing failure"}})
+  : identities.owner.sign(message)};
+const draft = await openDocument({bytes:latest.export(),model,system:createStandardSystemProfile(),signer,mode:"draft"});
+const beforeDraft = draft.export();
+value(await draft.dispatch("put",{audience:"document",key:"shared",value:"staged default",admin:false}));
+value(await draft.dispatch("put",{audience:group,key:"entry",value:"staged private",admin:false}));
+assert.equal(draft.draft().entryCount,2);
+assert.deepEqual(draft.export(),beforeDraft);
+const preview = draft.draft();
+assert.equal((await draft.commit({message:"Retriable cross-group batch"})).error.code,"SIGNING_FAILED");
+assert.deepEqual(draft.draft(),preview);
+assert.deepEqual(draft.export(),beforeDraft);
+failSigning = false;
+const metadata = {message:"Retriable cross-group batch"};
+const pending = draft.commit(metadata);
+metadata.message = "caller mutation";
+const receipt = value(await pending);
+assert.equal(receipt.entryIds.length,2);
+assert.equal(draft.draft(),null);
+const batch = JSON.parse(new TextDecoder().decode(draft.export()));
+assert.deepEqual(batch.commits.at(-1).subject.metadata,{message:"Retriable cross-group batch"});
+assert.deepEqual(batch.entries.slice(-2).map(entry=>entry.subject.payload.data.audience),["document",group]);
+assert.equal((await verifyDocument(draft.export())).integrity,"valid");
+const reopened = await openDocument({bytes:draft.export(),model,system:createStandardSystemProfile(),signer:identities.owner});
+assert.deepEqual(reopened.state(),draft.state());
+console.log(`Cross-group draft batch, signing failure retention and retry passed on ${process.version}`);

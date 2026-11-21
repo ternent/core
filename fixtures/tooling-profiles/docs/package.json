@@ -1,0 +1,38 @@
+{
+  "name": "@ternent-fixtures/docs",
+  "version": "0.0.0-pilot.0",
+  "private": true,
+  "license": "ISC",
+  "files": [
+    "site/.vitepress/dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "fmt:check": "vp fmt --check .",
+    "lint": "vp lint --type-aware .",
+    "typecheck": "tsc6 --noEmit -p tsconfig.json",
+    "test": "vp test run",
+    "build": "vitepress build site",
+    "check:artifact": "ternent-tooling validate . --built",
+    "check": "vp run verify",
+    "dev": "vitepress dev site"
+  },
+  "dependencies": {
+    "@ternent-fixtures/library": "workspace:^",
+    "vue": "3.5.46"
+  },
+  "devDependencies": {
+    "@ternent/tooling": "workspace:*",
+    "@types/web-bluetooth": "0.0.21",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8000",
+    "vite-plus": "1.7.0",
+    "vitepress": "1.6.4"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "ternent": {
+    "profile": "docs-app"
+  }
+}

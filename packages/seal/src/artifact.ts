@@ -1,24 +1,23 @@
 import {
   decryptWithIdentity,
   encryptForRecipients,
-  initArmour,
   type ArmourIdentityInput,
 } from "@ternent/armour";
-import { canonicalStringify } from "ternent-utils";
-import type { SealHash } from "./manifest";
+import { canonicalStringify, copyJson } from "./json.js";
+import type { SealHash } from "./manifest.js";
 import {
   createSealHash,
   createSealProof,
   validateSealProofShape,
   verifySealProofSignature,
-  type SealProofV1,
-} from "./proof";
-import type { SealSignerInput } from "./crypto";
+  type SealProofV2,
+} from "./proof.js";
+import type { SealSignerInput } from "./crypto.js";
 import {
   toSealDecryptionError,
   toSealEncryptionError,
   unsupportedEncryptionModeError,
-} from "./errors";
+} from "./errors.js";
 
 const utf8Encoder = new TextEncoder();
 const utf8Decoder = new TextDecoder();
@@ -52,7 +51,7 @@ export type SealArtifactUnsignedV1 = {
 };
 
 export type SealArtifactV1 = SealArtifactUnsignedV1 & {
-  proof: SealProofV1;
+  proof: SealProofV2;
 };
 
 export type VerifySealArtifactResult = {
@@ -63,7 +62,7 @@ export type VerifySealArtifactResult = {
   payloadScheme: "age";
   payloadMode: "recipients";
   keyId: string;
-  algorithm: SealProofV1["algorithm"];
+  algorithm: SealProofV2["algorithm"];
   subjectHash: SealHash;
   errors: string[];
 };
@@ -81,12 +80,15 @@ function isSealHash(value: unknown): value is SealHash {
 }
 
 function normalizeBytes(value: Uint8Array | ArrayBuffer): Uint8Array {
-  return value instanceof Uint8Array ? value : new Uint8Array(value);
+  if (!(value instanceof Uint8Array) && !(value instanceof ArrayBuffer))
+    throw new TypeError("Expected payload bytes");
+  return value instanceof Uint8Array ? new Uint8Array(value) : new Uint8Array(value.slice(0));
 }
 
 export function getSealArtifactUnsignedFields(
   artifact: SealArtifactV1 | SealArtifactUnsignedV1,
 ): SealArtifactUnsignedV1 {
+  artifact = copyJson(artifact);
   return {
     version: artifact.version,
     type: artifact.type,
@@ -107,12 +109,14 @@ export async function createSealArtifact(input: {
   recipients: string[];
 }): Promise<SealArtifactV1> {
   const plaintext = normalizeBytes(input.payload);
+  const recipients = [...input.recipients];
+  const subjectPath = input.subjectPath;
+  const createdAt = input.createdAt;
+  const signer = { identity: copyJson(input.signer.identity) };
 
   try {
-    await initArmour();
-
     const ciphertext = await encryptForRecipients({
-      recipients: input.recipients,
+      recipients,
       data: plaintext,
       output: "armor",
     });
@@ -140,11 +144,11 @@ export async function createSealArtifact(input: {
     };
 
     const proof = await createSealProof({
-      createdAt: input.createdAt,
-      signer: input.signer,
+      createdAt,
+      signer,
       subject: {
         kind: "artifact",
-        path: input.subjectPath,
+        path: subjectPath,
         hash: await createSealHash(getUnsignedArtifactBytes(unsignedArtifact)),
       },
     });
@@ -163,6 +167,11 @@ export function validateSealArtifactShape(value: unknown): {
   errors: string[];
   artifact: SealArtifactV1 | null;
 } {
+  try {
+    value = copyJson(value);
+  } catch {
+    return { ok: false, errors: ["Expected canonical JSON data."], artifact: null };
+  }
   if (!isRecord(value)) {
     return {
       ok: false,
@@ -322,6 +331,7 @@ export async function verifySealArtifact(
     };
   }
 
+  artifact = validation.artifact;
   const signatureCheck = await verifySealProofSignature(artifact.proof);
   const subjectHash = await createSealHash(getUnsignedArtifactBytes(artifact));
   const payloadHash = await createSealHash(utf8Encoder.encode(artifact.payload.data));
@@ -354,25 +364,28 @@ export async function decryptSealArtifactPayload(input: {
   artifact: SealArtifactV1;
   identity: ArmourIdentityInput;
 }): Promise<Uint8Array> {
-  const verification = await verifySealArtifact(input.artifact);
+  const identity = copyJson(input.identity);
+  const snapshot = validateSealArtifactShape(input.artifact);
+  if (!snapshot.ok || !snapshot.artifact) throw new Error(snapshot.errors.join(" "));
+  const artifact = snapshot.artifact;
+  const verification = await verifySealArtifact(artifact);
   if (!verification.valid) {
     throw new Error(verification.errors.join(" ") || "Artifact verification failed.");
   }
 
   if (
-    input.artifact.payload.type !== "encrypted" ||
-    input.artifact.payload.scheme !== "age" ||
-    input.artifact.payload.mode !== "recipients" ||
-    input.artifact.payload.encoding !== "armor"
+    artifact.payload.type !== "encrypted" ||
+    artifact.payload.scheme !== "age" ||
+    artifact.payload.mode !== "recipients" ||
+    artifact.payload.encoding !== "armor"
   ) {
     throw unsupportedEncryptionModeError("Seal only supports age recipient-mode armored payloads.");
   }
 
   try {
-    await initArmour();
     return await decryptWithIdentity({
-      identity: input.identity,
-      data: utf8Encoder.encode(input.artifact.payload.data),
+      identity,
+      data: utf8Encoder.encode(artifact.payload.data),
     });
   } catch (error) {
     throw toSealDecryptionError(error);

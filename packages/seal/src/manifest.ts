@@ -1,4 +1,4 @@
-import { canonicalStringify } from "ternent-utils";
+import { canonicalStringify, copyJson } from "./json.js";
 
 export const SEAL_MANIFEST_VERSION = "1" as const;
 export const SEAL_MANIFEST_TYPE = "seal-manifest" as const;
@@ -29,6 +29,11 @@ export function validateSealManifestShape(value: unknown): {
   errors: string[];
   manifest: SealManifestV1 | null;
 } {
+  try {
+    value = copyJson(value);
+  } catch {
+    return { ok: false, errors: ["Expected canonical JSON data."], manifest: null };
+  }
   if (!isRecord(value)) {
     return {
       ok: false,
@@ -64,7 +69,7 @@ export function validateSealManifestShape(value: unknown): {
   }
 
   const filesEntries = Object.entries(value.files);
-  const files: Record<string, SealHash> = {};
+  const files = Object.create(null) as Record<string, SealHash>;
   for (const [path, hash] of filesEntries) {
     if (!path || path.includes("\\")) {
       errors.push(`Manifest file path is invalid: ${path || "<empty>"}.`);
@@ -88,7 +93,7 @@ export function validateSealManifestShape(value: unknown): {
       version: SEAL_MANIFEST_VERSION,
       type: SEAL_MANIFEST_TYPE,
       root: value.root as string,
-      files,
+      files: Object.fromEntries(Object.entries(files)),
     },
   };
 }

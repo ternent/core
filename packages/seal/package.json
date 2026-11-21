@@ -1,6 +1,6 @@
 {
   "name": "@ternent/seal",
-  "version": "0.4.1",
+  "version": "0.5.0-alpha.0",
   "description": "Deterministic artifact signing for Seal",
   "keywords": [
     "cli",
@@ -20,7 +20,7 @@
     "directory": "packages/seal"
   },
   "bin": {
-    "seal": "bin/seal"
+    "seal": "./bin/seal"
   },
   "files": [
     "bin",
@@ -29,31 +29,60 @@
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "dist/index.js",
-  "module": "dist/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./proof": "./dist/proof.js",
-    "./artifact": "./dist/artifact.js",
-    "./manifest": "./dist/manifest.js",
-    "./crypto": "./dist/crypto.js",
-    "./errors": "./dist/errors.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./proof": {
+      "types": "./dist/proof.d.ts",
+      "import": "./dist/proof.js"
+    },
+    "./artifact": {
+      "types": "./dist/artifact.d.ts",
+      "import": "./dist/artifact.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto.d.ts",
+      "import": "./dist/crypto.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js"
+    }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build:proof": "vite build --mode proof-only",
-    "build": "vite build",
-    "test": "vitest run"
+    "fmt:check": "vp fmt --check .",
+    "lint": "vp lint --type-aware .",
+    "typecheck": "tsc6 --noEmit -p tsconfig.json",
+    "test": "vp test run",
+    "build": "vp pack",
+    "check:artifact": "ternent-tooling validate . --built",
+    "check": "vp run verify"
   },
   "dependencies": {
-    "@ternent/armour": "workspace:*",
-    "@ternent/identity": "workspace:*",
-    "@ternent/utils": "workspace:*"
+    "@ternent/armour": "workspace:^",
+    "@ternent/identity": "workspace:^"
   },
   "devDependencies": {
-    "vite": "^2.9.18",
-    "vitest": "^1.6.0"
+    "@ternent/tooling": "workspace:*",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite-plus": "1.7.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "ternent": {
+    "profile": "node-cli"
   }
 }

@@ -1,0 +1,61 @@
+import { createDocument, type AudienceId, type GroupId, type ProjectionResult } from "@ternent/concord";
+import { createGroup, createStandardSystemProfile, setMember } from "@ternent/concord/system";
+import { registerModel } from "@ternent/concord/testing";
+import { generateIdentity } from "@ternent/armour";
+const identity = await generateIdentity();
+if (!identity.ok) throw new Error(identity.error.code);
+const created = await createDocument({model:registerModel,system:createStandardSystemProfile(),identity:identity.value});
+if (!created.ok) throw new Error(created.error.code);
+const group = await createGroup(created.value);
+if (!group.ok) throw new Error(group.error.code);
+const groupId: GroupId = group.value.audience;
+const audience: AudienceId = groupId;
+await setMember(created.value,{audience,identity:identity.value.publicIdentity,capabilities:["read"]});
+// @ts-expect-error Default audience is not an independent GroupId.
+const invalid: GroupId = "document";
+// @ts-expect-error Public helpers reject nullable audiences.
+await setMember(created.value,{audience:null,identity:identity.value.publicIdentity,capabilities:["read"]});
+const replay = await created.value.replay();
+if (replay.ok) {
+  const result: ProjectionResult<{value:string}> = replay.value;
+  const value: string = result.projection.value;
+  const coverage: "complete" | "readable" = result.coverage;
+  // @ts-expect-error Replay metadata wraps the projection, rather than masquerading as it.
+  const bare: {value:string} = replay.value;
+  void [value,coverage,bare];
+}
+const state = created.value.state();
+if (state.status === "ready") {
+  const coverage: "complete" | "readable" = state.coverage;
+  const count: number = state.lockedEntries;
+  void [coverage,count];
+}
+for (const entry of created.value.inspect().entries ?? []) {
+  if (entry.status === "locked") {
+    const audience: AudienceId = entry.audience;
+    // @ts-expect-error Locked markers never expose fabricated plaintext events.
+    void entry.event;
+    void audience;
+  } else {
+    const type: string = entry.event.type;
+    void type;
+  }
+}
+void invalid;
+const pending = await created.value.dispatch("set",{value:"draft typed receipt"});
+if (pending.ok && pending.value.status === "staged") {
+  const count: number = pending.value.entryCount;
+  // @ts-expect-error A provisional receipt has no signed head.
+  void pending.value.head;
+  void count;
+}
+const preview = created.value.draft();
+if (preview) {
+  const text: string = preview.preview.value;
+  // @ts-expect-error Preview state retains model types.
+  const wrong: number = preview.preview.value;
+  void [text,wrong];
+}
+await created.value.commit({message:"Typed signed metadata"});
+// @ts-expect-error Commit metadata is an object.
+await created.value.commit("message");

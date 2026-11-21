@@ -1,0 +1,119 @@
+import { verifySealProofAgainstBytes, type SealProofV2 } from "@ternent/seal/proof";
+import { createSealArtifact, verifySealArtifact, decryptSealArtifactPayload } from "@ternent/seal/artifact";
+import { createDocument, openDocument, defineModel, type AudienceId, type ModelIssue, type Result } from "@ternent/concord";
+import { createGroup, createStandardSystemProfile, setMember } from "@ternent/concord/system";
+import { registerModel, createMemoryExpectedHeadStore } from "@ternent/concord/testing";
+import { createAgeCodec, generateIdentity, encryptForIdentities, decryptWithIdentity, recipientFromIdentity } from "@ternent/armour";
+import { ageRecipientFromPublicIdentity, createIdentity, generateSigner } from "@ternent/identity";
+import { createLedger, encodePayload, decodePayload } from "@ternent/ledger";
+export async function proveConcord() {
+  const logSigner = await generateSigner(); if (!logSigner.ok) throw new Error(logSigner.error.code);
+  const log = await createLedger({signer:logSigner.value});
+  await log.create();
+  await log.append({kind:"browser",payload:{value:"plain signed log"}});
+  if ((await log.export()).entries.length !== 0) throw new Error("Ledger draft leaked into export");
+  await log.commit();
+  const logReader = await createLedger(); await logReader.import(await log.export());
+  if ((await logReader.verify()).integrity !== "valid" || JSON.stringify((await logReader.replay())[0].payload.data) !== JSON.stringify({value:"plain signed log"})) throw new Error("browser Ledger failed");
+  const hostIdentity = await createIdentity();
+  const helperPlaintext = new TextEncoder().encode("browser helpers need no setup");
+  const helperCiphertext = await encryptForIdentities({identities:[hostIdentity],data:helperPlaintext});
+  const helperResult = await decryptWithIdentity({identity:hostIdentity,data:helperCiphertext});
+  if (new TextDecoder().decode(helperResult) !== "browser helpers need no setup") throw new Error("browser helper roundtrip failed");
+  const identity = await generateIdentity(); if (!identity.ok) throw new Error(identity.error.code);
+  const recipient = ageRecipientFromPublicIdentity(identity.value.publicIdentity); if (!recipient.ok) throw new Error(recipient.error.code);
+  const payloadCodec = createAgeCodec({recipients:[recipient.value],reader:identity.value});
+  await log.append({kind:"private",payload:await encodePayload({value:"private browser payload"},payloadCodec)});
+  await log.commit();
+  const raw = await log.export();
+  if (JSON.stringify(raw).includes("private browser payload")) throw new Error("private payload leaked");
+  await logReader.load(raw);
+  const privatePayload = (await logReader.replay())[1].payload.data;
+  const lockedPayload = await decodePayload(privatePayload), decodedPayload = await decodePayload(privatePayload,payloadCodec);
+  if (lockedPayload.status !== "locked" || decodedPayload.status !== "decoded" ||
+      JSON.stringify(decodedPayload.data) !== JSON.stringify({value:"private browser payload"}) ||
+      (await logReader.verify()).integrity !== "valid") throw new Error("optional Armour/Ledger composition failed");
+  const system = createStandardSystemProfile();
+  const created = await createDocument({model:registerModel,system,identity:identity.value});
+  if (!created.ok) throw new Error(created.error.code);
+  const committed = await created.value.dispatch("set",{value:"hello browser"});
+  if (!committed.ok) throw new Error(committed.error.code);
+  const reopened = await openDocument({bytes:created.value.export(),model:registerModel,system,signer:identity.value});
+  const replayed = await reopened.replay();
+  if (!replayed.ok || replayed.value.projection.value !== "hello browser" || (await reopened.verify()).integrity !== "valid") throw new Error("browser lifecycle failed");
+  type Input = {audience: AudienceId; value: string};
+  type Event = {type: "group.value"; version: 1; data: Input};
+  const ok = <T>(value: T): Result<T,ModelIssue> => ({ok:true,value});
+  const validate = (input: unknown): Result<Input,ModelIssue> => {
+    if (!input || typeof input !== "object" || !("audience" in input) || !("value" in input) ||
+        typeof input.audience !== "string" || typeof input.value !== "string")
+      return {ok:false,error:{code:"INVALID",message:"Expected group input"}};
+    return ok({audience: input.audience as AudienceId, value: input.value});
+  };
+  const grouped = defineModel<{value:string;locked:number},{set:Input},Event>({
+    ref:{id:"concord.browser.groups",version:1},initial:()=>({value:"",locked:0}),
+    commands:{set:{validate,audience:input=>input.audience,decide:data=>ok([{type:"group.value",version:1,data}])}},
+    validateEvent(input) {
+      if (!input || typeof input !== "object" || !("type" in input) || !("version" in input) ||
+          !("data" in input) || input.type !== "group.value" || input.version !== 1)
+        return {ok:false,error:{code:"INVALID",message:"Expected group event"}};
+      const checked = validate(input.data);
+      return checked.ok ? ok({type:"group.value",version:1,data:checked.value}) : checked;
+    },
+    audience:event=>event.data.audience,requirements:()=>["write"],
+    reduce:(state,event)=>ok({...state,value:event.data.value}),
+    reduceLocked:state=>ok({...state,locked:state.locked+1}),
+  });
+  const doc = await createDocument({model:grouped,system:createStandardSystemProfile(),identity:identity.value});
+  if (!doc.ok) throw new Error(doc.error.code);
+  const visible = await createGroup(doc.value), hidden = await createGroup(doc.value);
+  if (!visible.ok || !hidden.ok) throw new Error("browser group creation failed");
+  const guest = await generateIdentity(); if (!guest.ok) throw new Error(guest.error.code);
+  const granted = await setMember(doc.value,{audience:visible.value.audience,identity:guest.value.publicIdentity,capabilities:["read"]});
+  if (!granted.ok) throw new Error(granted.error.code);
+  for (const [audience,value] of [[visible.value.audience,"visible group"],[hidden.value.audience,"hidden group"]] as const) {
+    const committed = await doc.value.dispatch("set",{audience,value});
+    if (!committed.ok) throw new Error(committed.error.code);
+  }
+  const scoped = await openDocument({bytes:doc.value.export(),model:grouped,system:createStandardSystemProfile(),reader:guest.value});
+  const state = scoped.state();
+  if (state.status !== "ready" || state.coverage !== "readable" || state.lockedEntries !== 1 ||
+      state.canWrite || state.projection.value !== "visible group" || state.projection.locked !== 1 ||
+      scoped.inspect().application !== "scoped" || scoped.inspect().entries?.length !== 2)
+    throw new Error("browser independent group replay failed");
+  const drafting = await createDocument({model:registerModel,system:createStandardSystemProfile(),identity:identity.value,mode:"draft"});
+  if (!drafting.ok) throw new Error(drafting.error.code);
+  const beforeDraft = drafting.value.export();
+  const first = await drafting.value.dispatch("set",{value:"first browser draft"});
+  const second = await drafting.value.dispatch("set",{value:"committed browser draft"});
+  if (!first.ok || first.value.status !== "staged" || !second.ok || second.value.status !== "staged" ||
+      second.value.entryCount !== 2 || drafting.value.draft()?.preview.value !== "committed browser draft" ||
+      !drafting.value.export().every((byte,index)=>byte === beforeDraft[index]))
+    throw new Error("browser draft staging failed");
+  const batch = await drafting.value.commit({message:"Browser draft batch"});
+  if (!batch.ok || batch.value.entryIds.length !== 2 || drafting.value.draft() !== null)
+    throw new Error("browser draft commit failed");
+  const reopenedDraft = await openDocument({bytes:drafting.value.export(),model:registerModel,system:createStandardSystemProfile(),reader:identity.value});
+  const draftReplay = await reopenedDraft.replay();
+  if (!draftReplay.ok || draftReplay.value.projection.value !== "committed browser draft")
+    throw new Error("browser draft reopen failed");
+  const storage = createMemoryExpectedHeadStore();
+  const published = await storage.writeExpected(drafting.value.export(),null);
+  const collision = await storage.writeExpected(drafting.value.export(),null);
+  const stored = await storage.read();
+  if (!published.ok || collision.ok || collision.error.code !== "HEAD_CONFLICT" ||
+      !collision.error.remote || !stored.ok || !stored.value)
+    throw new Error("browser expected-head storage failed");
+  const storedDocument = await openDocument({bytes:stored.value,model:registerModel,system:createStandardSystemProfile(),reader:identity.value});
+  const storedReplay = await storedDocument.replay();
+  if (!storedReplay.ok || storedReplay.value.projection.value !== "committed browser draft" || storedDocument.draft() !== null)
+    throw new Error("browser stored snapshot reopen failed");
+  const sealFixture: {proof:SealProofV2;contentUtf8:string;identity:typeof hostIdentity} = await (await fetch("/seal-proof.v2.json")).json();
+  const sealBytes = new TextEncoder().encode(sealFixture.contentUtf8);
+  if (!(await verifySealProofAgainstBytes(sealFixture.proof,sealBytes)).valid) throw new Error("browser fixed Seal proof failed");
+  const sealed = await createSealArtifact({signer:{identity:sealFixture.identity},subjectPath:"browser.txt",payload:sealBytes,recipients:[await recipientFromIdentity(hostIdentity)]});
+  const openedSeal = await decryptSealArtifactPayload({artifact:sealed,identity:hostIdentity});
+  if (!(await verifySealArtifact(sealed)).valid || openedSeal.length !== sealBytes.length ||
+      !openedSeal.every((byte,index)=>byte === sealBytes[index])) throw new Error("browser Seal artifact roundtrip failed");
+  const output = document.createElement("output");output.id = "concord-proof";output.textContent = "Concord: hello browser";document.body.append(output);
+}

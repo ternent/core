@@ -1,7 +1,7 @@
 {
   "name": "@ternent/ledger",
-  "version": "0.1.8",
-  "description": "Append-only state engine for Concord",
+  "version": "0.2.0-alpha.0",
+  "description": "Standalone signed append-only logs with staging, commits, verification and replay",
   "license": "ISC",
   "repository": {
     "type": "git",
@@ -10,43 +10,48 @@
   },
   "files": [
     "dist",
-    "SPEC.md"
+    "README.md"
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     },
-    "./browser": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/browser.js",
-      "default": "./dist/browser.js"
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
     }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && vite build -c vite.browser.config.ts",
-    "test": "pnpm run build && vitest run"
+    "fmt:check": "vp fmt --check .",
+    "lint": "vp lint --type-aware .",
+    "typecheck": "tsc6 --noEmit -p tsconfig.json",
+    "test": "vp test run",
+    "build": "vp pack",
+    "check:artifact": "ternent-tooling validate . --built",
+    "check": "vp run verify"
   },
   "dependencies": {
-    "@ternent/armour": "workspace:*",
-    "@ternent/concord-protocol": "workspace:*",
-    "@ternent/identity": "workspace:*",
-    "@ternent/seal-cli": "workspace:*"
+    "@noble/hashes": "2.4.0",
+    "@ternent/identity": "workspace:^"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
-    "typescript": "^5.6.3",
-    "vite": "^4.5.3",
-    "vite-plugin-dts": "^1.7.3",
-    "vitest": "^1.6.0"
+    "@ternent/tooling": "workspace:*",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite-plus": "1.7.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "ternent": {
+    "profile": "ts-library"
   }
 }

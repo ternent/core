@@ -1,0 +1,13 @@
+{
+  "extends": "@ternent/tooling/tsconfig/tooling.json",
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.vue",
+    "test/**/*.ts",
+    "vite.config.ts",
+    "site/.vitepress/**/*.ts"
+  ],
+  "compilerOptions": {
+    "types": ["node", "web-bluetooth"]
+  }
+}

@@ -1,0 +1,21 @@
+import { createSealIdentity, type SealProofV2 } from "@ternent/seal";
+import { createSealProof, verifySealProofAgainstBytes } from "@ternent/seal/proof";
+import { createSealArtifact, decryptSealArtifactPayload } from "@ternent/seal/artifact";
+import { parseSealManifestJson } from "@ternent/seal/manifest";
+import { verifySealUtf8 } from "@ternent/seal/crypto";
+import { SealArtifactError } from "@ternent/seal/errors";
+const identity = await createSealIdentity();
+const proof: SealProofV2 = await createSealProof({signer:{identity},subject:{kind:"file",path:"test",hash:`sha256:${"0".repeat(64)}`}});
+const report = await verifySealProofAgainstBytes(proof,new Uint8Array());
+const valid: boolean = report.valid;
+const artifact = await createSealArtifact({signer:{identity},subjectPath:"test",payload:new Uint8Array(),recipients:["age1..."]});
+const bytes: Uint8Array = await decryptSealArtifactPayload({artifact,identity});
+// @ts-expect-error Proof v2 has an explicit string version.
+const version: "1" = proof.version;
+// @ts-expect-error The signing subject uses an explicit kind.
+await createSealProof({signer:{identity},subject:{kind:"unknown",path:"test",hash:"sha256:abc"}});
+// @ts-expect-error Encryption is byte based.
+await createSealArtifact({signer:{identity},subjectPath:"test",payload:"text",recipients:[]});
+// @ts-expect-error Standalone public keys do not contain a signing seed.
+await createSealProof({signer:{identity:{publicKey:"public only"}},subject:proof.subject});
+void [valid,bytes,version,parseSealManifestJson,verifySealUtf8,SealArtifactError];

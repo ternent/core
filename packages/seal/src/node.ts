@@ -1,18 +1,22 @@
 import { readFile } from "node:fs/promises";
-import { parseIdentity, type SerializedIdentity } from "@ternent/identity";
+import { parseIdentity, validateIdentity, type SerializedIdentity } from "@ternent/identity";
+import { SealCliError, EXIT_KEY_CONFIG } from "./errors.js";
 
 export async function resolveSealIdentityFromEnv(
   env: Record<string, string | undefined>,
 ): Promise<SerializedIdentity> {
   const identityJson = String(env.SEAL_IDENTITY || "").trim();
-  if (identityJson) {
-    return parseIdentity(identityJson);
-  }
-
   const identityFile = String(env.SEAL_IDENTITY_FILE || "").trim();
-  if (identityFile) {
-    return parseIdentity(await readFile(identityFile, "utf8"));
+  if (!identityJson && !identityFile)
+    throw new SealCliError(
+      "Missing SEAL_IDENTITY or SEAL_IDENTITY_FILE environment variable.",
+      EXIT_KEY_CONFIG,
+    );
+  try {
+    return await validateIdentity(
+      parseIdentity(identityJson || (await readFile(identityFile, "utf8"))),
+    );
+  } catch {
+    throw new SealCliError("Invalid Seal identity configuration.", EXIT_KEY_CONFIG);
   }
-
-  throw new Error("Missing SEAL_IDENTITY or SEAL_IDENTITY_FILE environment variable.");
 }

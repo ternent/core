@@ -1,0 +1,27 @@
+import {
+  createMnemonicIdentity,
+  decodeBase64Url,
+  signerFromSeed,
+  type BaseIdentityCapability,
+  type PublicIdentity,
+  type SerializedIdentity,
+} from "@ternent/identity";
+import { encryptForIdentities, withAgeDecryption, type IdentityCapability } from "@ternent/armour";
+
+const { identity } = await createMnemonicIdentity();
+const serialized: SerializedIdentity = identity;
+const seed = decodeBase64Url(serialized.material.seed);
+if (!seed.ok) throw new Error(seed.error.code);
+const base = await signerFromSeed(seed.value);
+if (!base.ok) throw new Error(base.error.code);
+const signer: BaseIdentityCapability = base.value;
+const capable: IdentityCapability = withAgeDecryption(signer);
+const publicOnly: PublicIdentity = capable.publicIdentity;
+await encryptForIdentities({ identities: [serialized], data: new Uint8Array([1]) });
+// @ts-expect-error A public identity has no private signing operation.
+publicOnly.sign(new Uint8Array());
+// @ts-expect-error An identity capability is not an exportable seed document.
+const privateExport: SerializedIdentity = capable;
+// @ts-expect-error Byte-based authoring does not accept strings.
+signer.sign("message");
+void privateExport;

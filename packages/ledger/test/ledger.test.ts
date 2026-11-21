@@ -1,838 +1,370 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { describe, expect, it } from "vitest";
-import { createIdentity } from "@ternent/identity";
-import { recipientFromIdentity } from "@ternent/armour";
-import { deriveCommitId as deriveProtocolCommitId } from "@ternent/concord-protocol";
+import { createHash, createPrivateKey, sign } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { expect, test } from "vite-plus/test";
+import { signerFromSeed, type BaseIdentityCapability } from "@ternent/identity";
 import {
   createLedger,
-  type LedgerPersistenceSnapshot,
-  type LedgerStorageAdapter,
-} from "../src/index.ts";
+  verifyLedger,
+  compareLedgers,
+  encodeJson,
+  Fault,
+  type LedgerSnapshot,
+  type LedgerSigner,
+} from "../src/index.js";
 
-const testDir = dirname(fileURLToPath(import.meta.url));
-const packageDir = resolve(testDir, "..");
-
-function createClock(values: string[]) {
-  let index = 0;
-  return () => values[Math.min(index++, values.length - 1)];
+const seed = Uint8Array.from(
+  Buffer.from("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60", "hex"),
+);
+async function signer(byte?: number): Promise<BaseIdentityCapability> {
+  const result = await signerFromSeed(byte === undefined ? seed : new Uint8Array(32).fill(byte));
+  if (!result.ok) throw new Error(result.error.code);
+  return result.value;
 }
-
-function createMemoryStorage(): LedgerStorageAdapter & {
-  snapshot: LedgerPersistenceSnapshot | null;
-} {
-  return {
-    name: "memory",
-    snapshot: null,
-    async load() {
-      return this.snapshot;
-    },
-    async save(snapshot) {
-      this.snapshot = structuredClone(snapshot);
-    },
-    async clear() {
-      this.snapshot = null;
+const now = () => "2026-11-21T00:00:00.000Z";
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
+    .join(",")}}`;
+}
+async function saved(): Promise<LedgerSnapshot> {
+  const log = await createLedger({ signer: await signer(), now });
+  await log.create({ metadata: { title: "log" } });
+  await log.append({ kind: "reading", payload: { value: 7 } });
+  await log.commit();
+  return log.export();
+}
+test("standalone staged log: create, append, preview, commit, export and reopen", async () => {
+  const log = await createLedger({ signer: await signer(), now });
+  await log.create();
+  const empty = await log.export();
+  const input = { kind: "measurement", payload: { value: 0 } };
+  const appended = log.append(input);
+  input.payload.value = 99;
+  await appended;
+  expect(await log.export()).toEqual(empty);
+  expect(await log.replay()).toMatchObject([
+    { kind: "measurement", payload: { data: { value: 0 } }, committed: false },
+  ]);
+  expect(await log.replay({ includeStaged: false })).toEqual([]);
+  expect((await log.verify()).integrity).toBe("valid");
+  const meta = { note: "captured" };
+  const pending = log.commit({ metadata: meta });
+  meta.note = "changed";
+  const receipt = await pending;
+  expect(receipt.commit.subject.metadata).toEqual({ note: "captured" });
+  expect(log.getState().staged).toEqual([]);
+  const snapshot = await log.export();
+  const reopened = await createLedger();
+  await reopened.import(encodeJson(snapshot));
+  expect(await reopened.replay()).toEqual(await log.replay());
+  expect(await reopened.replay()).toMatchObject([{ committed: true, commitId: receipt.commit.id }]);
+  await expect(reopened.append({ kind: "no" })).rejects.toMatchObject({
+    finding: { code: "READ_ONLY_RUNTIME" },
+  });
+});
+test("independent Node author verifies Ledger hash and signature subjects", async () => {
+  const fixed = JSON.parse(
+    readFileSync(new URL("./vectors/signed-log.json", import.meta.url), "utf8"),
+  ) as LedgerSnapshot;
+  const generated = await saved();
+  const key = createPrivateKey({
+    key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]),
+    format: "der",
+    type: "pkcs8",
+  });
+  for (const wire of [fixed, generated]) {
+    for (const [kind, records] of [
+      ["entry", wire.entries],
+      ["commit", wire.commits],
+    ] as const)
+      for (const record of records)
+        expect(record.id).toBe(
+          `${kind}:${createHash("sha256").update(`ledger.${kind}/1\0`).update(canonical(record.subject)).digest("hex")}`,
+        );
+    for (const record of wire.commits)
+      expect(record.signature).toBe(
+        sign(null, Buffer.from(`ledger.signature/1\0${canonical(record.subject)}`), key).toString(
+          "base64url",
+        ),
+      );
+    expect((await verifyLedger(encodeJson(wire))).integrity).toBe("valid");
+  }
+  const reader = await createLedger();
+  await reader.import(fixed);
+  expect((await reader.replay())[0].payload.data).toEqual({ value: 7 });
+});
+test("custom projection replays saved history and includes explicitly marked staged entries", async () => {
+  const log = await createLedger({
+    signer: await signer(),
+    now,
+    initialProjection: 0,
+    projector: (total, entry) => total + Number((entry.payload.data as { value: number }).value),
+  });
+  await log.load(await saved());
+  expect(await log.replay()).toBe(7);
+  await log.append({ kind: "reading", payload: { value: 3 } });
+  expect(log.getState().projection).toBe(10);
+  expect(await log.replay({ includeStaged: false })).toBe(7);
+  await log.clearStaged();
+  expect(await log.recompute()).toBe(7);
+});
+test("concurrent operations serialize into the same commit, with no lost entries", async () => {
+  const log = await createLedger({ signer: await signer(), now });
+  await log.create();
+  const [a, b, committed] = await Promise.all([
+    log.append({ kind: "a", payload: 1 }),
+    log.append({ kind: "b", payload: 2 }),
+    log.commit(),
+  ]);
+  expect(committed.committedEntryIds).toEqual([a.entry.id, b.entry.id]);
+  expect((await log.export()).entries).toHaveLength(2);
+});
+test("genesis entries and supplied context nonces use the same Ledger lifecycle", async () => {
+  const log = await createLedger({ signer: await signer(), now });
+  const contextNonce = Buffer.alloc(16, 7).toString("base64url");
+  await log.create({
+    metadata: { framework: "example" },
+    entries: [{ kind: "init", nonce: contextNonce, payload: { initialized: true } }],
+  });
+  const wire = await log.export();
+  expect(wire.commits).toHaveLength(1);
+  expect(wire.entries).toHaveLength(1);
+  expect(wire.entries[0].subject).toMatchObject({ parent: null, nonce: contextNonce });
+  expect((await log.verify()).integrity).toBe("valid");
+  await log.append({ kind: "next", nonce: contextNonce });
+  const before = log.getState();
+  await expect(log.append({ kind: "duplicate", nonce: contextNonce })).rejects.toMatchObject({
+    finding: { code: "SCHEMA_INVALID" },
+  });
+  expect(log.getState()).toBe(before);
+  await expect(log.append({ kind: "malformed", nonce: "bad" })).rejects.toMatchObject({
+    finding: { code: "SCHEMA_INVALID" },
+  });
+});
+test("signing failures preserve the committed snapshot and staged entries for retry", async () => {
+  const identity = await signer();
+  let broken = false;
+  const cap: LedgerSigner = {
+    publicIdentity: identity.publicIdentity,
+    sign: (bytes) => {
+      if (broken) throw new Error("secret implementation failure");
+      return identity.sign(bytes);
     },
   };
-}
-
-describe("@ternent/ledger", () => {
-  it("creates deterministic plain entry history across fresh instances", async () => {
-    const identity = await createIdentity("2026-03-18T10:00:00.000Z");
-    const createProjection = () => ({ ids: [] as string[] });
-
-    const makeLedger = () =>
-      createLedger({
-        identity: {
-          signer: { identity },
-          authorResolver: () => "did:alice",
-        },
-        initialProjection: createProjection(),
-        projector: (projection, entry) => ({
-          ids: [...projection.ids, String((entry.payload as { data: { id: string } }).data.id)],
-        }),
-        now: createClock([
-          "2026-03-18T10:00:00.000Z",
-          "2026-03-18T10:00:01.000Z",
-          "2026-03-18T10:00:02.000Z",
-        ]),
-      });
-
-    const ledgerA = await makeLedger();
-    await ledgerA.create();
-    await ledgerA.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-1" },
-    });
-    const committedA = await ledgerA.commit();
-    expect(await ledgerA.replay()).toEqual({ ids: ["todo-1"] });
-    const exportedA = await ledgerA.export();
-
-    const ledgerB = await makeLedger();
-    await ledgerB.create();
-    await ledgerB.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-1" },
-    });
-    await ledgerB.commit();
-    expect(await ledgerB.replay()).toEqual({ ids: ["todo-1"] });
-    const exportedB = await ledgerB.export();
-
-    expect(committedA.commit.seal.signature).toEqual(expect.any(String));
-    expect(
-      await deriveProtocolCommitId({
-        parent: committedA.commit.parentCommitId,
-        timestamp: committedA.commit.committedAt,
-        metadata: committedA.commit.metadata,
-        entries: committedA.commit.entryIds,
-        signature: null,
-      }),
-    ).toBe(committedA.commit.commitId);
-    expect(exportedB).toEqual(exportedA);
+  const log = await createLedger({ signer: cap, now });
+  await log.create();
+  await log.append({ kind: "retry", payload: false });
+  const before = log.getState();
+  broken = true;
+  await expect(log.commit()).rejects.toMatchObject({ finding: { code: "SIGNING_FAILED" } });
+  expect(log.getState()).toBe(before);
+  broken = false;
+  await log.commit();
+  expect(log.getState().staged).toEqual([]);
+});
+test("a signature from another key cannot publish a candidate", async () => {
+  const a = await signer(),
+    b = await signer(2);
+  const log = await createLedger({
+    signer: { publicIdentity: a.publicIdentity, sign: b.sign },
+    now,
   });
-
-  it("keeps staged entries out of committed history until an explicit commit and replays them last", async () => {
-    const identity = await createIdentity("2026-03-18T10:03:00.000Z");
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:stage",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [
-        ...projection,
-        String((entry.payload as { data: { id: string } }).data.id),
-      ],
-      now: createClock([
-        "2026-03-18T10:03:00.000Z",
-        "2026-03-18T10:03:01.000Z",
-        "2026-03-18T10:03:02.000Z",
-        "2026-03-18T10:03:03.000Z",
-        "2026-03-18T10:03:04.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "committed-1" },
-    });
-    await ledger.commit();
-    await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "staged-2" },
-    });
-
-    const exported = await ledger.export();
-    expect(Object.keys(exported.entries)).toHaveLength(1);
-    expect(ledger.getState().staged).toHaveLength(1);
-    expect(await ledger.replay()).toEqual(["committed-1", "staged-2"]);
+  await expect(log.create()).rejects.toMatchObject({ finding: { code: "SIGNATURE_INVALID" } });
+  expect(log.getState().container).toBeNull();
+});
+test("invalid inputs and failed batch projections leave staged and committed state intact", async () => {
+  const log = await createLedger({
+    signer: await signer(),
+    now,
+    initialProjection: [] as string[],
+    projector: (entries, entry) => {
+      if (entry.kind === "rejected") throw new Error("reducer failure");
+      return [...entries, entry.kind];
+    },
   });
-
-  it("persists staged entries before an explicit commit", async () => {
-    const identity = await createIdentity("2026-03-18T10:04:00.000Z");
-    const storage = createMemoryStorage();
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:local",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [
-        ...projection,
-        String((entry.payload as { data: { id: string } }).data.id),
-      ],
-      storage,
-      now: createClock([
-        "2026-03-18T10:04:00.000Z",
-        "2026-03-18T10:04:01.000Z",
-        "2026-03-18T10:04:02.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    expect(storage.snapshot?.staged).toEqual([]);
-
-    await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "local-only" },
-    });
-
-    expect(ledger.getState().staged).toHaveLength(1);
-    expect(storage.snapshot?.staged).toHaveLength(1);
-    expect(storage.snapshot?.staged[0]).toMatchObject({
-      kind: "todo.item.created",
-    });
-    expect(storage.snapshot?.container?.entries).toEqual({});
+  await log.create();
+  const before = log.getState();
+  await expect(log.appendMany([{ kind: "ok" }, { kind: "rejected" }])).rejects.toThrow(
+    "reducer failure",
+  );
+  expect(log.getState()).toBe(before);
+  let read = false;
+  const payload = Object.defineProperty({}, "value", {
+    enumerable: true,
+    get() {
+      read = true;
+      return 1;
+    },
   });
-
-  it("reloads persisted staged entries from storage", async () => {
-    const identity = await createIdentity("2026-03-18T10:04:00.000Z");
-    const storage = createMemoryStorage();
-
-    const first = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:local",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [
-        ...projection,
-        String((entry.payload as { data: { id: string } }).data.id),
-      ],
-      storage,
-      now: createClock([
-        "2026-03-18T10:04:00.000Z",
-        "2026-03-18T10:04:01.000Z",
-        "2026-03-18T10:04:02.000Z",
-      ]),
-    });
-
-    await first.create();
-    await first.append({
-      kind: "todo.item.created",
-      payload: { id: "staged-only" },
-    });
-
-    const restored = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:local",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [
-        ...projection,
-        String((entry.payload as { data: { id: string } }).data.id),
-      ],
-      storage,
-      now: createClock([
-        "2026-03-18T10:04:03.000Z",
-        "2026-03-18T10:04:04.000Z",
-        "2026-03-18T10:04:05.000Z",
-      ]),
-    });
-
-    expect(await restored.loadFromStorage()).toBe(true);
-    expect(restored.getState().staged).toHaveLength(1);
-    expect(restored.getState().projection).toEqual(["staged-only"]);
-    expect(restored.getState().container?.entries).toEqual({});
+  await expect(log.append({ kind: "accessor", payload })).rejects.toBeInstanceOf(Fault);
+  expect(read).toBe(false);
+  expect(log.getState()).toBe(before);
+  await log.append({ kind: "ok" });
+  await expect(log.load(await saved())).rejects.toMatchObject({
+    finding: { code: "DRAFT_PENDING" },
   });
-
-  it("replays encrypted entries as encrypted or decrypted based on capability", async () => {
-    const identity = await createIdentity("2026-03-18T10:05:00.000Z");
-    const recipient = await recipientFromIdentity(identity);
-
-    const makeLedger = (withDecryptor: boolean) =>
-      createLedger({
-        identity: {
-          signer: { identity },
-          authorResolver: () => "did:bob",
-          decryptor: withDecryptor ? { identity } : undefined,
-        },
-        initialProjection: [] as string[],
-        projector: (projection, entry) => [
-          ...projection,
-          entry.payload.type === "decrypted"
-            ? String((entry.payload as { data: { text: string } }).data.text)
-            : entry.payload.type,
-        ],
-        now: createClock([
-          "2026-03-18T10:05:00.000Z",
-          "2026-03-18T10:05:01.000Z",
-          "2026-03-18T10:05:02.000Z",
-        ]),
-      });
-
-    const encryptedLedger = await makeLedger(false);
-    await encryptedLedger.create();
-    await encryptedLedger.append({
-      kind: "journal.entry.created",
-      payload: { text: "secret note" },
-      protection: {
-        type: "recipients",
-        recipients: [recipient],
-        encoding: "armor",
-      },
-    });
-    await encryptedLedger.commit();
-
-    expect(await encryptedLedger.replay()).toEqual(["encrypted"]);
-
-    const decryptingLedger = await makeLedger(true);
-    await decryptingLedger.import(await encryptedLedger.export());
-    expect(await decryptingLedger.replay()).toEqual(["secret note"]);
+  expect(log.getState().staged).toHaveLength(1);
+});
+test("tampering, duplicate records, unsupported formats and bad signatures never replace valid state", async () => {
+  const original = await saved();
+  const mutations: ((wire: LedgerSnapshot) => void)[] = [
+    (wire) => {
+      wire.entries[0].subject.payload.data = "tampered";
+    },
+    (wire) => {
+      wire.commits[1].subject.metadata = { altered: true };
+    },
+    (wire) => {
+      wire.commits[1].signature = Buffer.alloc(64).toString("base64url");
+    },
+    (wire) => {
+      wire.entries.push(wire.entries[0]);
+    },
+    (wire) => {
+      wire.commits.reverse();
+    },
+    (wire) => {
+      wire.format = "concord" as "ledger";
+    },
+  ];
+  const log = await createLedger();
+  await log.load(original);
+  for (const mutate of mutations) {
+    const wire = structuredClone(original);
+    mutate(wire);
+    expect((await verifyLedger(encodeJson(wire))).integrity).not.toBe("valid");
+    await expect(log.import(wire)).rejects.toBeInstanceOf(Fault);
+    expect(await log.export()).toEqual(original);
+  }
+});
+test("new signers can append without introducing framework membership or authority policy", async () => {
+  const log = await createLedger({ signer: await signer(3), now });
+  await log.load(await saved());
+  await log.append({ kind: "second-writer" });
+  await log.commit();
+  expect((await log.verify()).integrity).toBe("valid");
+  const wire = await log.export();
+  expect(wire.entries[1].subject.author).toBe(wire.commits[2].subject.signer.id);
+});
+test("snapshot relationships retain independent forks and reject cross-protocol imports", async () => {
+  const base = await saved(),
+    a = await createLedger({ signer: await signer(), now }),
+    b = await createLedger({ signer: await signer(2), now });
+  await a.load(base);
+  await b.load(base);
+  await a.append({ kind: "a" });
+  await b.append({ kind: "b" });
+  await a.commit();
+  await b.commit();
+  const x = encodeJson(await a.export()),
+    y = encodeJson(await b.export());
+  expect(await compareLedgers(x, y)).toEqual({ ok: true, value: "diverged" });
+  expect(await compareLedgers(encodeJson(base), x)).toEqual({ ok: true, value: "behind" });
+});
+test("resource bounds and observer failures preserve usable committed state", async () => {
+  const log = await createLedger({
+    signer: await signer(),
+    now,
+    limits: { maxPayloadBytes: 16, maxMetadataBytes: 16 },
   });
-
-  it("keeps replay moving when a decryptor is present but cannot decrypt an entry", async () => {
-    const alice = await createIdentity("2026-03-18T10:06:00.000Z");
-    const bob = await createIdentity("2026-03-18T10:06:30.000Z");
-    const recipient = await recipientFromIdentity(alice);
-
-    const writer = await createLedger({
-      identity: {
-        signer: { identity: alice },
-        authorResolver: () => "did:alice",
-        decryptor: { identity: alice },
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.payload.type],
-      now: createClock([
-        "2026-03-18T10:06:00.000Z",
-        "2026-03-18T10:06:01.000Z",
-        "2026-03-18T10:06:02.000Z",
-      ]),
-    });
-
-    await writer.create();
-    await writer.append({
-      kind: "journal.entry.created",
-      payload: { text: "alice only" },
-      protection: {
-        type: "recipients",
-        recipients: [recipient],
-        encoding: "armor",
-      },
-    });
-    await writer.commit();
-
-    const reader = await createLedger({
-      identity: {
-        signer: { identity: bob },
-        authorResolver: () => "did:bob",
-        decryptor: { identity: bob },
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.payload.type],
-      now: createClock([
-        "2026-03-18T10:06:30.000Z",
-        "2026-03-18T10:06:31.000Z",
-        "2026-03-18T10:06:32.000Z",
-      ]),
-    });
-
-    await reader.import(await writer.export());
-    expect(await reader.replay()).toEqual(["encrypted"]);
+  let notifications = 0;
+  const unsubscribe = log.subscribe(() => {
+    notifications++;
+    throw new Error("observer");
   });
-
-  it("verifies encrypted records deterministically even when ciphertext differs", async () => {
-    const identity = await createIdentity("2026-03-18T10:10:00.000Z");
-    const recipient = await recipientFromIdentity(identity);
-
-    const makeLedger = () =>
-      createLedger({
-        identity: {
-          signer: { identity },
-          authorResolver: () => "did:carol",
-          decryptor: { identity },
-        },
-        initialProjection: [] as string[],
-        projector: (projection, entry) => [...projection, entry.entryId],
-        now: createClock([
-          "2026-03-18T10:10:00.000Z",
-          "2026-03-18T10:10:01.000Z",
-          "2026-03-18T10:10:02.000Z",
-        ]),
-      });
-
-    const ledgerA = await makeLedger();
-    const ledgerB = await makeLedger();
-
-    await ledgerA.create();
-    await ledgerB.create();
-
-    const entryA = await ledgerA.append({
-      kind: "secret.created",
-      payload: { text: "same secret" },
-      protection: {
-        type: "recipients",
-        recipients: [recipient],
-        encoding: "armor",
-      },
-    });
-    const entryB = await ledgerB.append({
-      kind: "secret.created",
-      payload: { text: "same secret" },
-      protection: {
-        type: "recipients",
-        recipients: [recipient],
-        encoding: "armor",
-      },
-    });
-
-    expect(entryA.entry.payload.type).toBe("encrypted");
-    expect(entryB.entry.payload.type).toBe("encrypted");
-    expect(entryA.entry.payload.data).not.toBe(entryB.entry.payload.data);
-
-    await ledgerA.commit();
-    await ledgerB.commit();
-
-    expect((await ledgerA.verify()).valid).toBe(true);
-    expect((await ledgerB.verify()).valid).toBe(true);
-    expect(await ledgerA.replay()).toHaveLength(1);
-    expect(await ledgerB.replay()).toHaveLength(1);
+  await log.create();
+  await expect(log.append({ kind: "large", payload: "x".repeat(20) })).rejects.toMatchObject({
+    finding: { code: "RESOURCE_LIMIT" },
   });
-
-  it("reports invalid ids for tampered commits and entries", async () => {
-    const identity = await createIdentity("2026-03-18T10:15:00.000Z");
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:dana",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-      now: createClock([
-        "2026-03-18T10:15:00.000Z",
-        "2026-03-18T10:15:01.000Z",
-        "2026-03-18T10:15:02.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    const appended = await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-2" },
-    });
-    const committed = await ledger.commit();
-    const container = await ledger.export();
-
-    const tampered = structuredClone(container);
-    tampered.commits[committed.commit.commitId] = {
-      ...tampered.commits[committed.commit.commitId],
-      parentCommitId: "missing-parent",
-    };
-    tampered.entries[appended.entry.entryId] = {
-      ...tampered.entries[appended.entry.entryId],
-      payload: {
-        type: "plain",
-        data: { id: "tampered" },
-      },
-    };
-
-    const loaded = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:dana",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-    });
-    await loaded.load(tampered);
-
-    const verification = await loaded.verify();
-    expect(verification.valid).toBe(false);
-    expect(verification.committedHistoryValid).toBe(false);
-    expect(verification.commitChainValid).toBe(false);
-    expect(verification.commitProofsValid).toBe(false);
-    expect(verification.entryProofsValid).toBe(false);
-    expect(verification.invalidCommitIds).toContain(committed.commit.commitId);
-    expect(verification.invalidEntryIds).toContain(appended.entry.entryId);
+  await log.append({ kind: "ok", payload: null });
+  await expect(log.commit({ metadata: { large: "x".repeat(20) } })).rejects.toMatchObject({
+    finding: { code: "RESOURCE_LIMIT" },
   });
-
-  it("fails verification when committed entry order is tampered", async () => {
-    const identity = await createIdentity("2026-03-18T10:16:00.000Z");
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:order",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-      now: createClock([
-        "2026-03-18T10:16:00.000Z",
-        "2026-03-18T10:16:01.000Z",
-        "2026-03-18T10:16:02.000Z",
-        "2026-03-18T10:16:03.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-ordered-1" },
-    });
-    await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-ordered-2" },
-    });
-    const committed = await ledger.commit();
-
-    const tampered = structuredClone(await ledger.export());
-    tampered.commits[committed.commit.commitId] = {
-      ...tampered.commits[committed.commit.commitId],
-      entryIds: [...tampered.commits[committed.commit.commitId].entryIds].reverse(),
-    };
-
-    const loaded = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:order",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-    });
-
-    await loaded.load(tampered);
-    const verification = await loaded.verify();
-
-    expect(verification.valid).toBe(false);
-    expect(verification.committedHistoryValid).toBe(false);
-    expect(verification.commitChainValid).toBe(false);
-    expect(verification.invalidCommitIds).toContain(committed.commit.commitId);
+  await log.commit();
+  expect(notifications).toBeGreaterThan(2);
+  unsubscribe();
+  await log.destroy();
+  await expect(log.export()).rejects.toMatchObject({ finding: { code: "LEDGER_DESTROYED" } });
+});
+test("default Ledger readers accept opaque framework payloads within the shared snapshot cap", async () => {
+  const log = await createLedger({ signer: await signer(), now });
+  await log.create();
+  await log.append({ kind: "opaque", payload: { ciphertext: "A".repeat(1400 * 1024) } });
+  await log.commit();
+  const reader = await createLedger();
+  await reader.load(await log.export());
+  expect((await reader.verify()).integrity).toBe("valid");
+});
+test("callbacks cannot synchronously reenter the same mutation queue", async () => {
+  const log = await createLedger({ signer: await signer(), now });
+  await log.create();
+  const attempts: Promise<unknown>[] = [];
+  log.subscribe(() => {
+    attempts.push(log.append({ kind: "recursive" }));
   });
-
-  it("fails verification when a committed entry id is tampered", async () => {
-    const identity = await createIdentity("2026-03-18T10:17:00.000Z");
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:entry-id",
+  await Promise.all(
+    attempts.map((pending) =>
+      expect(pending).rejects.toMatchObject({ finding: { code: "HOST_CONFIGURATION" } }),
+    ),
+  );
+  expect(log.getState().staged).toEqual([]);
+});
+test("invalid option shapes cannot sign or change the current state", async () => {
+  const identity = await signer();
+  let signatures = 0;
+  const log = await createLedger({
+    signer: {
+      publicIdentity: identity.publicIdentity,
+      sign(bytes) {
+        signatures++;
+        return identity.sign(bytes);
       },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-      now: createClock([
-        "2026-03-18T10:17:00.000Z",
-        "2026-03-18T10:17:01.000Z",
-        "2026-03-18T10:17:02.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    const appended = await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-entry-id" },
-    });
-    await ledger.commit();
-
-    const tampered = structuredClone(await ledger.export());
-    const tamperedEntry = {
-      ...tampered.entries[appended.entry.entryId],
-      entryId: "entry_tampered",
-    };
-    delete tampered.entries[appended.entry.entryId];
-    tampered.entries.entry_tampered = tamperedEntry;
-
-    const loaded = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:entry-id",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-    });
-
-    await loaded.load(tampered);
-    const verification = await loaded.verify();
-
-    expect(verification.valid).toBe(false);
-    expect(verification.committedHistoryValid).toBe(false);
-    expect(verification.entriesValid).toBe(false);
-    expect(verification.invalidEntryIds).toContain(appended.entry.entryId);
-    expect(verification.invalidEntryIds).toContain("entry_tampered");
+    },
+    now,
   });
-
-  it("fails verification when an encrypted payload hash is tampered", async () => {
-    const identity = await createIdentity("2026-03-18T10:17:30.000Z");
-    const recipient = await recipientFromIdentity(identity);
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:payload-hash",
-        decryptor: { identity },
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-      now: createClock([
-        "2026-03-18T10:17:30.000Z",
-        "2026-03-18T10:17:31.000Z",
-        "2026-03-18T10:17:32.000Z",
-      ]),
+  const empty = log.getState();
+  for (const invalid of [null, 7, false, "", []]) {
+    await expect(createLedger(invalid as never)).rejects.toMatchObject({
+      finding: { code: "HOST_CONFIGURATION" },
     });
-
-    await ledger.create();
-    const appended = await ledger.append({
-      kind: "secret.created",
-      payload: { text: "hash me" },
-      protection: {
-        type: "recipients",
-        recipients: [recipient],
-        encoding: "armor",
-      },
+    await expect(log.create(invalid as never)).rejects.toMatchObject({
+      finding: { code: "SCHEMA_INVALID" },
     });
-    await ledger.commit();
-
-    const tampered = structuredClone(await ledger.export());
-    tampered.entries[appended.entry.entryId] = {
-      ...tampered.entries[appended.entry.entryId],
-      payload: {
-        ...(tampered.entries[appended.entry.entryId].payload as {
-          type: "encrypted";
-          scheme: "age";
-          mode: "recipients";
-          encoding: "armor" | "binary";
-          data: string;
-          payloadHash: string;
-        }),
-        payloadHash: "sha256:tampered",
-      },
-    };
-
-    const loaded = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:payload-hash",
-        decryptor: { identity },
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-    });
-
-    await loaded.load(tampered);
-    const verification = await loaded.verify();
-
-    expect(verification.valid).toBe(false);
-    expect(verification.committedHistoryValid).toBe(false);
-    expect(verification.payloadHashesValid).toBe(false);
-    expect(verification.invalidEntryIds).toContain(appended.entry.entryId);
+    expect(log.getState()).toBe(empty);
+  }
+  expect(signatures).toBe(0);
+  await expect(createLedger({ limits: [] as never })).rejects.toMatchObject({
+    finding: { code: "HOST_CONFIGURATION" },
   });
-
-  it("fails verification when commit proof material is tampered even if entry payloads remain intact", async () => {
-    const identity = await createIdentity("2026-03-18T10:18:00.000Z");
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:proofs",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-      now: createClock([
-        "2026-03-18T10:18:00.000Z",
-        "2026-03-18T10:18:01.000Z",
-        "2026-03-18T10:18:02.000Z",
-      ]),
+  await log.create();
+  await log.append({ kind: "pending" });
+  const staged = log.getState();
+  for (const invalid of [null, 7, false, "", []]) {
+    await expect(log.commit(invalid as never)).rejects.toMatchObject({
+      finding: { code: "SCHEMA_INVALID" },
     });
-
-    await ledger.create();
-    await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-proof" },
+    await expect(log.replay(invalid as never)).rejects.toMatchObject({
+      finding: { code: "HOST_CONFIGURATION" },
     });
-    const committed = await ledger.commit();
-
-    const tampered = structuredClone(await ledger.export());
-    tampered.commits[committed.commit.commitId] = {
-      ...tampered.commits[committed.commit.commitId],
-      seal: {
-        ...tampered.commits[committed.commit.commitId].seal,
-        signature: "tampered-signature",
-      },
-    };
-
-    const loaded = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:proofs",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-    });
-
-    await loaded.load(tampered);
-    const verification = await loaded.verify();
-
-    expect(verification.valid).toBe(false);
-    expect(verification.committedHistoryValid).toBe(false);
-    expect(verification.commitChainValid).toBe(true);
-    expect(verification.commitProofsValid).toBe(false);
-    expect(verification.invalidCommitIds).toContain(committed.commit.commitId);
-  });
-
-  it("treats later committed history as globally invalid when an earlier committed entry is corrupted", async () => {
-    const identity = await createIdentity("2026-03-18T10:19:00.000Z");
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:cascade",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-      now: createClock([
-        "2026-03-18T10:19:00.000Z",
-        "2026-03-18T10:19:01.000Z",
-        "2026-03-18T10:19:02.000Z",
-        "2026-03-18T10:19:03.000Z",
-        "2026-03-18T10:19:04.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    const first = await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-cascade-1" },
-    });
-    await ledger.commit({
-      metadata: {
-        message: "first",
-      },
-    });
-    await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "todo-cascade-2" },
-    });
-    await ledger.commit({
-      metadata: {
-        message: "second",
-      },
-    });
-
-    const tampered = structuredClone(await ledger.export());
-    tampered.entries[first.entry.entryId] = {
-      ...tampered.entries[first.entry.entryId],
-      payload: {
-        type: "plain",
-        data: { id: "tampered-cascade" },
-      },
-    };
-
-    const loaded = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:cascade",
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [...projection, entry.entryId],
-      replayPolicy: {
-        verify: false,
-      },
-    });
-
-    await loaded.load(tampered);
-    const verification = await loaded.verify();
-
-    expect(verification.valid).toBe(false);
-    expect(verification.committedHistoryValid).toBe(false);
-    await expect(loaded.replay({ verify: true })).rejects.toThrow("Ledger verification failed.");
-  });
-
-  it("round trips persistence without storing projection", async () => {
-    const identity = await createIdentity("2026-03-18T10:20:00.000Z");
-    const storage = createMemoryStorage();
-
-    const ledger = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:erin",
-      },
-      initialProjection: { ids: [] as string[] },
-      projector: (projection, entry) => ({
-        ids: [...projection.ids, entry.entryId],
-      }),
-      storage,
-      now: createClock([
-        "2026-03-18T10:20:00.000Z",
-        "2026-03-18T10:20:01.000Z",
-        "2026-03-18T10:20:02.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    const staged = await ledger.append({
-      kind: "todo.item.created",
-      payload: { id: "persisted" },
-    });
-    await ledger.commit();
-
-    expect(storage.snapshot).not.toBeNull();
-    expect(storage.snapshot).not.toHaveProperty("projection");
-    expect(storage.snapshot?.staged).toEqual([]);
-
-    const restored = await createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:erin",
-      },
-      initialProjection: { ids: [] as string[] },
-      projector: (projection, entry) => ({
-        ids: [...projection.ids, entry.entryId],
-      }),
-      storage,
-    });
-
-    expect(await restored.loadFromStorage()).toBe(true);
-    expect(restored.getState()).not.toHaveProperty("signingKey");
-    expect(restored.getState().projection.ids).toEqual([staged.entry.entryId]);
-  });
-
-  it("imports from built ESM output without manual path hacks", async () => {
-    const entryUrl = pathToFileURL(resolve(packageDir, "dist/index.js")).href;
-    const ledgerModule = await import(entryUrl);
-    const identity = await createIdentity("2026-03-18T10:21:00.000Z");
-    const recipient = await recipientFromIdentity(identity);
-    const ledger = await ledgerModule.createLedger({
-      identity: {
-        signer: { identity },
-        authorResolver: () => "did:built",
-        decryptor: { identity },
-      },
-      initialProjection: [] as string[],
-      projector: (projection, entry) => [
-        ...projection,
-        entry.payload.type === "decrypted"
-          ? String((entry.payload as { data: { text: string } }).data.text)
-          : entry.payload.type,
-      ],
-      now: createClock([
-        "2026-03-18T10:21:00.000Z",
-        "2026-03-18T10:21:01.000Z",
-        "2026-03-18T10:21:02.000Z",
-      ]),
-    });
-
-    await ledger.create();
-    await ledger.append({
-      kind: "journal.entry.created",
-      payload: { text: "built ledger" },
-      protection: {
-        type: "recipients",
-        recipients: [recipient],
-        encoding: "armor",
-      },
-    });
-    await ledger.commit();
-
-    expect(await ledger.replay()).toEqual(["built ledger"]);
-  });
+    expect(log.getState()).toBe(staged);
+  }
+  expect(signatures).toBe(1);
+  await log.commit();
+  expect(signatures).toBe(2);
+});
+test("oversized byte imports reject and preserve the current state", async () => {
+  const log = await createLedger({ signer: await signer(), now, limits: { maxBytes: 4096 } });
+  await log.create();
+  const before = log.getState();
+  const input = new Uint8Array(4097);
+  for (const load of [
+    (bytes: Uint8Array) => log.load(bytes),
+    (bytes: Uint8Array) => log.import(bytes),
+  ]) {
+    await expect(load(input)).rejects.toMatchObject({ finding: { code: "RESOURCE_LIMIT" } });
+    expect(log.getState()).toBe(before);
+  }
 });

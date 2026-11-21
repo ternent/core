@@ -1,0 +1,10 @@
+import { registerHooks } from "node:module";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+registerHooks({resolve(specifier,context,next){
+  if(specifier === "@ternent/armour" || specifier.startsWith("age-encryption") || specifier === "@ternent/concord" || specifier.startsWith("@ternent/concord/system") || specifier.startsWith("@ternent/concord/testing"))throw new Error("forbidden protocol dependency");
+  return next(specifier,context);
+}});
+const {verifyDocument}=await import("@ternent/concord/protocol");
+assert.equal((await verifyDocument(new Uint8Array(readFileSync("owner.document.json")))).integrity,"valid");
+console.log("Protocol imports and verifies with runtime, model and age imports blocked");

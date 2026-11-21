@@ -1,0 +1,20 @@
+export type Finding = { code: string; path: string; message: string };
+export type PackageManifest = {
+  name: string;
+  version: string;
+  type: "module";
+  private?: boolean;
+  main?: string;
+  module?: string;
+  types?: string;
+  packageManager?: string;
+  exports?: Record<string, unknown>;
+  bin?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+  publishConfig?: { access?: string };
+  ternent?: { profile?: string };
+};
+export declare function validateManifest(manifest: unknown): Finding[];
+export declare function validatePackage(root: string, options?: { built?: boolean }): Finding[];

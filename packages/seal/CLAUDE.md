@@ -1,8 +1,8 @@
-# CLAUDE.md
+# Seal architecture
 
-`@ternent/seal-cli` signs/verifies artifacts and supports recipient-targeted encrypted artifacts.
-
-- Treat manifest/proof/artifact schema stability as critical.
-- Keep cryptographic operations explicit and auditable.
-- Use armour/identity composition; avoid duplicated crypto implementations.
-- Preserve offline verification and deterministic output behavior where expected.
+`@ternent/seal` supplies browser-safe proof/artifact/manifest/crypto/error APIs and a
+separate Node executable. Preserve wire proof/public-key version 2 and manifest/artifact
+version 1. Seal owns its canonical signing subjects; Identity owns signing, strict
+verification and identity derivation; Armour/typage owns encryption. No Concord, Utils,
+Rage, source aliases or cryptographic reimplementations belong here. Read docs/seal/format.md
+and the dated migration evidence before changing signatures or accepted canonical values.

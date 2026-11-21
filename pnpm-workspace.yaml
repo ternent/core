@@ -1,9 +1,33 @@
+# Active product migrations plus the tooling profile fixtures.
 packages:
-  - "packages/armour"
-  # - "packages/concord"
-  - "packages/identity"
-  # - "packages/ledger"
-  - "packages/seal"
-  - "packages/ui"
-  - "packages/utils"
-  - "packages/workspace"
+  - packages/ledger
+  - packages/identity
+  - packages/armour
+  - packages/concord
+  - packages/seal
+  - apps/handshake
+  - tooling/*
+  - fixtures/tooling-profiles/*
+
+allowBuilds:
+  esbuild: true
+
+overrides:
+  "@types/node": "26.6.6"
+patchedDependencies:
+  vitepress@1.6.4: patches/vitepress@1.6.4.patch
+
+saveExact: true
+engineStrict: true
+storeDir: .pnpm-store
+minimumReleaseAgeExclude:
+  - "@vue/compiler-core@3.5.46"
+  - "@vue/compiler-dom@3.5.46"
+  - "@vue/compiler-sfc@3.5.46"
+  - "@vue/compiler-ssr@3.5.46"
+  - "@vue/reactivity@3.5.46"
+  - "@vue/runtime-core@3.5.46"
+  - "@vue/runtime-dom@3.5.46"
+  - "@vue/server-renderer@3.5.46"
+  - "@vue/shared@3.5.46"
+  - vue@3.5.46

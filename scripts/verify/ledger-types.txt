@@ -1,0 +1,32 @@
+import { createLedger, encodePayload, decodePayload, type LedgerPayloadCodec, type LedgerReplayEntry } from "@ternent/ledger";
+import { createAgeCodec, generateIdentity } from "@ternent/armour";
+import { generateSigner } from "@ternent/identity";
+const signer = await generateSigner();
+if (!signer.ok) throw new Error(signer.error.code);
+const log = await createLedger({signer: signer.value});
+await log.create();
+await log.append({kind:"reading",payload:{value:7}});
+const entries: LedgerReplayEntry[] = await log.replay();
+const projected = await createLedger({signer:signer.value,initialProjection:0,projector:(count,entry)=>count+1});
+const count: number = await projected.replay();
+// @ts-expect-error A kind is required.
+await log.append({payload:42});
+// @ts-expect-error Payloads are portable JSON.
+await log.append({kind:"bad",payload:1n});
+// @ts-expect-error A custom projection requires its projector.
+await createLedger({initialProjection:0});
+// @ts-expect-error The selected projection type survives package declarations.
+const wrong: string = await projected.replay();
+void [entries,count,wrong];
+const reader = await generateIdentity(); if (!reader.ok) throw new Error(reader.error.code);
+const codec: LedgerPayloadCodec = createAgeCodec({reader:reader.value});
+const decoded = await decodePayload((await log.replay())[0].payload.data,codec);
+if (decoded.status === "locked") {
+  // @ts-expect-error Unavailable payloads do not expose plaintext.
+  decoded.data;
+}
+// @ts-expect-error Codec integration retains the portable JSON requirement.
+await encodePayload(1n,codec);
+// @ts-expect-error Byte codecs cannot return text instead of bytes.
+const invalidCodec: LedgerPayloadCodec = {id:"broken",encode:async()=>"text"};
+void invalidCodec;

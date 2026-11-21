@@ -36,17 +36,19 @@ const document = JSON.parse(
   ),
 ) as {
   entries: {
-    subject: { payload: { data?: { wraps: { ciphertext: string }[] }; ciphertext?: string } };
+    subject: {
+      payload: { data: { data?: { wraps: { ciphertext: string }[] }; ciphertext?: string } };
+    };
   }[];
 };
 const decode = (text: string) => new Uint8Array(Buffer.from(text, "base64url"));
 test("saved independent native-age ciphertext decrypts with the same owner and group material", async () => {
   const owner = value(await identityFromSeed(hex(vectors.identitySeedHex)));
-  const wrapped = document.entries[0].subject.payload.data!.wraps[0].ciphertext;
+  const wrapped = document.entries[0].subject.payload.data.data!.wraps[0].ciphertext;
   expect(
     JSON.parse(new TextDecoder().decode(value(await owner.decryptAge(decode(wrapped))))),
   ).toEqual(vectors.keyPlaintext);
-  const event = document.entries[1].subject.payload.ciphertext!;
+  const event = document.entries[1].subject.payload.data.ciphertext!;
   expect(
     JSON.parse(
       new TextDecoder().decode(

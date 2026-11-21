@@ -1,7 +1,14 @@
 import { decodeBase64Url } from "@ternent/identity";
 import { fail } from "../common/errors.js";
-import { encodeJson } from "./json.js";
-import type { AudienceId, Limits, Snapshot, CommitSubject, EntrySubject } from "./types.js";
+import type {
+  AudienceId,
+  Limits,
+  Snapshot,
+  Declaration,
+  RawEntryRecord,
+  EntryRecord,
+  EntrySubject,
+} from "./types.js";
 export function isAudienceId(value: unknown): value is AudienceId {
   if (value === "document") return true;
   if (typeof value !== "string" || !/^group:[A-Za-z0-9_-]{22}$/.test(value)) return false;
@@ -76,22 +83,6 @@ export function bytes(
     fail("SCHEMA_INVALID", "protocol", path);
   return decoded.value;
 }
-export function publicIdentity(value: unknown, path: string): void {
-  closed(value, ["version", "algorithm", "publicKey", "id"], path);
-  if (
-    value.version !== 1 ||
-    value.algorithm !== "Ed25519" ||
-    typeof value.id !== "string" ||
-    !/^identity:[0-9a-f]{64}$/.test(value.id)
-  )
-    fail("SCHEMA_INVALID", "protocol", path);
-  bytes(value.publicKey, 32, `${path}/publicKey`);
-}
-function metadata(value: unknown, path: string, lim: Limits): void {
-  if (value !== null && !object(value)) fail("SCHEMA_INVALID", "protocol", path);
-  if (value !== null && encodeJson(value, lim.maxDepth).length > lim.maxMetadataBytes)
-    fail("RESOURCE_LIMIT", "protocol", path);
-}
 export function entrySubject(
   input: unknown,
   path: string,
@@ -134,68 +125,35 @@ export function entrySubject(
     bytes(input.payload.ciphertext, null, `${path}/payload/ciphertext`, lim.maxCiphertextBytes);
   } else fail("ENTRY_KIND_UNSUPPORTED", "protocol", `${path}/kind`);
 }
-export function commitSubject(
-  input: unknown,
-  path: string,
-  lim: Limits,
-): asserts input is CommitSubject {
-  closed(
-    input,
-    ["version", "suite", "parent", "nonce", "signer", "declaration", "entryIds", "metadata"],
-    path,
-  );
-  if (input.version !== 1 || typeof input.suite !== "string")
-    fail("SCHEMA_INVALID", "protocol", path);
-  if (input.suite !== "concord-25519-age-v1")
-    fail("SUITE_UNSUPPORTED", "protocol", `${path}/suite`);
-  if (input.parent !== null) id(input.parent, "commit", `${path}/parent`);
-  bytes(input.nonce, 16, `${path}/nonce`);
-  publicIdentity(input.signer, `${path}/signer`);
-  if (input.declaration !== null) {
-    closed(input.declaration, ["system", "model"], `${path}/declaration`);
-    ref(input.declaration.system, `${path}/declaration/system`);
-    ref(input.declaration.model, `${path}/declaration/model`);
-  }
-  if (!Array.isArray(input.entryIds) || !input.entryIds.length)
-    fail("SCHEMA_INVALID", "protocol", `${path}/entryIds`);
-  if (input.entryIds.length > lim.maxEntries)
-    fail("RESOURCE_LIMIT", "protocol", `${path}/entryIds`);
-  input.entryIds.forEach((value, index) => id(value, "entry", `${path}/entryIds/${index}`));
-  metadata(input.metadata, `${path}/metadata`, lim);
+export function declaration(input: Snapshot): Declaration {
+  const metadata = input.commits[0].subject.metadata;
+  if (!object(metadata) || !Object.hasOwn(metadata, "concord"))
+    fail("DECLARATION_INVALID", "protocol", "/commits/0/subject/metadata");
+  closed(metadata, ["concord"], "/commits/0/subject/metadata");
+  closed(metadata.concord, ["system", "model"], "/commits/0/subject/metadata/concord");
+  ref(metadata.concord.system, "/commits/0/subject/metadata/concord/system");
+  ref(metadata.concord.model, "/commits/0/subject/metadata/concord/model");
+  return metadata.concord as Declaration;
 }
-export function snapshot(input: unknown, lim: Limits): asserts input is Snapshot {
-  if (
-    object(input) &&
-    input.format === "concord" &&
-    typeof input.version === "number" &&
-    input.version !== 1
-  )
-    fail("PROTOCOL_UNSUPPORTED", "protocol", "/version");
-  closed(input, ["format", "version", "documentId", "head", "commits", "entries", "metadata"], "");
-  if (
-    input.format !== "concord" ||
-    input.version !== 1 ||
-    !Array.isArray(input.commits) ||
-    !Array.isArray(input.entries) ||
-    !input.commits.length
-  )
-    fail("SCHEMA_INVALID", "protocol", "");
-  if (input.commits.length > lim.maxCommits || input.entries.length > lim.maxEntries)
-    fail("RESOURCE_LIMIT");
-  id(input.documentId, "commit", "/documentId");
-  id(input.head, "commit", "/head");
-  metadata(input.metadata, "/metadata", lim);
-  input.entries.forEach((entry, index) => {
-    const p = `/entries/${index}`;
-    closed(entry, ["id", "subject"], p);
-    id(entry.id, "entry", `${p}/id`);
-    entrySubject(entry.subject, `${p}/subject`, lim);
-  });
-  input.commits.forEach((commit, index) => {
-    const p = `/commits/${index}`;
-    closed(commit, ["id", "subject", "signature"], p);
-    id(commit.id, "commit", `${p}/id`);
-    commitSubject(commit.subject, `${p}/subject`, lim);
-    bytes(commit.signature, 64, `${p}/signature`);
-  });
+
+/** Logical framework view of a raw signed entry, retaining its Ledger record ID. */
+export function logicalEntry(entry: RawEntryRecord): EntryRecord {
+  const subject = entry.subject;
+  return {
+    id: entry.id,
+    subject: {
+      version: 1,
+      parent: subject.parent,
+      nonce: subject.nonce,
+      kind: subject.kind,
+      payload: subject.payload.data,
+    } as EntrySubject,
+  };
+}
+
+/** Ledger has already validated the raw container and every cryptographic link. */
+export function snapshot(input: Snapshot, lim: Limits): void {
+  declaration(input);
+  for (const [index, entry] of input.entries.entries())
+    entrySubject(logicalEntry(entry).subject, `/entries/${index}/subject/payload/data`, lim);
 }

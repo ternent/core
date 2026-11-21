@@ -3,19 +3,22 @@
 Identity, encryption, signed documents and standalone proofs for software where
 the host owns its data and storage.
 
-| Package                                 | Responsibility                                                         |
-| --------------------------------------- | ---------------------------------------------------------------------- |
-| [Identity](packages/identity/README.md) | Seed identities, signatures, recovery and key derivation               |
-| [Armour](packages/armour/README.md)     | age encryption through FiloSottile's TypeScript implementation, typage |
-| [Concord](packages/concord/README.md)   | Signed history, verification, deterministic replay, groups and drafts  |
-| [Seal](packages/seal/README.md)         | Standalone proofs, encrypted artifacts, manifests and a Node CLI       |
-| [Tooling](tooling/tooling/README.md)    | Portable build profiles and package validation                         |
+| Package                                 | Responsibility                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------- |
+| [Identity](packages/identity/README.md) | Seed identities, signatures, recovery and key derivation                  |
+| [Armour](packages/armour/README.md)     | age encryption through FiloSottile's TypeScript implementation, typage    |
+| [Concord](packages/concord/README.md)   | Framework composition, authority, encrypted groups and application replay |
+| [Seal](packages/seal/README.md)         | Standalone proofs, encrypted artifacts, manifests and a Node CLI          |
+| [Ledger](packages/ledger/README.md)     | Standalone signed log, staging, commits, verification and replay          |
 
-These five packages are alpha candidates. Isolated candidate-registry verification,
+The five public products are Identity, Armour, Ledger, Concord and Seal. They are
+alpha candidates using one Ledger-owned container and history lifecycle. Isolated candidate-registry verification,
 the verified-artifact publisher and registry acceptance remain on the
 [shipping backlog](docs/engineering/shipping-inventory-2026-11-20.md).
 The existing UI and Workspace directories are excluded from the active workspace.
-There is no maintained UI package in the v1 release; see
+Tooling is private repository infrastructure pending simplification; apps, profile
+fixtures and overlapping planning documents remain cleanup work. There is no
+maintained UI package in the v1 release; see
 [the UI scope decision](docs/adr/0017-drop-ui-from-the-library-release.md).
 Workspace work is deferred until the libraries are stable and a substantial set of
 demos has been built; it does not block the library release.
@@ -32,7 +35,7 @@ behavior tests, installs exact tarballs into an isolated consumer, and exercises
 production Vue and docs builds in Chromium. See [CONTRIBUTING.md](CONTRIBUTING.md)
 for setup and focused commands.
 
-`packages/` owns product code, `tooling/` owns portable development tools,
+`packages/` owns product code, `tooling/` currently holds private development helpers,
 `fixtures/` and `apps/handshake/` prove consumption, and `scripts/verify/` owns
 repository checks. Workspace selection lives in `pnpm-workspace.yaml`; root checks
 derive package paths from that selection. Historical implementations belong in Git.

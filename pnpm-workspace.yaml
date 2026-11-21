@@ -1,5 +1,6 @@
 # Active product migrations plus the tooling profile fixtures.
 packages:
+  - packages/ledger
   - packages/identity
   - packages/armour
   - packages/concord

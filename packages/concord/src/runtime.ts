@@ -1,20 +1,15 @@
-import { encodeBase64Url } from "@ternent/identity";
+import { createLedger, type LedgerAppendInput, type LedgerInstance } from "@ternent/ledger";
 import { caught, error, fail, ok, type Result, Fault } from "./common/errors.js";
 import { detached, freeze } from "./common/immutable.js";
-import { nonce } from "./common/random.js";
 import { encodeJson } from "./protocol/json.js";
-import {
-  inspectProtocol,
-  identifier,
-  signatureMessage,
-  compareSnapshots,
-} from "./protocol/verify.js";
+import { inspectProtocol, ledgerLimits, compareSnapshots } from "./protocol/verify.js";
 import {
   isAudienceId,
   object,
   limits as configureLimits,
   ref,
-  snapshot as validateSnapshot,
+  declaration as frameworkDeclaration,
+  entrySubject,
 } from "./protocol/schema.js";
 import { issueHistory } from "./protocol/history.js";
 import type {
@@ -25,7 +20,6 @@ import type {
   DomainEvent,
   Snapshot,
   Limits,
-  CommitSubject,
   EntrySubject,
 } from "./protocol/types.js";
 import type {
@@ -84,7 +78,7 @@ async function evaluate(
   if (!protocol.snapshot)
     return inspect(protocol.report.integrity === "invalid" ? "invalid" : "incompatible");
   const wire = detached(protocol.snapshot),
-    declaration = wire.commits[0].subject.declaration!;
+    declaration = frameworkDeclaration(wire);
   try {
     host(options);
   } catch (cause) {
@@ -197,58 +191,39 @@ async function evaluate(
     return inspect(report.application === "unsupported" ? "incompatible" : "invalid");
   }
 }
-async function candidate(
-  base: Snapshot | null,
+function preparedInputs(
   subjects: readonly EntrySubject[],
-  signer: IdentityCapability,
+  parent: CommitId | null,
+  lim: Limits,
+): LedgerAppendInput[] {
+  return subjects.map((subject) => {
+    entrySubject(subject, "", lim);
+    if (subject.parent !== parent) fail("SYSTEM_FAILED", "system");
+    return { kind: subject.kind, nonce: subject.nonce, payload: subject.payload };
+  });
+}
+async function newLedger(
   options: Options,
   lim: Limits,
-  metadata: JsonObject | null = null,
-): Promise<Snapshot> {
-  const entries = subjects.map((subject) => ({
-    id: identifier(subject, "entry", lim.maxDepth),
-    subject,
-  }));
-  const subject: CommitSubject = {
-    version: 1,
-    suite: "concord-25519-age-v1",
-    parent: base?.head ?? null,
-    nonce: nonce(),
-    signer: { ...signer.publicIdentity },
-    declaration: base ? null : { model: options.model!.ref, system: options.system!.ref },
-    entryIds: entries.map((e) => e.id),
-    metadata,
-  };
-  const id = identifier(subject, "commit", lim.maxDepth);
-  const commit = { id, subject, signature: encodeBase64Url(new Uint8Array(64)) };
-  const wire: Snapshot = {
-    format: "concord",
-    version: 1,
-    documentId: base?.documentId ?? id,
-    head: id,
-    commits: [...(base?.commits ?? []), commit],
-    entries: [...(base?.entries ?? []), ...entries],
-    metadata: base?.metadata ?? null,
-  };
-  const size = encodeJson(wire, lim.maxDepth).length;
-  if (size > lim.maxBytes) fail("RESOURCE_LIMIT");
-  validateSnapshot(wire, lim);
-  let signed: Awaited<ReturnType<IdentityCapability["sign"]>>;
-  try {
-    signed = await signer.sign(signatureMessage(subject, lim.maxDepth));
-  } catch {
-    fail("SIGNING_FAILED", "author");
-  }
-  if (!signed.ok || !(signed.value instanceof Uint8Array) || signed.value.length !== 64)
-    fail("SIGNING_FAILED", "author");
-  commit.signature = encodeBase64Url(signed.value);
-  return wire;
+  call: <T>(fn: () => T) => T,
+): Promise<LedgerInstance<null>> {
+  return createLedger({
+    initialProjection: null,
+    projector: () => null,
+    limits: ledgerLimits(lim),
+    signer: options.signer
+      ? {
+          publicIdentity: options.signer.publicIdentity,
+          sign: (message) => call(() => options.signer!.sign(message)),
+        }
+      : undefined,
+  });
 }
-function handle(
+async function handle(
   initial: Evaluation,
   input: Uint8Array,
   options: Options,
-): DocumentHandle<Json, Record<string, Json>> {
+): Promise<DocumentHandle<Json, Record<string, Json>>> {
   let current = initial,
     callbacks = 0;
   let bytes: Uint8Array = new Uint8Array(input);
@@ -266,6 +241,11 @@ function handle(
       callbacks--;
     }
   };
+  let active: LedgerInstance<null> | null = null;
+  if ("snapshot" in initial) {
+    active = await newLedger(options, configureLimits(options.limits), call);
+    await active.load(initial.snapshot);
+  }
   const serialized = <T>(body: () => Promise<Result<T>> | Result<T>): Promise<Result<T>> => {
     if (callbacks)
       return Promise.resolve({ ok: false, error: error("HOST_CONFIGURATION", "requirements") });
@@ -324,18 +304,19 @@ function handle(
       })
     )
       fail("SYSTEM_FAILED", "system");
-    const wire = await candidate(
-      ready.snapshot,
-      json(prepared.value, lim, "SYSTEM_FAILED"),
-      signer,
-      options,
-      lim,
-      metadata,
+    if (!active) fail("INSPECTION_ONLY", "author");
+    const candidate = await newLedger(options, lim, call);
+    await candidate.load(await active.export());
+    await candidate.appendMany(
+      preparedInputs(json(prepared.value, lim, "SYSTEM_FAILED"), ready.snapshot.head, lim),
     );
+    await candidate.commit(metadata === null ? {} : { metadata });
+    const wire = await candidate.export();
     const nextBytes = encodeJson(wire, lim.maxDepth),
       next = await evaluate(nextBytes, options, call);
     if (next.state.status !== "ready") return { ok: false, error: next.inspection.findings[0] };
     current = next;
+    active = candidate;
     bytes = nextBytes;
     pendingDraft = null;
     return ok({
@@ -349,7 +330,11 @@ function handle(
     inspect: () => detached(current.inspection),
     export: () => new Uint8Array(bytes),
     verify: async () =>
-      detached((await inspectProtocol(new Uint8Array(bytes), { limits: options.limits })).report),
+      detached(
+        active
+          ? ((await active.verify()) as InspectionReport["verification"])
+          : (await inspectProtocol(new Uint8Array(bytes), { limits: options.limits })).report,
+      ),
     async replay() {
       if (current.state.status !== "ready")
         return {
@@ -576,12 +561,17 @@ export async function createDocument<
       fail("SYSTEM_FAILED", "system");
     }
     if (!bootstrap.ok) return bootstrap;
-    const wire = await candidate(null, [bootstrap.value], options.signer, options, lim),
+    const ledger = await newLedger(options, lim, (fn) => fn());
+    await ledger.create({
+      metadata: { concord: { model: options.model.ref, system: options.system.ref } },
+      entries: preparedInputs([json(bootstrap.value, lim, "SYSTEM_FAILED")], null, lim),
+    });
+    const wire = await ledger.export(),
       bytes = encodeJson(wire, lim.maxDepth),
       evaluated = await evaluate(bytes, options, (fn) => fn());
     if (evaluated.state.status !== "ready")
       return { ok: false, error: evaluated.inspection.findings[0] };
-    return ok(handle(evaluated, bytes, options) as unknown as DocumentHandle<S, C>);
+    return ok((await handle(evaluated, bytes, options)) as unknown as DocumentHandle<S, C>);
   } catch (cause) {
     return { ok: false, error: caught(cause, "HOST_CONFIGURATION", "requirements") };
   }
@@ -601,11 +591,11 @@ export async function openDocument<
   const evaluated = await evaluate(bytes, options, (fn) => fn());
   if ("snapshot" in evaluated) {
     const lim = configureLimits(options.limits);
-    return handle(
+    return (await handle(
       evaluated,
       encodeJson(evaluated.snapshot, lim.maxDepth),
       options,
-    ) as unknown as DocumentHandle<S, C>;
+    )) as unknown as DocumentHandle<S, C>;
   }
-  return handle(evaluated, bytes, options) as unknown as DocumentHandle<S, C>;
+  return (await handle(evaluated, bytes, options)) as unknown as DocumentHandle<S, C>;
 }

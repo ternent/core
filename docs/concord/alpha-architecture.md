@@ -1,5 +1,11 @@
 # Concord alpha architecture
 
+Current container/ownership revision: [ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md)
+and [the Ledger-backed profile](alpha-protocol.md) supersede the Concord-only wire,
+signing domains and internal-Ledger ownership described in this earlier plan.
+Ledger is a standalone public product. Concord delegates its history lifecycle;
+UI and public Tooling are outside the five-product release.
+
 Shipping update, 2026-11-20: [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
 extends the initial single-audience scope with independent memberships. The
 [group contract](group-profile-design.md) distinguishes complete projection

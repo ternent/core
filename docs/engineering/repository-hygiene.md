@@ -55,7 +55,8 @@ The owner must enable Renovate on the repository for PR creation.
 ## Source cleanup
 
 Removed copied `legacy/` implementations under Identity, Armour and Concord, plus
-the retired Ledger and Utils products. The copied archives matched the committed
+the retired Utils product and obsolete Ledger implementation. Ledger is now restored
+as a standalone public library with the common container used by Concord. The copied archives matched the committed
 review checkpoint before removal; Git retains the implementations. Useful Identity
 serialization/recovery helpers now live in `src/serialized.ts`. Armour's private
 engine and error names describe age rather than the removed Rage implementation.
@@ -73,6 +74,11 @@ now. UI is dropped from the v1 product scope under
 and old `scripts/vite` build remain reference material. Neither directory is part
 of the new package checks or release candidates. Portable Vue fixtures remain
 tooling and browser regression consumers.
+
+The five public products are Identity, Armour, Ledger, Concord and Seal. Tooling is
+private infrastructure pending simplification; profile fixtures, apps and overlapping
+planning documents remain cleanup work. Original Ledger protection conveniences and
+staged-state persistence still need explicit treatment.
 
 Root README, contribution instructions and ISC license explain the actual setup.
 Dated planning documents remain evidence, with links to this implemented state;

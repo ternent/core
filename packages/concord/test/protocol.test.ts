@@ -1,4 +1,5 @@
 import { expect, test } from "vite-plus/test";
+import { verifyLedger } from "@ternent/ledger";
 import {
   canonicalize,
   compareSnapshots,
@@ -6,15 +7,23 @@ import {
   hashEntrySubject,
   verifyDocument,
   type Snapshot,
-  type Result,
 } from "../src/protocol/index.js";
-import { vector, encoded, reference, mutate, resign, base64, type Mutation } from "./fixtures.js";
+import {
+  vector,
+  encoded,
+  reference,
+  mutate,
+  resign,
+  base64,
+  protectedPayload,
+  type Mutation,
+} from "./fixtures.js";
 const owner = () => vector<Snapshot>("owner.document");
 const primitives = vector<{
   canonical: { id: string; inputJson: string; canonical: string }[];
   rejectedJson: { id: string; inputJson: string; errorCode: string }[];
 }>("primitives");
-function value<T>(result: Result<T>): T {
+function value<T>(result: { ok: true; value: T } | { ok: false; error: { code: string } }): T {
   if (!result.ok) throw new Error(result.error.code);
   return result.value;
 }
@@ -86,7 +95,7 @@ test("P08 exact entry/commit IDs, canonical signature subjects and signatures", 
   document.commits.forEach((commit, i) => {
     expect(value(hashCommitSubject(commit.subject))).toBe(expected.commits[i].id);
     expect(reference(commit.subject)).toBe(expected.commits[i].canonicalSubject);
-    expect(Buffer.from(`concord.signature/1\0${reference(commit.subject)}`).toString("hex")).toBe(
+    expect(Buffer.from(`ledger.signature/1\0${reference(commit.subject)}`).toString("hex")).toBe(
       expected.commits[i].signatureMessageHex,
     );
     expect(Buffer.from(commit.signature, "base64url").toString("hex")).toBe(
@@ -109,26 +118,42 @@ for (const item of vector<{ cases: Mutation[] }>("mutations").cases)
     expect(result.findings[0].code).toBe(item.expected.code);
   });
 test("P04 encodings and closed schemas fail without normalization", async () => {
-  for (const modify of [
-    (wire: Snapshot) => {
-      wire.commits[1].signature += "=";
-    },
-    (wire: Snapshot) => {
-      wire.commits[1].signature = wire.commits[1].signature.slice(0, -1) + "B";
-    },
-    (wire: Snapshot) => {
-      wire.commits[1].subject.signer = { ...wire.commits[1].subject.signer, publicKey: "AA" };
-    },
-    (wire: Snapshot) => {
-      Object.assign(wire.entries[0].subject, { extra: true });
-    },
-    (wire: Snapshot) => {
-      wire.entries[0].id = wire.entries[0].id.toUpperCase() as Snapshot["entries"][number]["id"];
-    },
-  ]) {
+  const cases: [(wire: Snapshot) => void, string][] = [
+    [
+      (wire) => {
+        wire.commits[1].signature += "=";
+      },
+      "SCHEMA_INVALID",
+    ],
+    [
+      (wire) => {
+        wire.commits[1].signature = wire.commits[1].signature.slice(0, -1) + "B";
+      },
+      "SCHEMA_INVALID",
+    ],
+    [
+      (wire) => {
+        wire.commits[1].subject.signer = { ...wire.commits[1].subject.signer, publicKey: "AA" };
+      },
+      "IDENTITY_INVALID",
+    ],
+    [
+      (wire) => {
+        Object.assign(wire.entries[0].subject, { extra: true });
+      },
+      "SCHEMA_INVALID",
+    ],
+    [
+      (wire) => {
+        wire.entries[0].id = wire.entries[0].id.toUpperCase() as Snapshot["entries"][number]["id"];
+      },
+      "SCHEMA_INVALID",
+    ],
+  ];
+  for (const [modify, code] of cases) {
     const wire = owner();
     modify(wire);
-    expect((await verifyDocument(encoded(wire))).findings[0].code).toBe("SCHEMA_INVALID");
+    expect((await verifyDocument(encoded(wire))).findings[0].code).toBe(code);
   }
 });
 test("P06 identity binding is checked after independent rehashing/signing", async () => {
@@ -152,7 +177,7 @@ test("P13 ordered entry IDs bind hashes and signatures", async () => {
   wire.head = wire.commits[1].id;
   expect((await verifyDocument(encoded(wire))).findings[0].code).toBe("SIGNATURE_INVALID");
 });
-test("P14/P15 correct signatures cannot repair linkage, declaration or selectors", async () => {
+test("P14/P15 correct signatures cannot repair linkage or selectors", async () => {
   for (const [modify, code] of [
     [
       (wire: Snapshot) => {
@@ -165,12 +190,6 @@ test("P14/P15 correct signatures cannot repair linkage, declaration or selectors
         wire.entries[1].subject.parent = null;
       },
       "LINK_INVALID",
-    ],
-    [
-      (wire: Snapshot) => {
-        wire.commits[1].subject.declaration = wire.commits[0].subject.declaration;
-      },
-      "DECLARATION_INVALID",
     ],
     [
       (wire: Snapshot) => {
@@ -208,15 +227,21 @@ test("P16 unsupported requirements and resource limits do not claim invalid cryp
   expect((await verifyDocument(encoded(wire))).integrity).toBe("unsupported");
   const unknown = owner();
   Object.assign(unknown.entries[1].subject, { kind: "future" });
+  resign(unknown);
   expect((await verifyDocument(encoded(unknown))).findings[0].code).toBe("ENTRY_KIND_UNSUPPORTED");
 });
-test("P17/P19 transport formatting, annotations and prototype keys", async () => {
+test("P17/P19 transport formatting, signed metadata and prototype keys", async () => {
   const wire = owner();
-  wire.metadata = JSON.parse('{"__proto__":{"polluted":true},"unicode":"é"}');
+  wire.commits.at(-1)!.subject.metadata = JSON.parse(
+    '{"__proto__":{"polluted":true},"unicode":"é"}',
+  );
+  resign(wire);
   expect(
     (await verifyDocument(new TextEncoder().encode(JSON.stringify(wire, null, 2)))).integrity,
   ).toBe("valid");
   expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
+  wire.commits.at(-1)!.subject.metadata!.unicode = "changed after signing";
+  expect((await verifyDocument(encoded(wire))).findings[0].code).toBe("HASH_MISMATCH");
 });
 test("C01-C05 snapshot relationships have no implicit merge", async () => {
   const child = encoded(owner()),
@@ -251,7 +276,7 @@ test("P15 duplicates, absent genesis, selectors and repeated per-commit nonces",
   const repeated = owner(),
     extra = structuredClone(repeated.entries[1]);
   if (extra.subject.kind !== "application") throw new Error("fixture");
-  extra.subject.payload.ciphertext = "AA";
+  protectedPayload(extra.subject).ciphertext = "AA";
   repeated.entries.push(extra);
   repeated.commits[1].subject.entryIds.push(extra.id);
   resign(repeated);
@@ -260,7 +285,8 @@ test("P15 duplicates, absent genesis, selectors and repeated per-commit nonces",
 
 test("P19 large bounded metadata and exact integral number token import", async () => {
   const wire = owner();
-  wire.metadata = { items: Array.from({ length: 5000 }, (_, i) => i) };
+  wire.commits.at(-1)!.subject.metadata = { items: Array.from({ length: 5000 }, (_, i) => i) };
+  resign(wire);
   expect((await verifyDocument(encoded(wire))).integrity).toBe("valid");
   const raw = new TextEncoder().encode(
     new TextDecoder().decode(encoded(wire)).replace('"version":1', '"version":1.0e0'),
@@ -277,4 +303,21 @@ test("P11 a detached commit cannot hide beside the selected chain", async () => 
   wire.commits.push(fork.commits[1]);
   wire.entries.push(fork.entries[1]);
   expect((await verifyDocument(encoded(wire))).findings[0].code).toBe("UNREFERENCED_RECORD");
+});
+
+test("Concord validates signed genesis requirements after Ledger integrity succeeds", async () => {
+  for (const mode of ["missing", "invalid"] as const) {
+    const raw = vector<Snapshot>("owner.genesis.document");
+    if (mode === "missing") raw.commits[0].subject.metadata = {};
+    else
+      (
+        raw.commits[0].subject.metadata!.concord as import("../src/index.js").Declaration
+      ).model.version = 0;
+    const bytes = encoded(resign(raw));
+    expect((await verifyLedger(bytes)).integrity).toBe("valid");
+    expect(await verifyDocument(bytes)).toMatchObject({
+      integrity: "invalid",
+      findings: [{ code: mode === "missing" ? "DECLARATION_INVALID" : "SCHEMA_INVALID" }],
+    });
+  }
 });

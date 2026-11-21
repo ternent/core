@@ -43,9 +43,9 @@
     "check": "vp run verify"
   },
   "dependencies": {
-    "@noble/hashes": "2.4.0",
     "@ternent/armour": "workspace:^",
-    "@ternent/identity": "workspace:^"
+    "@ternent/identity": "workspace:^",
+    "@ternent/ledger": "workspace:^"
   },
   "devDependencies": {
     "@ternent/tooling": "workspace:*",

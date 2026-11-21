@@ -1,6 +1,7 @@
 # Concord alpha reference vectors
 
-These files are normative inputs/outputs for Protocol 1's first slice. The private
+These files are current alpha inputs/outputs for Concord's profile inside the common
+Ledger container (2026-11-21). The private
 values are **public test material**, including RFC 8032's first Ed25519 test seed;
 never use them for real documents. Fixed nonces are for fixtures only.
 
@@ -76,3 +77,18 @@ by key, records readable actor/audience facts and records locked audience/epoch 
 The default owner lacks both group keys; creator has all events including retained
 default history; Bob sees Accounts history, one future Accounts lock while removed,
 and all Accounts history after re-admission. Default/Personal remain locked to Bob.
+
+## Common Ledger container revision (2026-11-21)
+
+Owner, ancestor and fork artifacts were re-authored with Node crypto and native age,
+without importing Ledger/Concord hashing or verification. Application plaintext was
+rebound to the new Ledger parent and re-encrypted; the saved ciphertext is fixed.
+Expected subject bytes, IDs, signature messages, signatures and canonical digest
+now describe Ledger records and the signed genesis `metadata.concord` declaration.
+The signing domains are `ledger.entry/1`, `ledger.commit/1`, `ledger.signature/1`.
+
+Independent-group artifacts were authored through the public framework interface,
+then all raw Ledger hashes and signatures were independently recomputed/verified
+with Node crypto. Expected projections and locked counts remain manually derived
+from the intended events. Prior format-specific observations above are historical;
+these replacements are a breaking alpha revision, not a compatibility fixture.

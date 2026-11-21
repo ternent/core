@@ -1,9 +1,10 @@
 # Package architecture and tooling contract
 
-Scope amendment, 2026-11-21: [ADR 0017](../adr/0017-drop-ui-from-the-library-release.md)
-removes `@ternent/ui` from the release. Five products ship: Identity, Armour,
-Concord, Seal and Tooling. Any UI-product migration/release requirements below are
-superseded. Portable Vue profiles, browser fixtures and later demo UI remain useful.
+Current release amendment, 2026-11-21: [ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md)
+sets five public products: Identity, Armour, Ledger, Concord and Seal. Ledger owns one
+signed container and history lifecycle; Concord composes the framework above it.
+Earlier internal-Ledger, public Tooling and UI-product requirements below are
+superseded. Tooling, fixtures, apps and overlapping plans remain simplification work.
 
 Status: contract retained, concrete repository/tooling/release target selected 2026-10-21.
 The [repository architecture](repository-architecture.md) chooses Vite+ profiles and

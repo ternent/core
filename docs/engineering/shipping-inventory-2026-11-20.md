@@ -8,14 +8,16 @@ claim that the remaining migration or publication is complete.
 ## Release boundary and provenance
 
 Current scope, amended 2026-11-21 under
-[ADR 0017](../adr/0017-drop-ui-from-the-library-release.md): ship five independently
-consumable npm products: `@ternent/identity`, `@ternent/armour`, `@ternent/concord`,
-`@ternent/seal` and `@ternent/tooling`. `@ternent/ui` is dropped from v1; B08–B10
-are cancelled. Existing UI source is excluded reference material, not a migration
-or publishing prerequisite. Keep the existing handshake and tooling-profile fixtures as
-regression consumers. No new product app, Workspace product, hosted deployment,
-public Ledger, catch-all Utils, or replacement protocol project belongs to this
-release.
+[ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md): ship five independently
+usable npm products: `@ternent/identity`, `@ternent/armour`, `@ternent/ledger`,
+`@ternent/concord` and `@ternent/seal`. Ledger owns one signed container and history
+lifecycle; Concord composes commands, authority, group encryption and application replay.
+The format breaks current Concord alpha documents; legacy import is separate scope.
+
+UI is dropped (B08–B10 cancelled), Tooling is private infrastructure, and Workspace
+remains deferred. Simplify custom tooling, profile fixtures, apps and overlapping
+docs while preserving meaningful library and installed-consumer coverage. Demos
+should consume published packages from outside core.
 
 The source checkout is `/Users/sam/dev/samternent/home`, observed at
 `6e7195933f5c850cf846ccfba3292c0fe3d9c738`. The target is
@@ -57,7 +59,7 @@ References identify implementation or fixture evidence, not a demand to copy it.
 | `concord-protocol` / `@ternent/concord-protocol`                     | Canonical subjects, chain traversal, hashing, validation; `src/{index,canonical,crypto,epochs}.ts`                             | **Consolidate** signed-history mechanics into `packages/concord/src/protocol/` and `/protocol`. Old format/epoch semantics are evidence, not a compatibility contract.                                                       |
 | `concord-protocol-wasm` / `concord-protocol-wasm`                    | Rust/WASM implementation/build                                                                                                 | **Omit** separate shipping artifact and Rust prerequisite. Language-neutral vectors remain useful; no new cross-language implementation required here.                                                                       |
 | `concord-test-vectors` / private `@ternent/concord-test-vectors`     | `vectors.json`, malformed-value token conventions                                                                              | **Retain applicable cases** under `docs/concord/vectors/` and protocol tests. Keep current independent alpha vectors authoritative; do not substitute legacy expected hashes.                                                |
-| `ledger-v2` / `@ternent/ledger`                                      | Signed container, staged entries, commits, replay/decryption; `src/{ledger,types}.ts`, tests                                   | **Consolidate** into Concord protocol/runtime/system. No public Ledger, no dependency from Concord to Seal CLI. Draft semantics remain a runtime gap.                                                                        |
+| `ledger-v2` / `@ternent/ledger`                                      | Signed container, staged entries, commits, replay/decryption; `src/{ledger,types}.ts`, tests                                   | **Retain as standalone Ledger** and delegate Concord history to it. One common container; original recipient protection and staged-state persistence remain explicit retain/move/drop decisions. No Seal CLI dependency.     |
 | `ledger` / `ternent-ledger`                                          | Earlier runtime, staged state, transforms, storage plugins; `src/ledger.ts`, `src/plugins/{indexedDB,loki}.ts`                 | **Reuse behavior evidence** for runtime/drafts/storage boundaries. Omit Loki projection persistence and old runtime product; storage remains outside trusted replay.                                                         |
 | `concord` / `@ternent/concord`                                       | Commands, replay plugins, read-only and partial replay; `src/{app,types,errors}.ts`                                            | **Replace architecture while retaining contracts** with typed models, explicit system pass and atomic runtime replay. No arbitrary plugin ordering or trusted partial reconstruction.                                        |
 | `concord-plugin-identity` / `@ternent/concord-plugin-identity`       | Principal records and identity replay; `src/{replay,schemas}.ts`, fixtures                                                     | **Split ownership**: Identity validates cryptographic identity; Concord system binds signer/authority. Profiles/names remain app data; omit standalone plugin.                                                               |
@@ -75,7 +77,7 @@ References identify implementation or fixture evidence, not a demand to copy it.
 | `pixpax-issuer` / `@ternent/pixpax-issuer`                           | Issuance/proof authoring; `src/{issuance,proofs}.ts`                                                                           | **Defer application domain**; useful as later independent Seal/Identity consumer.                                                                                                                                            |
 | `pixpax-concord` / `@ternent/pixpax-concord`                         | Pixbook command/replay plugin; `src/plugin.ts`                                                                                 | **Defer application model**; no new model product or migration app required for library shipping.                                                                                                                            |
 
-`@ternent/tooling` has no corresponding portable source package in that manifest
+The private tooling helper has no corresponding portable source package in that manifest
 set. The implemented target `tooling/tooling` owns reusable dev-only profiles and
 validation; old copied package build configs are replaced by those profiles.
 
@@ -454,11 +456,14 @@ provider or cross-process update adapter is claimed.
 
 ## Dependency order and review points
 
-Current next step is B13: verify all five public candidates through an isolated
+Complete the common Ledger lifecycle integration and repository simplification first.
+Then B13 verifies all five public candidates through an isolated
 candidate registry without sibling file overrides. B01–B07 and B12 have implemented
 library evidence; B08–B10 are cancelled. B11 policy and B13 consumer checks converge
 with B14 release planning, then B15 workflow integration and B16 authorized registry
-acceptance. UI migration is not a dependency of any release task.
+acceptance. UI migration is not a dependency of any release task. Public Tooling is not a release
+product. Ledger protection conveniences and staged-state recovery require explicit
+decisions before claiming parity with the source library.
 
 Material review remains the concrete authority/readable-view contract and the lean
 public primitive surface. Demo UI components are chosen when building demos.

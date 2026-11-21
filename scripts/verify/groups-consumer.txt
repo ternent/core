@@ -88,7 +88,7 @@ assert.equal(receipt.entryIds.length,2);
 assert.equal(draft.draft(),null);
 const batch = JSON.parse(new TextDecoder().decode(draft.export()));
 assert.deepEqual(batch.commits.at(-1).subject.metadata,{message:"Retriable cross-group batch"});
-assert.deepEqual(batch.entries.slice(-2).map(entry=>entry.subject.payload.audience),["document",group]);
+assert.deepEqual(batch.entries.slice(-2).map(entry=>entry.subject.payload.data.audience),["document",group]);
 assert.equal((await verifyDocument(draft.export())).integrity,"valid");
 const reopened = await openDocument({bytes:draft.export(),model,system:createStandardSystemProfile(),signer:identities.owner});
 assert.deepEqual(reopened.state(),draft.state());

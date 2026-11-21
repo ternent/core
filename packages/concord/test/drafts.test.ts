@@ -13,7 +13,7 @@ import {
   type Snapshot,
 } from "../src/index.js";
 import { createGroup, createStandardSystemProfile, setMember } from "../src/system/index.js";
-import { seed } from "./fixtures.js";
+import { seed, protectedPayload } from "./fixtures.js";
 
 type Input = { audience: AudienceId; key: string; value: string };
 type Commands = { set: Input };
@@ -199,7 +199,7 @@ test("one explicit draft commit can contain ordered commands for independent aud
   expect(
     committed.entries.slice(-3).map(({ subject }) => {
       if (subject.kind !== "application") throw new Error("Expected staged application entry");
-      return subject.payload.audience;
+      return protectedPayload(subject).audience;
     }),
   ).toEqual(["document", first, second]);
   expect(document.state()).toMatchObject({ projection: preview });
@@ -456,14 +456,14 @@ test("draft count, metadata and JSON depth limits fail atomically before signing
     mode: "draft",
     model: model(),
     system: createStandardSystemProfile(),
-    limits: { maxEntries: 2, maxMetadataBytes: 32, maxDepth: 16 },
+    limits: { maxEntries: 2, maxMetadataBytes: 256, maxDepth: 16 },
   });
   value(await document.dispatch("set", set("one", "within entry bound")));
   const before = document.draft();
   expect(await document.dispatch("set", set("two", "over entry bound"))).toMatchObject(
     failure("RESOURCE_LIMIT"),
   );
-  expect(await document.commit({ oversized: "x".repeat(64) })).toMatchObject(
+  expect(await document.commit({ oversized: "x".repeat(512) })).toMatchObject(
     failure("RESOURCE_LIMIT"),
   );
   let nested: JsonObject = {};
@@ -670,4 +670,28 @@ test("an independently authorized writer stages and commits against readable cov
     "readable",
     "readable",
   ]);
+});
+
+test("later metadata named concord cannot replace the immutable genesis framework declaration", async () => {
+  const owner = await ownerIdentity();
+  const document = await openDraft((await create(owner)).export(), owner);
+  const genesis = wire(document.export()).commits[0].subject.metadata;
+  value(await document.dispatch("set", set("metadata", "same model and system")));
+  const metadata = {
+    concord: {
+      model: { id: "other.model", version: 9 },
+      system: { id: "other.system", version: 9 },
+    },
+    note: "ordinary signed commit metadata",
+  };
+  value(await document.commit(metadata));
+  const raw = wire(document.export());
+  expect(raw.commits[0].subject.metadata).toEqual(genesis);
+  expect(raw.commits.at(-1)!.subject.metadata).toEqual(metadata);
+  expect(document.state()).toMatchObject({
+    status: "ready",
+    projection: { values: { metadata: "same model and system" } },
+  });
+  const reopened = await openDraft(document.export(), owner);
+  expect(reopened.state()).toEqual(document.state());
 });

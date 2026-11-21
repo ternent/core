@@ -1,5 +1,12 @@
 # Concord project brief
 
+Current ownership decision, 2026-11-21: Concord consumes one Ledger-owned container
+and history lifecycle, accepting a break from the current Concord alpha format.
+[ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md) records the accepted
+target and supersedes conflicting ownership and product lists below. The five public
+packages are Identity, Armour, Concord, Seal and Ledger; Tooling is repository
+infrastructure. Integration and documentation reconciliation remain in progress.
+
 Current shipping decision, 2026-11-20: keep the default `document` audience and
 independent group memberships; default-group removal has no implicit effect on
 other groups. [ADR 0015](../adr/0015-keep-audience-memberships-independent.md) records

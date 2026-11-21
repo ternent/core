@@ -5,6 +5,7 @@ import {
   openDocument,
   type CommitSubject,
   type EntrySubject,
+  type RawEntrySubject,
   type Snapshot,
 } from "../src/index.js";
 import { compareSnapshots, verifyDocument } from "../src/protocol/index.js";
@@ -15,7 +16,16 @@ import {
   type Capability,
 } from "../src/system/index.js";
 import { registerModel } from "../src/testing/index.js";
-import { base64, decoded, encoded, hash, referenceSignature, seed } from "./fixtures.js";
+import {
+  base64,
+  decoded,
+  encoded,
+  hash,
+  referenceSignature,
+  seed,
+  frameworkSubject,
+  rawSubject,
+} from "./fixtures.js";
 
 function value<T>(result: { ok: true; value: T } | { ok: false; error: { code: string } }): T {
   if (!result.ok) throw new Error(result.error.code);
@@ -35,26 +45,29 @@ const create = async (owner: IdentityCapability) =>
 const failure = (code: string) => ({ ok: false, error: { code } });
 
 function lastSystem(bytes: Uint8Array) {
-  const entry = decodeWire(bytes).entries.at(-1)!.subject;
+  const entry = frameworkSubject(decodeWire(bytes).entries.at(-1)!.subject);
   if (entry.kind !== "system") throw new Error("expected system entry");
   return entry;
 }
 
 function append(
   bytes: Uint8Array,
-  subjects: EntrySubject[],
+  subjects: (EntrySubject | RawEntrySubject)[],
   signer: IdentityCapability,
   seed: Uint8Array,
 ): Uint8Array {
   const wire = decodeWire(bytes);
-  const entries = subjects.map((subject) => ({ id: hash(subject, "entry"), subject }));
+  const entries = subjects.map((prepared) => {
+    const subject = rawSubject(prepared, signer, wire.head);
+    return { id: hash(subject, "entry"), subject };
+  });
   const subject: CommitSubject = {
     version: 1,
-    suite: "concord-25519-age-v1",
+    suite: "ledger-ed25519-v1",
+    committedAt: "2026-11-20T00:00:00.000Z",
     parent: wire.head,
     nonce: base64(new Uint8Array(16).fill(100)),
     signer: signer.publicIdentity,
-    declaration: null,
     entryIds: entries.map(({ id }) => id),
     metadata: null,
   };
@@ -87,7 +100,7 @@ test("S01/S02 private admission gives complete history and separates viewing fro
   const wire = decodeWire(saved);
   expect(wire.commits.at(-1)!.subject.parent).toBe(editorReceipt.head);
   expect(wire.head).toBe(viewerReceipt.head);
-  const editorEntry = wire.entries.at(-2)!.subject;
+  const editorEntry = frameworkSubject(wire.entries.at(-2)!.subject);
   expect(editorEntry.payload).toMatchObject({
     type: "system.member.set",
     data: { capabilities: ["read", "write"], history: [{ epoch: 0 }] },
@@ -253,7 +266,7 @@ test("S05-S08 and S12 revocation rotates keys and preserves both historical auth
   expect((await open(branch, editor)).state()).toMatchObject({
     projection: { value: "offline branch" },
   });
-  const unauthorized = decodeWire(branch).entries.at(-1)!.subject;
+  const unauthorized = frameworkSubject(decodeWire(branch).entries.at(-1)!.subject);
   if (unauthorized.kind !== "application") throw new Error();
   unauthorized.parent = decodeWire(afterRemoval).head;
   unauthorized.payload.epoch = 1;
@@ -350,7 +363,7 @@ test("S09 signed wrap invariants fail before decryption and decryptability is re
 
   value(await setMember(document, { identity: target.publicIdentity, capabilities: ["read"] }));
   // Compare a reader that cannot open its old admission with one that can open every addressed wrap.
-  const oldWrap = decodeWire(before).entries[1].subject;
+  const oldWrap = frameworkSubject(decodeWire(before).entries[1].subject);
   if (oldWrap.kind !== "system") throw new Error();
   const oldCiphertext = (oldWrap.payload.data.history as { ciphertext: string }[])[0].ciphertext;
   const replayed = await openDocument({

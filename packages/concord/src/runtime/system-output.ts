@@ -1,14 +1,16 @@
 import { validateAgeRecipient, validatePublicIdentity } from "@ternent/identity";
 import { fail } from "../common/errors.js";
 import { freeze } from "../common/immutable.js";
-import { isAudienceId } from "../protocol/schema.js";
+import { isAudienceId, logicalEntry } from "../protocol/schema.js";
 import type { Snapshot, Limits, PublicIdentity } from "../protocol/types.js";
 import type { Capability, Member } from "../model/types.js";
 import type { SystemReplay } from "../system/types.js";
 import { capabilities, json, same } from "./validation.js";
 
 export function checkSystem(output: SystemReplay, wire: Snapshot, lim: Limits): SystemReplay {
-  const application = wire.entries.filter((e) => e.subject.kind === "application");
+  const application = wire.entries
+    .map(logicalEntry)
+    .filter((e) => e.subject.kind === "application");
   if (
     !output ||
     !output.session ||

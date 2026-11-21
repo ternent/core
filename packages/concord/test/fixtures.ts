@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { createHash, createPrivateKey, sign } from "node:crypto";
-import type { Json, Snapshot, CommitSubject, EntrySubject } from "../src/protocol/index.js";
+import type {
+  Json,
+  Snapshot,
+  CommitSubject,
+  EntrySubject,
+  RawEntrySubject,
+  SystemEvent,
+  ProtectedEvent,
+} from "../src/protocol/index.js";
 export function vector<T>(name: string): T {
   return JSON.parse(
     readFileSync(new URL(`../../../docs/concord/vectors/${name}.json`, import.meta.url), "utf8"),
@@ -21,13 +29,13 @@ export function reference(value: unknown): string {
 export const encoded = (value: unknown) => new TextEncoder().encode(reference(value));
 export const base64 = (value: Uint8Array) => Buffer.from(value).toString("base64url");
 export const decoded = (value: string) => new Uint8Array(Buffer.from(value, "base64url"));
-export function hash(subject: EntrySubject, kind: "entry"): `entry:${string}`;
+export function hash(subject: RawEntrySubject, kind: "entry"): `entry:${string}`;
 export function hash(subject: CommitSubject, kind: "commit"): `commit:${string}`;
 export function hash(
-  subject: EntrySubject | CommitSubject,
+  subject: RawEntrySubject | CommitSubject,
   kind: "entry" | "commit",
 ): `entry:${string}` | `commit:${string}` {
-  return `${kind}:${createHash("sha256").update(`concord.${kind}/1\0`).update(reference(subject)).digest("hex")}`;
+  return `${kind}:${createHash("sha256").update(`ledger.${kind}/1\0`).update(reference(subject)).digest("hex")}`;
 }
 export function referenceSignature(subject: CommitSubject, seedBytes: Uint8Array): string {
   const key = createPrivateKey({
@@ -38,7 +46,7 @@ export function referenceSignature(subject: CommitSubject, seedBytes: Uint8Array
     format: "der",
     type: "pkcs8",
   });
-  return sign(null, Buffer.from(`concord.signature/1\0${reference(subject)}`), key).toString(
+  return sign(null, Buffer.from(`ledger.signature/1\0${reference(subject)}`), key).toString(
     "base64url",
   );
 }
@@ -94,4 +102,41 @@ export function mutate(source: Snapshot, operations: Mutation["operations"]): Sn
     else (parent as Record<string, Json>)[key] = value;
   }
   return root as unknown as Snapshot;
+}
+
+// Test adapters expose the signed raw payload explicitly; no logical view is hashed.
+export function frameworkSubject(subject: RawEntrySubject): EntrySubject {
+  return {
+    version: 1,
+    parent: subject.parent,
+    nonce: subject.nonce,
+    kind: subject.kind,
+    payload: subject.payload.data,
+  } as EntrySubject;
+}
+export function systemPayload(subject: RawEntrySubject): SystemEvent {
+  if (subject.kind !== "system") throw new Error("Expected raw system entry");
+  return subject.payload.data as SystemEvent;
+}
+export function protectedPayload(subject: RawEntrySubject): ProtectedEvent {
+  if (subject.kind !== "application") throw new Error("Expected raw application entry");
+  return subject.payload.data as ProtectedEvent;
+}
+export function rawSubject(
+  subject: EntrySubject | RawEntrySubject,
+  signer: import("@ternent/armour").IdentityCapability,
+  parent: CommitSubject["parent"],
+): RawEntrySubject {
+  return "author" in subject
+    ? { ...subject, parent, author: signer.publicIdentity.id }
+    : {
+        version: 1,
+        parent,
+        nonce: subject.nonce,
+        kind: subject.kind,
+        author: signer.publicIdentity.id,
+        authoredAt: "2026-11-20T00:00:00.000Z",
+        meta: null,
+        payload: { type: "plain", data: subject.payload },
+      };
 }

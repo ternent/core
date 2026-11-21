@@ -1,8 +1,27 @@
 # @ternent/concord
 
-Portable signed documents with independent encrypted groups and explicit replay coverage.
+A framework composing Ledger, Identity and Armour into portable signed documents
+with independent encrypted groups and explicit application replay coverage.
 The alpha implements
 create → dispatch/commit → export → open → verify → replay → inspect.
+
+Concord stores its framework records inside the common `ledger` v1 container.
+Ledger owns entry staging, commit construction, signatures, verification and ordered
+history. The signed genesis commit's `metadata.concord` declares the system and model.
+A raw Ledger entry keeps its `system` or `application` kind, with the framework
+envelope in `subject.payload.data`. Encrypted application values remain ciphertext;
+Ledger's JSON envelope does not make them plaintext.
+
+Concord retains command-intent drafts and model previews. When committing, it creates
+a private Ledger candidate, prepares/encrypts and appends the entries, commits through
+Ledger, and validates full system and application replay before adopting the candidate.
+Failures retain the active signed history and command draft. Storage publication is
+still separate. A standalone Ledger reader can verify/export the same container
+without a Concord model, decryptor or permission system.
+
+This alpha breaks the former Concord-only signed container; no legacy import or
+conversion adapter is included. See [the current profile](../../docs/concord/alpha-protocol.md)
+and [ADR 0018](../../docs/adr/0018-use-one-ledger-container-for-concord.md).
 
 ```ts
 import { createDocument, openDocument } from "@ternent/concord";

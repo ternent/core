@@ -1,3 +1,12 @@
+import {
+  Fault,
+  ok as historyOk,
+  error as historyError,
+  fail as historyFail,
+  caught as historyCaught,
+  attempt as historyAttempt,
+} from "@ternent/ledger/protocol";
+export { Fault };
 import type { JsonObject } from "../protocol/types.js";
 export type ErrorCode =
   | "JSON_INVALID"
@@ -69,32 +78,19 @@ export type ConcordError = {
   details?: Readonly<JsonObject>;
 };
 export type Result<T, E = ConcordError> = { ok: true; value: T } | { ok: false; error: E };
-export const ok = <T>(value: T): Result<T> => ({ ok: true, value });
-export const error = (code: ErrorCode, phase: Phase, path?: string): ConcordError => ({
-  code,
-  phase,
-  message: code.replaceAll("_", " ").toLowerCase(),
-  ...(path === undefined ? {} : { path }),
-});
-export class Fault extends Error {
-  constructor(readonly finding: ConcordError) {
-    super(finding.code);
-  }
-}
+export const ok = <T>(value: T): Result<T> => historyOk(value) as Result<T>;
+export const error = (code: ErrorCode, phase: Phase, path?: string): ConcordError =>
+  historyError(code, phase, path) as ConcordError;
 export function fail(code: ErrorCode, phase: Phase = "protocol", path?: string): never {
-  throw new Fault(error(code, phase, path));
+  return historyFail(code, phase, path);
 }
 export function caught(cause: unknown, fallback: ErrorCode, phase: Phase): ConcordError {
-  return cause instanceof Fault ? cause.finding : error(fallback, phase);
+  return historyCaught(cause, fallback, phase) as ConcordError;
 }
 export function attempt<T>(
   body: () => T,
   fallback: ErrorCode = "SCHEMA_INVALID",
   phase: Phase = "protocol",
 ): Result<T> {
-  try {
-    return ok(body());
-  } catch (cause) {
-    return { ok: false, error: caught(cause, fallback, phase) };
-  }
+  return historyAttempt(body, fallback, phase) as Result<T>;
 }

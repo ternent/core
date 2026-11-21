@@ -1,5 +1,11 @@
 # Concord alpha implementation blueprint
 
+Current container/ownership revision: [ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md)
+and [the Ledger-backed profile](alpha-protocol.md) supersede the Concord-only wire,
+signing domains and internal-Ledger ownership described in this earlier plan.
+Ledger is a standalone public product. Concord delegates its history lifecycle;
+UI and public Tooling are outside the five-product release.
+
 Shipping update, 2026-11-20: independent memberships, scoped command routing and
 readable/locked replay are implemented. [ADR 0015](../adr/0015-keep-audience-memberships-independent.md)
 and [ADR 0016](../adr/0016-route-each-command-to-one-audience.md) record the decisions.

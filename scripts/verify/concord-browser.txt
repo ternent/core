@@ -4,8 +4,17 @@ import { createDocument, openDocument, defineModel, type AudienceId, type ModelI
 import { createGroup, createStandardSystemProfile, setMember } from "@ternent/concord/system";
 import { registerModel, createMemoryExpectedHeadStore } from "@ternent/concord/testing";
 import { generateIdentity, encryptForIdentities, decryptWithIdentity, recipientFromIdentity } from "@ternent/armour";
-import { createIdentity } from "@ternent/identity";
+import { createIdentity, generateSigner } from "@ternent/identity";
+import { createLedger } from "@ternent/ledger";
 export async function proveConcord() {
+  const logSigner = await generateSigner(); if (!logSigner.ok) throw new Error(logSigner.error.code);
+  const log = await createLedger({signer:logSigner.value});
+  await log.create();
+  await log.append({kind:"browser",payload:{value:"plain signed log"}});
+  if ((await log.export()).entries.length !== 0) throw new Error("Ledger draft leaked into export");
+  await log.commit();
+  const logReader = await createLedger(); await logReader.import(await log.export());
+  if ((await logReader.verify()).integrity !== "valid" || JSON.stringify((await logReader.replay())[0].payload.data) !== JSON.stringify({value:"plain signed log"})) throw new Error("browser Ledger failed");
   const hostIdentity = await createIdentity();
   const helperPlaintext = new TextEncoder().encode("browser helpers need no setup");
   const helperCiphertext = await encryptForIdentities({identities:[hostIdentity],data:helperPlaintext});

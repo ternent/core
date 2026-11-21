@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vite-plus/test";
+import { createLedger, verifyLedger } from "@ternent/ledger";
 import {
   identityFromSeed,
   generateIdentity,
@@ -13,7 +14,16 @@ import {
   createMemoryArtifactStore,
 } from "../src/testing/index.js";
 import { verifyDocument } from "../src/protocol/index.js";
-import { vector, seed, encoded, base64, decoded, resign } from "./fixtures.js";
+import {
+  vector,
+  seed,
+  encoded,
+  base64,
+  decoded,
+  resign,
+  protectedPayload,
+  systemPayload,
+} from "./fixtures.js";
 const value = <T>(result: { ok: true; value: T } | { ok: false; error: { code: string } }): T => {
   if (!result.ok) throw new Error(result.error.code);
   return result.value;
@@ -61,7 +71,6 @@ test("R01-R05 immediate create, dispatch, export, reopen, independent verify and
     "entries",
     "format",
     "head",
-    "metadata",
     "version",
   ]);
   const reopened = await openDocument({ bytes: saved, model, system, signer: identity });
@@ -245,7 +254,7 @@ test("R11-R13 integrity-valid private events still require authentication, exact
       body = structuredClone(expected.eventPlaintext);
     edit(body);
     if (wire.entries[1].subject.kind !== "application") throw new Error("fixture");
-    wire.entries[1].subject.payload.ciphertext = base64(
+    protectedPayload(wire.entries[1].subject).ciphertext = base64(
       value(await encryptAge({ recipients: [expected.groupRecipient], plaintext: encoded(body) })),
     );
     resign(wire);
@@ -256,9 +265,9 @@ test("R11-R13 integrity-valid private events still require authentication, exact
   }
   const wire = vector<Snapshot>("owner.document");
   if (wire.entries[1].subject.kind !== "application") throw new Error("fixture");
-  const ciphertext = decoded(wire.entries[1].subject.payload.ciphertext);
+  const ciphertext = decoded(protectedPayload(wire.entries[1].subject).ciphertext);
   ciphertext[ciphertext.length - 1] ^= 1;
-  wire.entries[1].subject.payload.ciphertext = base64(ciphertext);
+  protectedPayload(wire.entries[1].subject).ciphertext = base64(ciphertext);
   resign(wire);
   expect((await open({ bytes: encoded(wire) })).inspect().findings[0].code).toBe(
     "DECRYPTION_INVALID",
@@ -458,22 +467,23 @@ test("R19 malformed bootstrap owner/wrap and unknown system events remain inspec
     [
       (wire: Snapshot) => {
         if (wire.entries[0].subject.kind !== "system") throw new Error();
-        wire.entries[0].subject.payload.data.wraps = [];
+        systemPayload(wire.entries[0].subject).data.wraps = [];
       },
       "SYSTEM_EVENT_INVALID",
     ],
     [
       (wire: Snapshot) => {
         if (wire.entries[0].subject.kind !== "system") throw new Error();
-        (wire.entries[0].subject.payload.data.wraps as { ciphertext: string }[])[0].ciphertext =
-          "AA";
+        (
+          systemPayload(wire.entries[0].subject).data.wraps as { ciphertext: string }[]
+        )[0].ciphertext = "AA";
       },
       "KEY_WRAP_INVALID",
     ],
     [
       (wire: Snapshot) => {
         if (wire.entries[0].subject.kind !== "system") throw new Error();
-        wire.entries[0].subject.payload.type = "system.member.future";
+        systemPayload(wire.entries[0].subject).type = "system.member.future";
       },
       "UNSUPPORTED_SYSTEM_EVENT",
     ],
@@ -666,7 +676,8 @@ test("authoring accepts draft mode but rejects alternative profile declarations"
 
 test("canonical export must fit the byte budget before any extension runs", async () => {
   const wire = vector<Snapshot>("owner.document");
-  wire.metadata = { n: 1000000000000000 };
+  wire.commits.at(-1)!.subject.metadata = { n: 1000000000000000 };
+  resign(wire);
   const canonical = encoded(wire),
     transport = new TextEncoder().encode(
       new TextDecoder().decode(canonical).replace("1000000000000000", "1e15"),
@@ -874,4 +885,95 @@ test("parseable failed verification retains detached untrusted history without r
   expect(malformed.inspect().history).toEqual([]);
   expect(initial).not.toHaveBeenCalled();
   expect(replay).not.toHaveBeenCalled();
+});
+
+test("Concord exports one raw Ledger container that standalone Ledger loads without framework dependencies", async () => {
+  const signer = await owner();
+  const document = value(
+    await createDocument({ identity: signer, model, system: createStandardSystemProfile() }),
+  );
+  value(await document.dispatch("set", { value: "one shared history" }));
+  const bytes = document.export();
+  const raw = JSON.parse(new TextDecoder().decode(bytes)) as Snapshot;
+  expect(raw.format).toBe("ledger");
+  expect(raw.commits[0].subject.metadata).toEqual({
+    concord: { system: { id: "concord.standard", version: 1 }, model: model.ref },
+  });
+  expect(raw.commits.every(({ subject }) => subject.suite === "ledger-ed25519-v1")).toBe(true);
+  expect(raw.entries.every(({ subject }) => subject.payload.type === "plain")).toBe(true);
+  expect(await verifyLedger(bytes)).toMatchObject({ integrity: "valid", head: raw.head });
+  const standalone = await createLedger();
+  await standalone.load(bytes);
+  expect(await standalone.export()).toEqual(raw);
+  const entries = await standalone.replay();
+  expect(entries.map(({ entryId }) => entryId)).toEqual(raw.entries.map(({ id }) => id));
+  expect(entries.at(-1)!.payload.type).toBe("plain");
+  expect(JSON.stringify(entries)).not.toContain("one shared history");
+  const reopened = await openDocument({
+    bytes: encoded(await standalone.export()),
+    model,
+    system: createStandardSystemProfile(),
+    signer,
+  });
+  expect(reopened.state()).toEqual(document.state());
+});
+
+test("prepared encryption nonces survive Ledger authoring and wrong parents fail before signing", async () => {
+  const identity = await owner();
+  const system = createStandardSystemProfile();
+  let wrongParent = true;
+  let preparedNonce = "";
+  const profile = {
+    ...system,
+    async prepare(input: Parameters<typeof system.prepare>[0]) {
+      const result = await system.prepare(input);
+      if (!result.ok) return result;
+      const entries = result.value.map((entry) => structuredClone(entry));
+      preparedNonce = entries[0].nonce;
+      if (wrongParent) entries[0].parent = `commit:${"0".repeat(64)}`;
+      return { ok: true as const, value: entries };
+    },
+  };
+  const sign = vi.fn(identity.sign);
+  const document = await openDocument({
+    bytes: bytes(),
+    model,
+    system: profile,
+    signer: { ...identity, sign },
+    mode: "draft",
+  });
+  value(await document.dispatch("set", { value: "same context" }));
+  const before = document.export();
+  const pending = document.draft();
+  expect(await document.commit()).toMatchObject({ ok: false, error: { code: "SYSTEM_FAILED" } });
+  expect(sign).not.toHaveBeenCalled();
+  expect(document.export()).toEqual(before);
+  expect(document.draft()).toEqual(pending);
+  wrongParent = false;
+  const receipt = value(await document.commit());
+  const raw = JSON.parse(new TextDecoder().decode(document.export())) as Snapshot;
+  expect(raw.entries.at(-1)!.subject.nonce).toBe(preparedNonce);
+  expect(raw.entries.at(-1)!.id).toBe(receipt.entryIds[0]);
+  expect(document.inspect().entries!.at(-1)!.entryId).toBe(raw.entries.at(-1)!.id);
+  expect(document.state()).toMatchObject({ projection: { value: "same context" } });
+});
+
+test("Ledger signing callbacks retain Concord's synchronous reentry guard", async () => {
+  const identity = await owner();
+  let document!: Awaited<ReturnType<typeof open>>;
+  let nested: Promise<unknown> | undefined;
+  const signer = {
+    ...identity,
+    sign(message: Uint8Array) {
+      nested = document.dispatch("set", { value: "nested signer command" });
+      return identity.sign(message);
+    },
+  };
+  document = await open({ signer });
+  value(await document.dispatch("set", { value: "outer command" }));
+  expect(await nested).toMatchObject({ ok: false, error: { code: "HOST_CONFIGURATION" } });
+  expect(document.state()).toMatchObject({ projection: { value: "outer command" } });
+  expect(
+    (JSON.parse(new TextDecoder().decode(document.export())) as Snapshot).commits,
+  ).toHaveLength(3);
 });

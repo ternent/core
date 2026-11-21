@@ -1,13 +1,16 @@
-# Concord alpha protocol 1
+# Concord profile over the common Ledger container
 
-Shipping update, 2026-11-20: independent groups and readable replay are implemented.
-The [standard profile](standard-profile.md) and [group contract](group-profile-design.md)
-define the pre-release revision; canonical encoding, hashing and signatures are unchanged.
+Accepted breaking alpha revision, 2026-11-21, under
+[ADR 0018](../adr/0018-use-one-ledger-container-for-concord.md). Ledger owns the
+container, history lifecycle and all history cryptography. Concord supplies framework
+records, authority, group encryption and application replay. Former Concord-only
+containers and historical `concord-ledger` containers are not accepted by this alpha;
+no import/conversion adapter is implied.
 
-Status: implementation contract, 2026-10-21. Read with the
-[blueprint](implementation-blueprint.md), [standard profile](standard-profile.md),
-and [conformance plan](conformance.md). MUST and MUST NOT are normative. These are new
-alpha formats; legacy `concord-ledger` containers and Seal proofs are not this format.
+Read with [Ledger's format and interface](../../packages/ledger/README.md), the
+[standard profile](standard-profile.md), [group contract](group-profile-design.md)
+and [current vectors](vectors/README.md). MUST and MUST NOT describe the checked
+contract, not historical fixture parity or completed registry publication.
 
 ## 1. Values and bytes
 
@@ -41,12 +44,12 @@ An integral representation such as `1.0` or `1e0` imports as 1; export emits 1.
 zero unused bits, no whitespace or `=`, and decode/re-encode equality. Hashes use
 lowercase hexadecimal. All protocol objects are closed: missing or extra fields
 fail schema validation. Fields typed `JsonObject | null` are the explicit open
-metadata slots. Required nulls are not omitted. No timestamps are required or
-used for ordering; a model can record authored time as event data.
+metadata slots. Required nulls are not omitted. Ledger timestamps are signed canonical UTC ISO
+strings; parent linkage and array order determine history order.
 
 ## 2. Identity and algorithms
 
-The sole suite string is `concord-25519-age-v1`. `PublicIdentity` has exactly:
+Ledger uses the suite string `ledger-ed25519-v1`. `PublicIdentity` has exactly:
 
 ```ts
 type PublicIdentity = {
@@ -87,164 +90,70 @@ recipients. Armour owns age implementation; Concord MUST NOT implement an altern
 encryption construction. Age bytes are stored as B(bytes). Fresh age file keys,
 ephemeral keys, and nonces are required for every encryption.
 
-## 3. Wire schema
+## 3. Framework records inside Ledger
 
-The types below describe JSON, not caller-supplied executable code. `EntryId` is
-`entry:` followed by 64 lowercase hex characters; `CommitId` uses `commit:`.
-`Nonce` is B(16 CSPRNG bytes). `ModelRef.id` matches
-`^[a-z][a-z0-9.-]{0,127}$`; `version` is an integer from 1 to 2147483647.
-All other string lengths below are UTF-8 byte lengths, unless stated otherwise.
+The outer object is exactly the common Ledger snapshot: `format: "ledger"`,
+`version: 1`, `documentId`, `head`, ordered `commits` and ordered `entries`.
+There is no outer Concord format, signature domain or unsigned annotation slot.
+Ledger entry/commit IDs and signatures use its `ledger.entry/1`, `ledger.commit/1`
+and `ledger.signature/1` domains, each followed by NUL and the canonical subject.
+The full raw subject, including timestamps and metadata, is bound by the history.
 
-```ts
-type ModelRef = { id: string; version: number };
-type Declaration = {
-  system: ModelRef; // alpha authors { id: "concord.standard", version: 1 }
-  model: ModelRef;
-};
-type Snapshot = {
-  format: "concord";
-  version: 1;
-  documentId: CommitId;
-  head: CommitId;
-  commits: CommitRecord[]; // exactly genesis -> selected head
-  entries: EntryRecord[]; // exactly flattened commit.entryIds order
-  metadata: JsonObject | null; // unsigned container annotations
-};
-type CommitSubject = {
-  version: 1;
-  suite: "concord-25519-age-v1";
-  parent: CommitId | null;
-  nonce: Nonce;
-  signer: PublicIdentity;
-  declaration: Declaration | null;
-  entryIds: EntryId[]; // nonempty; unique throughout this snapshot
-  metadata: JsonObject | null; // signed; e.g. { message: "Rename board" }
-};
-type CommitRecord = {
-  id: CommitId;
-  subject: CommitSubject;
-  signature: string; // B(64-byte Ed25519 signature)
-};
-type EntrySubject = {
-  version: 1;
-  parent: CommitId | null; // equals containing commit's parent
-  nonce: Nonce;
-  kind: "system" | "application";
-  payload: SystemEvent | ProtectedEvent; // selected by kind
-};
-type EntryRecord = { id: EntryId; subject: EntrySubject };
-type SystemEvent = {
-  type: string;
-  version: number; // positive ModelRef.version range; profile 1 uses version 1
-  data: JsonObject; // exact per-event schema in standard-profile.md
-};
-type ProtectedEvent = {
-  audience: AudienceId;
-  epoch: number; // safe integer >= 0
-  ciphertext: string; // B(binary age file)
-};
-```
-
-`AudienceId` is `"document"` or `"group:" + B(16 random bytes)`, with a canonical
-base64url suffix. The profile validates existence and authority for that audience. Application event names and data stay inside
-ciphertext. The public envelope discloses signer identities, membership/capability
-changes, epoch recipients, parent relationships, entry counts, sizes, and signed
-commit messages. Messages and container annotations MUST NOT be advertised as private.
-
-The canonical plaintext of an application entry is:
+The signed genesis commit metadata is exactly:
 
 ```ts
-type EventPlaintext = {
-  context: "concord.application/1";
-  parent: CommitId; // application entries are forbidden in genesis
-  nonce: Nonce; // equals outer entry nonce
-  model: ModelRef; // equals genesis declaration
-  audience: AudienceId;
-  epoch: number; // equals outer epoch
-  event: { type: string; version: number; data: Json };
-};
+{ concord: { system: { id: string, version: number }, model: { id: string, version: number } } }
 ```
 
-System and application event types use the same string grammar as ModelRef.id;
-event versions use the same positive integer range. Exact system event data validation
-belongs to the declared profile; application data validation belongs to its model.
+References use lowercase IDs matching `^[a-z][a-z0-9.-]{0,127}$` and integer versions
+from 1 to 2147483647. Only genesis metadata establishes these requirements. Later
+commit metadata is arbitrary signed JSON metadata and cannot replace the declaration.
+A syntactically valid unknown reference is a runtime requirement, not a bad signature.
 
-Encrypt C(EventPlaintext) to the current group epoch recipient. On decryption,
-require exact canonical plaintext bytes and all contextual equalities. Entry nonce
-and parent bind ciphertext to its authored location without a self-referential ID.
-Commit signer is the sole actor for every entry in that commit; there is no separate
-actor claim. A model may record a subject such as assignee, but cannot claim it signed.
-Copying ciphertext to a fresh envelope cannot pass these checks.
+Concord uses raw Ledger entries with `kind: "system" | "application"`:
 
-## 4. Identifiers and signature subject
+- `system`: `subject.payload.data` is `{ type, version, data }`, where data is a JSON
+  object. The standard profile owns its event schemas and historical authority.
+- `application`: `subject.payload.data` is `{ audience, epoch, ciphertext }`.
+  Audience is `document` or a canonical 16-byte `group:` identifier; epoch is a
+  non-negative safe integer; ciphertext is canonical base64url of a binary age file.
 
-`||` means byte concatenation; each displayed `\0` below is one zero byte.
+The raw Ledger payload envelope is `{ type: "plain", data: <framework record> }`.
+This describes its JSON representation; encrypted application content stays ciphertext.
+The Ledger subject's parent, nonce and bound author supply the history context.
+Concord's prepared/replay `EntrySubject` is a logical view retaining the raw entry ID;
+it is not another signed subject and MUST NOT be independently hashed as the wire record.
 
-```text
-entry.id  = "entry:"  + hex(SHA-256(UTF8("concord.entry/1\0")  || C(entry.subject)))
-commit.id = "commit:" + hex(SHA-256(UTF8("concord.commit/1\0") || C(commit.subject)))
-message   = UTF8("concord.signature/1\0") || C(commit.subject)
-signature = B(Ed25519.Sign(seed, message))
-```
+## 4. Verification, authoring and replay
 
-Neither identifier field nor signature is in the unsigned subject. Sign the subject
-bytes above, not the ID text, its digest, a Seal artifact, or a surrounding container.
-Ordered entry IDs and parent linkage are therefore covered by both ID and signature.
-Entry signatures are unnecessary: the containing commit authenticates their hashes.
-Identity capability `sign` accepts these exact bytes without adding its own context.
-Legacy Identity `signBytes` adds a prefix and cannot be substituted unchanged.
+Ledger first enforces strict parsing, resource bounds, closed record schemas,
+identity validity, unique/ordered referenced records, content hashes, parent linkage
+and signatures. Genesis may be empty in standalone Ledger; Concord's standard
+profile creates one initial system record atomically in its genesis commit.
+Only after Ledger verification may Concord validate framework envelopes/declaration,
+execute the system pass, decrypt available content and run application replay.
+Invalid or incomplete reachable history never produces a trusted application state.
 
-Each authoring operation allocates a fresh commit nonce and one nonce per entry.
-Reject repeated entry nonces within one commit as `SCHEMA_INVALID`. Random collisions across histories do
-not define equivalence; IDs and ancestry do. Equal commands issued again normally
-produce different snapshots. Tests replay saved ciphertext and entries.
+Concord delegates create/load, entry staging, commits, verification and export to
+Ledger. It retains application command-intent drafts and previews. At commit time it
+prepares records, builds a private Ledger candidate, and runs the complete framework
+validation/replay before adopting that candidate and projection together. Failure
+preserves the active history and pending command draft. Export contains committed
+Ledger history; storage publication remains a separate host operation.
 
-## 5. Genesis, chain, and container validation
+Default Concord limits remain 16 MiB input/export, 10,000 commits, 100,000 entries,
+1 MiB decoded ciphertext per application entry/key wrap, 64 nesting levels and
+64 KiB canonical metadata per slot. Metadata bounds include the signed genesis
+declaration. Exceeding a bound returns `RESOURCE_LIMIT`/unsupported. Limits are
+checked before decryption and publication; framework replay and metadata access
+must not bypass the limits already enforced by Ledger.
 
-Validation order is: resource limits and parsing; supported outer version and schema;
-array/ID uniqueness and exact membership; subject hashes; linkage and declaration;
-identity/signature validation in genesis-to-head order. Stop at the first failure
-in this order and report the array index/JSON pointer. Never invoke extension code
-before protocol validation succeeds.
+Integrity is separate from authority, decryptability, application validity and
+freshness. A standalone Ledger reader can verify the same bytes without Concord's
+model or group keys. A valid older prefix remains cryptographically valid; only an
+external remembered head can establish that it is stale. There is no automatic merge.
 
-1. There is at least one commit. The first has null parent and non-null declaration;
-   every other commit has null declaration and points to the immediately preceding
-   commit's ID. Its suite and version remain constant.
-2. `documentId` equals first commit ID; `head` equals last commit ID. No cycles,
-   gaps, empty commits, extra roots, or alternatives in the same container.
-3. Each listed entry exists exactly once, in flattened order. Extra/unreferenced
-   entries or commits fail `UNREFERENCED_RECORD`; repeated references or records
-   fail `DUPLICATE_RECORD`. No detached bytes are silently ignored as trusted history.
-4. Each entry's parent matches the containing commit parent. All hashes match and
-   all signatures pass. System event meaning and signer authority are checked later.
-5. Protocol verification can succeed without knowing the model or system profile.
-   Parse declaration refs structurally; an unrecognized ref is a runtime requirement,
-   not a bad signature. This alpha authors only the standard profile reference.
-
-Unsupported outer versions/suites return `unsupported`, never an assertion of invalid
-cryptography. A schema-valid unknown entry kind also requires unsupported inspection;
-this version authors only the two declared kinds. Known-kind malformed payloads fail
-schema validation. A missing ancestor is invalid/incomplete, never partial readiness.
-Alpha accepts no checkpoints or authoritative replay ranges.
-
-Container annotations can be changed without invalidating history. Signed commit
-metadata cannot. Editing head to a real ancestor and removing its descendants yields
-a different valid older snapshot; editing head alone fails HEAD_INVALID because it
-does not select the final commit in the supplied chain. Integrity cannot detect the
-former as stale without an external anchor.
-
-Default host resource limits are 16 MiB input/export, 10,000 commits, 100,000 entries,
-1 MiB decoded ciphertext per entry or key wrap, 64 nesting levels, and 64 KiB canonical
-metadata per slot. These are implementation limits, not signature semantics. Exceeding
-one yields `RESOURCE_LIMIT` with status `unsupported`, not `invalid`. A host can lower
-or raise limits explicitly; all implementations must accept the supplied bounded vectors.
-Bounds are checked before allocations and decryption. Do not traverse recursively
-without a depth bound or assign attacker keys through object prototypes.
-For the depth limit, a root primitive has depth 0, a root object/array depth 1, and
-each nested object/array adds 1. Ciphertext bounds apply independently to application
-files and each key wrap; metadata bounds apply independently to each metadata object.
-
-## 6. Snapshot relationships and anchors
+## 5. Snapshot relationships and anchors
 
 `compareSnapshots(a, b)` first protocol-verifies both. Different document IDs return
 `unrelated`; same heads return `equal`; if a.head is in b's ancestry return `behind`;

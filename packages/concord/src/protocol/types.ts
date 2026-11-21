@@ -1,4 +1,3 @@
-import type { PublicIdentity } from "@ternent/identity";
 import type { ConcordError } from "../common/errors.js";
 export type { PublicIdentity } from "@ternent/identity";
 export type Json = null | boolean | string | number | Json[] | { [key: string]: Json };
@@ -13,29 +12,18 @@ export type GroupId = `group:${string}`;
 export type AudienceId = "document" | GroupId;
 export type ProtectedEvent = { audience: AudienceId; epoch: number; ciphertext: string };
 type EntryBase = { version: 1; parent: CommitId | null; nonce: string };
+/** Prepared or replayed framework view; its signed source is RawEntrySubject. */
 export type EntrySubject = EntryBase &
   ({ kind: "system"; payload: SystemEvent } | { kind: "application"; payload: ProtectedEvent });
+/** Logical replay view retaining the corresponding raw Ledger entry ID. */
 export type EntryRecord = { id: EntryId; subject: EntrySubject };
-export type CommitSubject = {
-  version: 1;
-  suite: "concord-25519-age-v1";
-  parent: CommitId | null;
-  nonce: string;
-  signer: PublicIdentity;
-  declaration: Declaration | null;
-  entryIds: EntryId[];
-  metadata: JsonObject | null;
-};
-export type CommitRecord = { id: CommitId; subject: CommitSubject; signature: string };
-export type Snapshot = {
-  format: "concord";
-  version: 1;
-  documentId: CommitId;
-  head: CommitId;
-  commits: CommitRecord[];
-  entries: EntryRecord[];
-  metadata: JsonObject | null;
-};
+// History records are the shared signed Ledger container. EntrySubject above is a
+// prepared/replay view; it is never independently hashed or signed by Concord.
+export type CommitSubject = import("@ternent/ledger").LedgerCommitSubject;
+export type CommitRecord = import("@ternent/ledger").LedgerCommitRecord;
+export type Snapshot = import("@ternent/ledger").LedgerSnapshot;
+export type RawEntrySubject = import("@ternent/ledger").LedgerEntrySubject;
+export type RawEntryRecord = import("@ternent/ledger").LedgerEntryRecord;
 export type Limits = {
   maxBytes: number;
   maxCommits: number;

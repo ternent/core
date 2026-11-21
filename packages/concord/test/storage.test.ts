@@ -8,7 +8,7 @@ import {
   createMemoryExpectedHeadStore,
   registerModel,
 } from "../src/testing/index.js";
-import { encoded, resign, seed } from "./fixtures.js";
+import { encoded, resign, seed, systemPayload } from "./fixtures.js";
 
 function value<T>(result: { ok: true; value: T } | { ok: false; error: { code: string } }): T {
   if (!result.ok) throw new Error(result.error.code);
@@ -291,13 +291,17 @@ test("protocol head verification is independent of installed model support and p
   for (const mode of ["unknown-model", "unknown-system", "invalid-owner"] as const) {
     const snapshot = JSON.parse(new TextDecoder().decode(original)) as Snapshot;
     if (mode === "unknown-model")
-      snapshot.commits[0].subject.declaration!.model = { id: "concord.unavailable", version: 1 };
+      (
+        snapshot.commits[0].subject.metadata!.concord as import("../src/index.js").Declaration
+      ).model = { id: "concord.unavailable", version: 1 };
     else if (mode === "unknown-system")
-      snapshot.commits[0].subject.declaration!.system = { id: "concord.unavailable", version: 1 };
+      (
+        snapshot.commits[0].subject.metadata!.concord as import("../src/index.js").Declaration
+      ).system = { id: "concord.unavailable", version: 1 };
     else {
       const entry = snapshot.entries[0].subject;
       if (entry.kind !== "system") throw new Error("Expected system genesis");
-      entry.payload.data.owner = other.publicIdentity;
+      systemPayload(entry).data.owner = other.publicIdentity;
     }
     const bytes = encoded(resign(snapshot));
     expect((await verifyDocument(bytes)).integrity).toBe("valid");

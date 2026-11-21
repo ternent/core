@@ -9,6 +9,7 @@ import {
   type AudienceId,
   type CommitSubject,
   type EntrySubject,
+  type RawEntrySubject,
   type ModelIssue,
   type ProjectionResult,
   type Result,
@@ -21,7 +22,16 @@ import {
   removeMember,
   setMember,
 } from "../src/system/index.js";
-import { base64, encoded, hash, referenceSignature, seed, vector } from "./fixtures.js";
+import {
+  base64,
+  encoded,
+  hash,
+  referenceSignature,
+  seed,
+  vector,
+  frameworkSubject,
+  rawSubject,
+} from "./fixtures.js";
 
 type Input = { audience: string; key: string; value: string; admin: boolean };
 type Commands = { put: Input; cross: Input & { other: string } };
@@ -129,20 +139,20 @@ const open = (bytes: Uint8Array, signer?: IdentityCapability, model = mapModel()
 
 function append(
   bytes: Uint8Array,
-  subject: EntrySubject,
+  prepared: EntrySubject | RawEntrySubject,
   signer: IdentityCapability,
   signerSeed: Uint8Array,
 ): Uint8Array {
   const snapshot = wire(bytes);
-  subject.parent = snapshot.head;
+  const subject = rawSubject(prepared, signer, snapshot.head);
   const entry = { id: hash(subject, "entry"), subject };
   const commit: CommitSubject = {
     version: 1,
-    suite: "concord-25519-age-v1",
+    suite: "ledger-ed25519-v1",
+    committedAt: "2026-11-20T00:00:00.000Z",
     parent: snapshot.head,
     nonce: base64(new Uint8Array(16).fill(101)),
     signer: signer.publicIdentity,
-    declaration: null,
     entryIds: [entry.id],
     metadata: null,
   };
@@ -292,7 +302,7 @@ test("G06-G09 removal rotates only its group and readmission grants every saved 
       capabilities: ["read", "write"],
     }),
   );
-  const last = wire(document.export()).entries.at(-1)!.subject;
+  const last = frameworkSubject(wire(document.export()).entries.at(-1)!.subject);
   expect(last.payload).toMatchObject({
     type: "system.member.set",
     data: { audience: accounts, history: [{ epoch: 0 }, { epoch: 1 }] },
@@ -491,7 +501,7 @@ test("G15 ciphertext cannot be substituted between independently keyed groups", 
   const second = value(await createGroup(document)).audience;
   const before = document.export();
   value(await document.dispatch("put", put(first, "secret", "bound to first group")));
-  const entry = wire(document.export()).entries.at(-1)!.subject;
+  const entry = frameworkSubject(wire(document.export()).entries.at(-1)!.subject);
   if (entry.kind !== "application") throw new Error("Expected application entry");
   entry.payload.audience = second;
   const substituted = append(before, entry, owner, seed);
@@ -512,7 +522,7 @@ test("G16 protocol tampering never reaches either model replay path", async () =
   const group = value(await createGroup(document)).audience;
   value(await document.dispatch("put", put(group, "private", "untampered")));
   const corrupt = wire(document.export());
-  const entry = corrupt.entries.at(-1)!.subject;
+  const entry = frameworkSubject(corrupt.entries.at(-1)!.subject);
   if (entry.kind !== "application") throw new Error("Expected application entry");
   entry.payload.ciphertext = "AA";
   const model = mapModel();
@@ -692,7 +702,7 @@ async function systemRejection(
 }
 
 function systemEntry(bytes: Uint8Array): Extract<EntrySubject, { kind: "system" }> {
-  const entry = wire(bytes).entries.at(-1)!.subject;
+  const entry = frameworkSubject(wire(bytes).entries.at(-1)!.subject);
   if (entry.kind !== "system") throw new Error("Expected system entry");
   return entry;
 }

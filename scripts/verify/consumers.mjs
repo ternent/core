@@ -164,6 +164,11 @@ try {
   ])
     cpSync(resolve(root, "docs/concord/vectors", name), join(consumer, name));
   cpSync(resolve(root, "docs/seal/vectors/proof.v2.json"), join(consumer, "seal-proof.v2.json"));
+  cpSync(
+    resolve(root, "packages/ledger/test/vectors/signed-log.json"),
+    join(consumer, "ledger-signed-log.json"),
+  );
+  put("ledger.mjs", readFileSync(resolve(root, "scripts/verify/ledger-consumer.txt"), "utf8"));
   put("seal.mjs", readFileSync(resolve(root, "scripts/verify/seal-consumer.txt"), "utf8"));
   put(
     "seal-isolation.mjs",
@@ -200,6 +205,7 @@ try {
     .map((executable) => execFileSync(executable, ["--version"], { encoding: "utf8" }).trim())
     .join(", ");
   for (const executable of runtimes) {
+    console.log(execFileSync(executable, ["ledger.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["primitives.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["concord.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["groups.mjs"], { cwd: consumer, encoding: "utf8" }));
@@ -226,6 +232,9 @@ try {
   );
   checks.push(
     `Seal installed public paths, fixed signature, artifact encryption, CLI/Action sequence, exits and Node-free library import graph on ${versions}`,
+  );
+  checks.push(
+    `Standalone Ledger lifecycle, fixed vectors, declarations and import isolation on ${versions}`,
   );
   const output = execFileSync(
     process.execPath,
@@ -256,8 +265,10 @@ try {
       "groups-types.ts",
       "storage-types.ts",
       "seal-types.ts",
+      "ledger-types.ts",
     ],
   });
+  put("ledger-types.ts", readFileSync(resolve(root, "scripts/verify/ledger-types.txt"), "utf8"));
   put("seal-types.ts", readFileSync(resolve(root, "scripts/verify/seal-types.txt"), "utf8"));
   put("groups-types.ts", readFileSync(resolve(root, "scripts/verify/groups-types.txt"), "utf8"));
   put("storage-types.ts", readFileSync(resolve(root, "scripts/verify/storage-types.txt"), "utf8"));
@@ -340,7 +351,7 @@ try {
       assert.deepEqual(errors, []);
       await page.close();
       checks.push(
-        "Chromium: Seal proof/artifact and encrypted Concord lifecycle, production CSS, Vue interaction, deep navigation, docs and missing-asset/404 behavior",
+        "Chromium: standalone Ledger, Seal proof/artifact and encrypted Concord lifecycle, production CSS, Vue interaction, deep navigation, docs and missing-asset/404 behavior",
       );
     } finally {
       await app.close();

@@ -57,10 +57,10 @@ user's intended contract.
 
 Keep these target responsibilities distinct:
 
-- Protocol: canonicalization, identifiers, signatures, and chain validation within the
-  Concord contract.
-- Concord runtime: document lifecycle, commits, verification, two-stage replay, and
-  inspection.
+- Ledger: the standalone signed log, common container, canonicalization, identifiers,
+  signatures, entry staging, commit construction, verification and ordered replay.
+- Concord runtime: compose Ledger with commands, authority, encryption and two-stage
+  replay. Retain command-intent drafts and previews; delegate signed history to Ledger.
 - System extensions: identities, capabilities, audiences, key distribution, and
   decryption.
 - Application models: typed commands, domain events, validation, and reducers.

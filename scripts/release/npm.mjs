@@ -71,6 +71,11 @@ export function createNpmRegistryAdapter(options = {}) {
       if (value?.error?.code === "E404") return null;
       throw new ReleaseError("REGISTRY_UNAVAILABLE", "Registry query failed");
     }
+    // npm 12 wraps even a single requested version/field in a JSON array.
+    if (Array.isArray(value)) {
+      requireThat(value.length === 1, "REGISTRY_INVALID", "Registry query must select one result");
+      value = value[0];
+    }
     return value;
   }
   /** @param {string[]} args */

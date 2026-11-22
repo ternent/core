@@ -157,6 +157,12 @@ export function validateManifest(manifest, versions) {
     "CONTRACT_INVALID",
     "Invalid public package metadata",
   );
+  requireThat(
+    manifest.repository?.type === "git" &&
+      manifest.repository.url === "git+https://github.com/ternent/core.git",
+    "CONTRACT_INVALID",
+    `Packed provenance repository must match ternent/core: ${manifest.name}`,
+  );
   for (const hook of [
     "prepare",
     "prepack",

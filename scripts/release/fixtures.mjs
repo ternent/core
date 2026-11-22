@@ -36,6 +36,11 @@ export function fixture(options = {}) {
     const manifest = {
       name,
       version: versions[name],
+      repository: {
+        type: "git",
+        url: "git+https://github.com/ternent/core.git",
+        directory: `packages/${name.split("/")[1]}`,
+      },
       type: "module",
       publishConfig: { access: "public" },
       dependencies: dependencies[/** @type {keyof typeof dependencies} */ (name)],

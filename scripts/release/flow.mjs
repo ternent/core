@@ -401,12 +401,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
           stdio: "inherit",
         });
         const status = JSON.parse(readFileSync(file, "utf8"));
-        const processed = existsSync(".changeset/pre.json")
-          ? JSON.parse(readFileSync(".changeset/pre.json", "utf8")).changesets
-          : [];
+        // Changesets 3 already excludes consumed .changeset/pre/* entries.
         const needed = status.changesets.some(
-          (/** @type {any} */ change) =>
-            !processed.includes(change.id) && change.releases.length > 0,
+          (/** @type {any} */ change) => change.releases.length > 0,
         );
         outputs({ needed: String(needed) });
       } finally {

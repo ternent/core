@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +13,7 @@ import {
   stageRelease,
 } from "./flow.mjs";
 import { packageNames, sha256 } from "./shared.mjs";
+import { fixture } from "./fixtures.mjs";
 
 const sourceSha = "1".repeat(40),
   parentSha = "2".repeat(40),
@@ -352,4 +354,51 @@ await test("captured tools are separate from tarballs and restoring them never i
     readFileSync(join(root, "packages/seal/dist/index.js"), "utf8"),
     "original verifier",
   );
+});
+
+await test("version detection ignores consumed Changesets 3 prereleases and accepts the next changeset", (t) => {
+  const f = fixture();
+  t.after(() => rmSync(f.root, { recursive: true, force: true }));
+  put(join(f.root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
+  put(join(f.root, ".changeset/config.json"), readFileSync(".changeset/config.json"));
+  put(join(f.root, ".changeset/pre.json"), JSON.stringify({ mode: "pre", tag: "alpha" }));
+  put(
+    join(f.root, ".changeset/pre/consumed.md"),
+    '---\n"@ternent/ledger": patch\n---\nAlready versioned.\n',
+  );
+  /** @param {string[]} args */
+  const git = (args) =>
+    execFileSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", ...args], {
+      cwd: f.root,
+      stdio: "ignore",
+    });
+  git(["init", "-b", "main"]);
+  git(["add", "."]);
+  git([
+    "-c",
+    "user.name=Version test",
+    "-c",
+    "user.email=version@example.invalid",
+    "commit",
+    "-m",
+    "consumed prerelease",
+  ]);
+  const output = join(f.root, "outputs");
+  const cli = join(process.cwd(), "scripts/release/flow.mjs");
+  function detect() {
+    rmSync(output, { force: true });
+    const result = spawnSync(process.execPath, [cli, "version-needed"], {
+      cwd: f.root,
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_OUTPUT: output },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return readFileSync(output, "utf8").trim();
+  }
+  assert.equal(detect(), "needed=false");
+  put(
+    join(f.root, ".changeset/next-change.md"),
+    '---\n"@ternent/ledger": patch\n---\nThe next release.\n',
+  );
+  assert.equal(detect(), "needed=true");
 });

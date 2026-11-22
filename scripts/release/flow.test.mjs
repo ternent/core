@@ -155,6 +155,32 @@ await test("missing/unchanged intent is a no-op; private selection is rejected",
   await assert.rejects(() => selectRelease({ runId: 10, api: f.api }), /five public libraries/);
 });
 
+await test("explicit plan selection can recover after a publisher-only fix without changing package intent", async (t) => {
+  const root = temporary(t),
+    archive = producerArchive(),
+    f = responses(archive);
+  f.values[`${rootApi}/contents/release-intent.json?ref=${parentSha}`] = copy(intent);
+  assert.equal((await selectRelease({ runId: 10, api: f.api })).status, "noop");
+  const { selection } = await selectRelease({
+    runId: 10,
+    api: f.api,
+    requestedReleaseId: releaseId,
+  });
+  assert(selection);
+  const staged = await stageRelease({
+    root,
+    selection,
+    api: f.api,
+    readArchive: async () => archive,
+  });
+  assert.equal(staged.releaseId, releaseId);
+  f.values[`${rootApi}/contents/release-intent.json?ref=${sourceSha}`] = null;
+  await assert.rejects(
+    () => selectRelease({ runId: 10, api: f.api, requestedReleaseId: releaseId }),
+    /no release intent/,
+  );
+});
+
 await test("wrong, expired, stale-attempt and ambiguous artifacts are rejected", async () => {
   for (const alter of /** @type {((value:any)=>void)[]} */ ([
     (a) => (a.expired = true),

@@ -132,12 +132,7 @@ export async function selectRelease({ runId, requestedReleaseId = "", api = gith
     "Missing version commit parent",
   );
   const previous = await api(`${apiRoot}/contents/release-intent.json?ref=${parent}`);
-  if (previous && contents(previous).equals(bytes)) {
-    requireThat(
-      !requestedReleaseId,
-      "INTENT_MISSING",
-      "Requested commit has no new release intent",
-    );
+  if (previous && contents(previous).equals(bytes) && !requestedReleaseId) {
     return { status: "noop", reason: "Release intent did not change in this commit" };
   }
   const artifacts = await api(`${apiRoot}/actions/runs/${id}/artifacts?per_page=100`);

@@ -172,6 +172,10 @@ repository, event, branch, workflow identity, completion, main ancestry and a ne
 changed five-library intent. Missing or unchanged intent is an explicit no-op.
 PR evidence, failed runs and arbitrary dispatch refs are rejected. Manual dispatch
 requires both the successful main-push verification run ID and its exact release ID.
+An explicit dispatch may select an unchanged committed intent after a publisher-only
+fix. It uses that new run's verified plan and retained tarballs, with the same source,
+digest, collision and channel checks. Automatic runs still skip unchanged intent.
+This permits infrastructure recovery without inventing new library versions.
 
 Selection binds one `core-evidence` artifact ID and GitHub SHA-256 archive digest.
 The publisher checks that digest before extraction or execution, rejects unsafe ZIP

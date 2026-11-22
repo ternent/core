@@ -107,6 +107,27 @@ await test("saved registry responses distinguish absence, unusable metadata and 
   );
 });
 
+await test("npm 12 query arrays contain exactly one version or tag result", async () => {
+  let result = {
+    code: 0,
+    stdout: JSON.stringify([{ latest: "0.5.0", next: pkg.version }]),
+    stderr: "",
+  };
+  const adapter = createNpmRegistryAdapter({ run: async () => result });
+  assert.equal(await adapter.getTag(pkg.name, "next"), pkg.version);
+  result.stdout = JSON.stringify([pkg.integrity]);
+  assert.deepEqual(await adapter.getVersion(pkg.name, pkg.version), { integrity: pkg.integrity });
+  for (const value of [
+    [],
+    [{ next: pkg.version }, { next: "2.0.0-alpha.0" }],
+    [[{ next: pkg.version }]],
+  ]) {
+    result.stdout = JSON.stringify(value);
+    await assert.rejects(adapter.getTag(pkg.name, "next"), { code: "REGISTRY_INVALID" });
+    await assert.rejects(adapter.getVersion(pkg.name, pkg.version), { code: "REGISTRY_INVALID" });
+  }
+});
+
 await test("npm provenance uses the verified producer commit across workflow_run handoff", async () => {
   const sourceSha = "1".repeat(40);
   /** @type {NodeJS.ProcessEnv[]} */ const environments = [];

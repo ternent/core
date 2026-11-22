@@ -150,6 +150,15 @@ skips identical completed versions and continues in dependency order. Never inve
 version or rebuild under an old digest to bypass a failed publish. If retained bytes
 expire, create a new verified run/plan and compare any existing registry integrity.
 
+Registry/CDN visibility can lag a successful publish. The publisher checks integrity
+up to ten times, using exponential backoff capped at 60 seconds per wait (about five
+minutes of backoff per package, plus query time). It never republishes during that
+wait. Exhaustion retains an incomplete receipt and blocks dependents and promotion;
+a later retry rechecks remote integrity. Channel writes use the same bounded
+visibility checks. Rollback issues a compensating write even if cached reads still
+show the old value; it never treats that stale observation alone as restoration.
+The protected job has a 45-minute global cap, including waits and fresh consumers.
+
 Dist-tag promotion is also non-atomic. Record partial promotion and restore prior
 values where permitted, reporting any remaining state. Alpha publication must not
 change `latest`. npm unpublish is not a rollback mechanism. Do not mark a release

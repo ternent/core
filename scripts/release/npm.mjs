@@ -78,19 +78,51 @@ export function createNpmRegistryAdapter(options = {}) {
     }
     return value;
   }
-  /** @param {string[]} args */
-  async function write(args) {
+  /** @param {string[]} args @param {string} subject */
+  async function write(args, subject) {
     requireThat(
       typeof options.authorize === "function",
       "RELEASE_NOT_ENABLED",
       "Live npm mutation is not enabled",
     );
     await options.authorize();
-    const result = await run([...args, "--registry", registryUrl], env);
+    const result = await run([...args, "--json", "--registry", registryUrl], env);
+    let code;
+    try {
+      code = JSON.parse(result.stdout)?.error?.code;
+    } catch {
+      code = result.stderr.match(/^npm (?:error|ERR!) code (\w+)$/m)?.[1];
+    }
+    // Keep only known error identifiers. npm summaries and raw output can contain credentials.
+    const safeCode = new Set([
+      "E400",
+      "E401",
+      "E403",
+      "E404",
+      "E409",
+      "E422",
+      "E429",
+      "E500",
+      "E502",
+      "E503",
+      "ENEEDAUTH",
+      "EOTP",
+      "EUSAGE",
+      "EPUBLISHCONFLICT",
+      "EPRIVATE",
+      "EINTEGRITY",
+      "ETIMEDOUT",
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "EAI_AGAIN",
+      "ENOTFOUND",
+    ]).has(code)
+      ? code
+      : "UNKNOWN";
     requireThat(
       result.code === 0,
       "REGISTRY_UNAVAILABLE",
-      "npm mutation failed; inspect trusted runner diagnostics",
+      `npm ${args[0]} failed for ${subject} (${safeCode})`,
     );
   }
   return {
@@ -124,26 +156,29 @@ export function createNpmRegistryAdapter(options = {}) {
         "PLAN_INVALID",
         "Invalid retained tarball publication",
       );
-      await write([
-        "publish",
-        tarball,
-        "--access",
-        "public",
-        "--tag",
-        tag,
-        "--ignore-scripts",
-        "--provenance",
-      ]);
+      await write(
+        [
+          "publish",
+          tarball,
+          "--access",
+          "public",
+          "--tag",
+          tag,
+          "--ignore-scripts",
+          "--provenance",
+        ],
+        `${pkg.name}@${pkg.version}`,
+      );
     },
     async setTag(name, version, tag) {
       identity(name, version);
       requireThat(tag === "next", "PLAN_INVALID", "Only next can be promoted");
-      await write(["dist-tag", "add", `${name}@${version}`, tag]);
+      await write(["dist-tag", "add", `${name}@${version}`, tag], `${name}@${version}`);
     },
     async removeTag(name, tag) {
       identity(name);
       requireThat(tag === "next", "PLAN_INVALID", "Only next can be restored");
-      await write(["dist-tag", "rm", name, tag]);
+      await write(["dist-tag", "rm", name, tag], name);
     },
   };
 }

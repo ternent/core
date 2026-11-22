@@ -129,6 +129,22 @@ await test("public eligibility, lifecycle and packed sibling ranges are enforced
   }
 });
 
+await test("planner rejects missing or mismatched packed provenance repositories before publication", (t) => {
+  for (const repository of [
+    undefined,
+    { type: "git", url: "git+https://github.com/samternent/home.git" },
+    { type: "git", url: "git+https://github.com/Ternent/core.git" },
+  ]) {
+    const f = setup(t, {
+      edit: (manifest) => {
+        if (manifest.name === "@ternent/concord") manifest.repository = repository;
+      },
+    });
+    assert.throws(() => createPlan(f.planOptions), error("CONTRACT_INVALID"));
+    assert(!existsSync(f.directory));
+  }
+});
+
 await test("tarball/report/intent tampering and escaped or symlinked bundle paths fail", (t) => {
   for (const kind of ["tarball", "report", "intent", "escape", "symlink"]) {
     const f = setup(t);

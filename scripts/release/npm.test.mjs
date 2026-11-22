@@ -39,6 +39,7 @@ await test("npm adapter uses exact retained tarball argv, fixed registry and exp
     tag,
     "--ignore-scripts",
     "--provenance",
+    "--json",
     "--registry",
     registryUrl,
   ]);
@@ -47,10 +48,19 @@ await test("npm adapter uses exact retained tarball argv, fixed registry and exp
     "add",
     `${pkg.name}@${pkg.version}`,
     "next",
+    "--json",
     "--registry",
     registryUrl,
   ]);
-  assert.deepEqual(calls[2], ["dist-tag", "rm", pkg.name, "next", "--registry", registryUrl]);
+  assert.deepEqual(calls[2], [
+    "dist-tag",
+    "rm",
+    pkg.name,
+    "next",
+    "--json",
+    "--registry",
+    registryUrl,
+  ]);
   assert.equal(authorization, 3);
   assert(
     calls.every(
@@ -126,6 +136,25 @@ await test("npm 12 query arrays contain exactly one version or tag result", asyn
     await assert.rejects(adapter.getTag(pkg.name, "next"), { code: "REGISTRY_INVALID" });
     await assert.rejects(adapter.getVersion(pkg.name, pkg.version), { code: "REGISTRY_INVALID" });
   }
+});
+
+await test("failed npm writes retain the package and safe error code without leaking raw diagnostics", async () => {
+  const adapter = createNpmRegistryAdapter({
+    authorize: () => undefined,
+    run: async () => ({
+      code: 1,
+      stdout: JSON.stringify({ error: { code: "E422", summary: "Bearer private-secret" } }),
+      stderr: "Authorization: Bearer another-secret\nnpm error code E422\n",
+    }),
+  });
+  await assert.rejects(
+    adapter.publish(pkg, resolve("retained/identity.tgz"), `candidate-${"a".repeat(64)}`),
+    (error) =>
+      error instanceof ReleaseError &&
+      error.message.includes("E422") &&
+      error.message.includes(pkg.name) &&
+      !/secret|Bearer|Authorization/.test(error.message),
+  );
 });
 
 await test("npm provenance uses the verified producer commit across workflow_run handoff", async () => {

@@ -170,6 +170,12 @@ invalid plans, collisions, unavailable registry, unconfigured package identity a
 partial publication. Keep secrets out of diagnostics. Tests use saved responses and
 argv-recording adapters before authorized live test-channel exercises.
 
+Every packed library must declare the public `ternent/core` Git repository, matching
+npm's provenance source. The planner checks the packed manifest before any writes.
+Failed npm writes retain the package selector and an allowlisted npm error code;
+raw CLI output and error summaries stay out of logs and receipts because they can
+contain credentials.
+
 ## Workflow and account boundary
 
 There is one publisher, `release.yml`. Read-only `ci.yml` verifies every PR and

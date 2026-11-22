@@ -1,0 +1,150 @@
+name: Library release
+
+on:
+  workflow_run:
+    workflows: [Concord checks]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      verification_run_id:
+        description: Successful main push verification run ID
+        required: true
+        type: string
+      release_id:
+        description: Exact release ID from that run's retained plan
+        required: true
+        type: string
+      resume_run_id:
+        description: Prior Library release run to resume (optional)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: core-npm-release
+  cancel-in-progress: false
+
+env:
+  CI: "true"
+  NPM_CONFIG_USERCONFIG: /dev/null
+  RELEASE_RUN_ID: ${{ inputs.verification_run_id || github.event.workflow_run.id }}
+  EXPECTED_RELEASE_ID: ${{ inputs.release_id }}
+
+jobs:
+  select:
+    if: github.repository == 'ternent/core' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      eligible: ${{ steps.select.outputs.eligible }}
+      source-sha: ${{ steps.select.outputs.source-sha }}
+      artifact-id: ${{ steps.select.outputs.artifact-id }}
+      artifact-digest: ${{ steps.select.outputs.artifact-digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - id: select
+        run: node scripts/release/flow.mjs select
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  publish:
+    needs: select
+    if: needs.select.outputs.eligible == 'true' && vars.CORE_RELEASE_ENABLED == 'true'
+    environment: npm-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      CORE_RELEASE_ENABLED: ${{ vars.CORE_RELEASE_ENABLED }}
+      SEAL_RELEASE_PUBLIC_KEY: ${{ vars.SEAL_RELEASE_PUBLIC_KEY }}
+      RELEASE_SOURCE_SHA: ${{ needs.select.outputs.source-sha }}
+      RELEASE_ARTIFACT_ID: ${{ needs.select.outputs.artifact-id }}
+      RELEASE_ARTIFACT_DIGEST: ${{ needs.select.outputs.artifact-digest }}
+      RESUME_RELEASE_RUN_ID: ${{ inputs.resume_run_id || github.run_id }}
+      GH_TOKEN: ${{ github.token }}
+      VERIFY_COMPATIBILITY: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.select.outputs.source-sha }}
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.18.0
+      - name: Record Node 22 consumer runtime
+        run: echo "CONCORD_NODE22=$(command -v node)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.21.0
+      - name: Record Node 24 consumer runtime
+        run: echo "CONCORD_NODE24=$(command -v node)" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Install locked tooling and the OIDC-capable npm CLI
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          npm install --global npm@12.2.3 --ignore-scripts --registry=https://registry.npmjs.org/
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Validate producer, download exact artifact and restore verifier tools
+        id: bundle
+        run: node scripts/release/flow.mjs stage
+      - name: Validate committed intent, source binding and retained bundle
+        run: node scripts/release/cli.mjs prepare-release
+        env:
+          RELEASE_RESUMED: ${{ steps.bundle.outputs.resumed }}
+      - name: Materialise the dedicated release identity
+        if: steps.bundle.outputs.resumed != 'true'
+        id: identity
+        run: node scripts/release/cli.mjs release-identity
+        env:
+          SEAL_RELEASE_IDENTITY_B64: ${{ secrets.SEAL_RELEASE_IDENTITY_B64 }}
+      - name: Seal the final release bundle
+        if: steps.bundle.outputs.resumed != 'true'
+        uses: samternent/seal-action@d07a683a9195a1190c3e15b6e4374a1d59592b57
+        with:
+          assets-directory: artifacts/release
+          manifest-name: release-manifest.json
+          proof-name: release-proof.json
+          public-key-name: release-public-key.json
+          cli-command: '"${{ steps.bundle.outputs.node }}" "${{ github.workspace }}/packages/seal/bin/seal"'
+        env:
+          SEAL_IDENTITY_FILE: ${{ steps.identity.outputs.identity-file }}
+      - name: Verify the externally trusted release signature
+        run: node scripts/release/cli.mjs verify-seal
+      - name: Publish retained bytes, verify fresh consumers and promote next
+        run: pnpm release:publish
+      - name: Remove the temporary signing identity
+        if: always()
+        env:
+          SEAL_IDENTITY_FILE: ${{ steps.identity.outputs.identity-file }}
+        run: |
+          if [ -n "$SEAL_IDENTITY_FILE" ]; then rm -f -- "$SEAL_IDENTITY_FILE"; fi
+      - name: Collect complete or incomplete release evidence
+        if: always() && steps.bundle.outcome == 'success'
+        run: node scripts/release/flow.mjs collect
+      - name: Retain release bundle and retry receipt
+        if: always() && steps.bundle.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: core-release-${{ steps.bundle.outputs.release-id }}-attempt-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: error
+          path: artifacts/release-attempt/

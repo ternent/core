@@ -1,0 +1,56 @@
+name: Library version PR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-version-pr
+  cancel-in-progress: false
+
+jobs:
+  version:
+    if: github.repository == 'ternent/core' && github.ref == 'refs/heads/main' && vars.CORE_VERSIONING_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CI: "true"
+      NPM_CONFIG_USERCONFIG: /dev/null
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm contract
+      - name: Detect unconsumed public changesets
+        id: intent
+        run: node scripts/release/flow.mjs version-needed
+      - name: Create a repository-scoped versioning token
+        if: steps.intent.outputs.needed == 'true'
+        id: app
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ vars.CORE_VERSION_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CORE_VERSION_APP_PRIVATE_KEY }}
+          owner: ternent
+          repositories: core
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Update the version PR
+        if: steps.intent.outputs.needed == 'true'
+        uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: pnpm release:version
+          pr-title: Version alpha libraries
+          commit-message: "chore: version alpha libraries"
+          pr-draft: create

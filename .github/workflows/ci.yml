@@ -43,6 +43,12 @@ jobs:
           cache: pnpm
       - name: Install the locked workspace
         run: pnpm install --frozen-lockfile
+      - name: Validate pinned GitHub workflows
+        run: |
+          curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz --output "$RUNNER_TEMP/actionlint.tar.gz"
+          printf '%s  %s\n' 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8 "$RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck=
       - name: Install the independent age reference
         run: |
           curl --fail --silent --show-error --location https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz --output "$RUNNER_TEMP/age.tar.gz"
@@ -55,6 +61,8 @@ jobs:
         run: pnpm check
       - name: Freeze the accepted release candidate bundle
         run: node scripts/release/cli.mjs verification-plan
+      - name: Retain the built release verifier tools
+        run: node scripts/release/flow.mjs capture-tools
       - name: Create a disposable proof-test identity
         id: seal-test-key
         run: node scripts/release/cli.mjs test-identity
@@ -77,6 +85,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: core-evidence
+          overwrite: true
           if-no-files-found: warn
           retention-days: 7
           path: |

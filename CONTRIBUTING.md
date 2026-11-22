@@ -67,8 +67,10 @@ See the [repository guide](docs/engineering/repository-hygiene.md) for ownership
 and check boundaries.
 
 The read-only CI workflow verifies candidates and exercises the pinned Seal Action
-on a retained release bundle with a disposable test identity. Merging does not publish npm
-packages or deploy applications. Release automation and registry acceptance remain
-on the [release backlog](docs/engineering/release-and-deployment.md).
+on a retained release bundle with a disposable test identity. Separate version-PR
+and production release workflows require explicit account setup and enablement.
+Review their [release contract and setup](docs/engineering/release-and-deployment.md)
+before enabling them. Public-registry acceptance remains outstanding; no workflow
+deploys applications.
 `renovate.json` configures dependency updates; the owner must enable Renovate for
 it to open PRs.

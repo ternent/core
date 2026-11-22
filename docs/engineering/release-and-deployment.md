@@ -7,11 +7,11 @@ framework above it. [ADR 0020](../adr/0020-simplify-core-around-five-libraries.m
 records the repository simplification. UI, portable tooling and hosted applications
 are outside this release. Workspace is deferred.
 
-The candidate planner and retryable publisher are implemented; production workflow
-wiring and account onboarding remain below. This is not authorization to publish.
-The current read-only CI and local acceptance
-scope are described in the [repository guide](repository-hygiene.md). Builds and
-candidate checks do not establish registry publication or account configuration.
+The candidate planner, retryable publisher and production workflow chain are
+implemented. Account onboarding and the first registry-backed acceptance remain.
+Publication is disabled until explicitly configured. The verification scope is
+described in the [repository guide](repository-hygiene.md); candidate checks alone
+do not establish public-registry consumption.
 
 ## Current boundary
 
@@ -30,10 +30,11 @@ CLI, fixed vectors, import isolation and Chromium. Deliberate missing-candidate 
 incompatible sibling-range probes must fail. This establishes candidate dependency
 resolution, not publication or consumption from the public registry.
 The publisher consumes a retained plan and tarballs, checks collisions, and journals
-partial publication and channel promotion. Its live entry point requires the future
+partial publication and channel promotion. Its live entry point requires the
 `release.yml` workflow on main, explicit enablement, a trusted Seal key and pinned
-npm 12.2.3. That workflow and registry trust are not configured by this increment.
-Merging or tagging the repository does not publish this candidate set.
+npm 12.2.3. No repository variables, secrets, environments or npm trust were
+configured during implementation. Merging this foundation cannot publish until
+the enablement variables and account setup below exist.
 
 ## Release backlog
 
@@ -44,7 +45,7 @@ forward completed migration slices or cancelled UI/tooling products.
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | B13 — Candidate registry    | Implemented: serve all five final-name/version tarballs from an isolated temporary registry; install without sibling overrides | Candidate digests and resolution failure probes are checked by the consumer gate; each run's reports record the Node/browser/type/CLI/vector/isolation results                    |
 | B14 — Planner and publisher | Implemented: Changesets version intent, immutable release bundle and dependency-ordered retryable publisher                    | Release tests cover failure/retry and exact npm argv; CI exercises the pinned Seal Action and verifies the complete candidate bundle                                              |
-| B15 — Workflow chain        | One version-PR path and one least-privilege publisher; same-SHA eligible artifact handoff and setup instructions               | Dry runs prove trigger/plan selection, private exclusions and retry behavior; no competing publisher remains; workflow identity and onboarding requirements are documented        |
+| B15 — Workflow chain        | Implemented: separate version-PR and protected signing/publishing workflows, immutable artifact handoff and retry restoration  | Tests cover provenance rejection, production signing, unchanged candidate bytes and resume; checksum-pinned actionlint validates workflows; account enablement remains below      |
 | B16 — Registry acceptance   | Verify existing versions/tags and trusted publisher settings; authorized test-channel proof and fresh published consumption    | Registry integrity matches retained tarballs; exact published versions work outside this checkout without overrides; receipts record incomplete as well as complete channel state |
 
 B13's consumer gate feeds B14's final artifact proof; B15 wires that proof into
@@ -59,8 +60,10 @@ registry-backed run belong to published-consumption acceptance.
 `pnpm release:version` runs Changesets after checking proposed alpha versions against
 observed npm history. It updates the lockfile and writes `release-intent.json` with
 the five-library version snapshot. The pending foundation changeset records this
-branch's library changes; prerelease setup and real version allocation remain to be
-reviewed against the registry before the first version PR.
+branch's library changes. The first version run checks current alpha baselines
+against npm before entering Changesets alpha mode; proposed versions are checked
+again before manifests change. Allocation and a subsequent frozen reinstall have
+been exercised in a disposable clone, without changing this checkout's versions.
 
 After `pnpm check`, `pnpm release:plan` freezes the retained candidates and reports
 under `artifacts/release/`. The source must be committed and reports must bind that
@@ -73,7 +76,8 @@ from changed versions. The strict production planner rejects that missing intent
 CI invokes `samternent/seal-action` at
 `d07a683a9195a1190c3e15b6e4374a1d59592b57`, using an explicit built CLI from the
 checked revision. It signs `release-manifest.json` covering the final plan, reports
-and unchanged tarballs, and emits `release-proof.json` and `release-public-key.json`.
+and unchanged tarballs plus captured verifier tools, and emits `release-proof.json`
+and `release-public-key.json`.
 The verification job uses a disposable test identity. These are CI test proofs;
 production release eligibility requires a separately configured release public key.
 Sign a clean bundle: remove the three disposable proof outputs before production
@@ -159,35 +163,102 @@ argv-recording adapters before authorized live test-channel exercises.
 
 ## Workflow and account boundary
 
-Keep source verification read-only. A version-PR workflow has only the write access
-needed to update its PR; a publisher has the npm identity permissions it needs, scoped
-to its exact repository, workflow and environment. Pin actions to reviewed immutable
-SHAs, pin tools, enforce frozen installs and serialize publication without cancelling
-an in-flight release. Dispatch selects a validated source SHA/release ID, not arbitrary
-commands, registries, paths or package overrides.
+There is one publisher, `release.yml`. Read-only `ci.yml` verifies every PR and
+main push; `version.yml` uses a repository-scoped GitHub App to open a draft version
+PR for unconsumed changesets. The App token lets that PR receive ordinary CI events.
 
-Configure npm trusted publishing/OIDC against the actual workflow identity. The
-current publisher entry point expects `ternent/core`, `release.yml` on main,
-`CORE_RELEASE_ENABLED=true`, an external `SEAL_RELEASE_PUBLIC_KEY` and no token
-fallback. The production signing job will also need its release identity secret;
-scope that secret to the signing step, and keep the private key out of artifacts.
-Do not use CI's disposable key as the trusted release key. This increment does not
-set repository variables, secrets, environments or npm permissions.
+A successful main push verification triggers release selection. The selector checks
+repository, event, branch, workflow identity, completion, main ancestry and a newly
+changed five-library intent. Missing or unchanged intent is an explicit no-op.
+PR evidence, failed runs and arbitrary dispatch refs are rejected. Manual dispatch
+requires both the successful main-push verification run ID and its exact release ID.
 
-Recheck
-current provider policy and supported versions at implementation time. Exercise a
-dedicated test package/channel before production releases. Package/scope bootstrap
-and trust provisioning are explicit onboarding steps; do not silently fall back to
-a broad stored token. npm 12.2.3 is pinned for the future publisher: direct publish
-and dist-tag management require independently enabled trusted-publisher permissions.
-See the [current npm trusted publishing documentation](https://docs.npmjs.com/trusted-publishers/).
-If version PRs need a GitHub App to receive normal CI events,
-document and provision it separately. No credential values belong in repository files.
+Selection binds one `core-evidence` artifact ID and GitHub SHA-256 archive digest.
+The publisher checks that digest before extraction or execution, rejects unsafe ZIP
+paths and excessive sizes, restores the captured built tools and checks the plan,
+committed intent, lockfile, reports and tarball bytes against the producer SHA.
+It does not rebuild or repack. The original disposable proof is checked before its
+three sidecars are replaced; the production manifest additionally binds
+`release-origin.json`. The pinned Seal Action signs with the dedicated release
+identity, and verification uses the separately configured trusted public key.
 
-Once Sam deliberately enables a release policy, its normal repository events can
-provide routine authorization. This design neither enables a workflow nor adds an
-approval to every future run. Retain receipts identifying versions, digests, workflow
-run and registry observations; do not infer published consumption from a local build.
+The release workflow's default SHA can be newer than the producer SHA. Checkout,
+plan validation, published-consumer reports and npm provenance therefore use the
+validated producer SHA. In particular, the npm child receives that SHA as
+`GITHUB_SHA`; the workflow/invocation identity remains the actual release workflow.
+No caller can supply an arbitrary SHA or registry.
+
+Publication runs on a GitHub-hosted Ubuntu runner in the `npm-release` environment,
+with read-only contents/actions permissions plus `id-token: write`. npm 12.2.3 is
+pinned for OIDC publication **and dist-tag management**. There is no npm token
+fallback. The release identity secret is available only to its materialisation
+step, checked against the expected public key, written outside artifacts with mode
+0600 and removed after signing. Versioning has no npm or Seal identity.
+
+### One-time account setup
+
+Land the reviewed workflows on main before enabling them. Configure these exact
+values; private material belongs in GitHub secrets, never repository files or chat.
+
+| Location               | Name                           | Value or scope                                                                         |
+| ---------------------- | ------------------------------ | -------------------------------------------------------------------------------------- |
+| Repository variable    | `CORE_VERSION_APP_CLIENT_ID`   | Client ID of a GitHub App installed only on `ternent/core`                             |
+| Repository secret      | `CORE_VERSION_APP_PRIVATE_KEY` | That App's private key; contents and pull requests write, metadata read                |
+| Repository variable    | `CORE_VERSIONING_ENABLED`      | `true` after App setup; enables draft version PRs                                      |
+| Repository environment | `npm-release`                  | Restrict deployment branches to main; any required reviewers are an owner policy       |
+| Environment variable   | `SEAL_RELEASE_PUBLIC_KEY`      | Raw public-key string from the dedicated release identity                              |
+| Environment secret     | `SEAL_RELEASE_IDENTITY_B64`    | Base64 of the complete serialized release identity JSON, without line breaks           |
+| Repository variable    | `CORE_RELEASE_ENABLED`         | `true` only after all package trusted publishers and the signing environment are ready |
+
+Create and securely back up a dedicated Seal release identity with the reviewed
+CLI. Derive its public-key artifact, configure the raw `publicKey` string separately,
+and upload the base64 identity through the secret UI or `gh secret set` from a local
+file. A release rejects a mismatched identity before signing. Do not reuse CI's
+disposable identity or include private material in evidence.
+
+For **each** existing public package, configure npm trusted publishing:
+
+| npm field         | Exact value                                                  |
+| ----------------- | ------------------------------------------------------------ |
+| Provider          | GitHub Actions                                               |
+| Organisation/user | `ternent`                                                    |
+| Repository        | `core`                                                       |
+| Workflow filename | `release.yml`                                                |
+| Environment       | `npm-release`                                                |
+| Permissions       | Enable direct publication and dist-tag management separately |
+
+All five names already exist on npm, so no new-package token bootstrap is needed.
+An authenticated package owner must configure their trusted publishers. The
+implementation session found no repository release variables, secrets or
+environments and no authenticated npm session; it changed none of them.
+See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
+The first actual publication to `next`, registry integrity comparison, provenance
+inspection and fresh published consumption are B16 acceptance; they have not run.
+
+### Retry and retention
+
+The release concurrency group does not cancel a running publisher. GitHub does
+not guarantee FIFO for pending runs; inspect skipped/cancelled pending runs and
+dispatch the intended eligible release explicitly when needed. Collision and
+channel-downgrade checks still apply.
+
+After staging, success or failure retains `core-release-<releaseId>-attempt-<N>`
+for seven days. It contains the unchanged signed bundle and an outside publication
+receipt when publishing started. Re-running the same workflow run automatically
+restores its latest matching journal. For a separate manual retry, supply the same
+verification run/release ID plus the prior release workflow's `resume_run_id`.
+The handoff checks both workflows and artifacts, binds the prior journal to the
+same release, verifies the production signature and never re-signs an already
+published attempt.
+
+Artifact upload is best effort after a failure; abrupt runner loss can prevent a
+receipt being retained. Do not claim atomic recovery or reconstruct prior channel
+values from guesses. Inspect npm state and retained receipts before selecting a
+recovery path. Expired or untrusted artifacts cannot authorize a retry.
+
+Once enabled, normal main events provide routine release authorization. Draft
+version PRs and the initial enablement remain deliberate owner actions. Neither
+merging an unrelated change nor pushing a tag creates new release intent.
 
 ## Applications and deployment
 

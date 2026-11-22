@@ -53,6 +53,8 @@ Applications and demos should consume published libraries from separate projects
 | Changesets   | 3.0.3                               | Package version intent and changelogs                             |
 | canonicalize | 5.1.0                               | RFC 8785 release-plan serialization                               |
 | semver       | 7.8.6                               | Candidate dependency and registry version checks                  |
+| fflate       | 0.8.3                               | Digest-checked release artifact extraction                        |
+| actionlint   | 1.7.12                              | Checksum-pinned GitHub workflow validation                        |
 
 Volar, vue-tsc, unplugin-vue and the Vue Vite plugin are no longer direct repository
 dependencies or explicit requirements. Declaration tooling may still resolve Vue
@@ -143,12 +145,15 @@ changes. No performance budget or persisted checkpoint format is established her
 
 ## Automation and retained documentation
 
-One read-only CI workflow installs the frozen lockfile, pinned age reference and
-browser, runs acceptance and retains reports/tarballs. Third-party actions are pinned
-to reviewed SHAs. There is no active npm publisher or application deployer.
-The version-PR workflow, protected signing/publishing workflow and registry onboarding
-remain on the release backlog. Publisher tests use saved registry responses and
-recorded argv; no public registry mutation is part of acceptance.
+Read-only CI installs the frozen lockfile, pinned age reference and browser,
+validates workflows with checksum-pinned actionlint, runs acceptance and retains
+reports, tarballs and built release verifier tools. Third-party actions are pinned
+to reviewed SHAs. Separate version-PR and protected signing/publishing workflows
+are implemented behind explicit enablement variables. Account onboarding and real
+registry acceptance remain; there is no enabled npm publisher or application deployer.
+See the [release contract](release-and-deployment.md) for exact identities, setup and
+retry behavior. Acceptance uses synthetic identities, saved registry responses and
+recorded publication argv; it does not mutate the public registry.
 Renovate is configured without automatic merging; the owner must enable it.
 
 Copied legacy implementations, the retired Utils product and obsolete publishers

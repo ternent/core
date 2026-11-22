@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolve } from "node:path";
-import { createNpmRegistryAdapter } from "./npm.mjs";
+import { createNpmRegistryAdapter, runNpm } from "./npm.mjs";
 import { registryUrl, ReleaseError } from "./shared.mjs";
 
 const pkg = {
@@ -105,4 +105,32 @@ await test("saved registry responses distinguish absence, unusable metadata and 
       error.code === "REGISTRY_UNAVAILABLE" &&
       !error.message.includes("credential"),
   );
+});
+
+await test("npm provenance uses the verified producer commit across workflow_run handoff", async () => {
+  const sourceSha = "1".repeat(40);
+  /** @type {NodeJS.ProcessEnv[]} */ const environments = [];
+  const registry = createNpmRegistryAdapter({
+    sourceSha,
+    authorize: () => undefined,
+    run: async (_args, env) => {
+      environments.push(env);
+      return { code: 0, stdout: "", stderr: "" };
+    },
+  });
+  await registry.setTag("@ternent/identity", "1.0.0-alpha.0", "next");
+  assert.equal(environments[0].GITHUB_SHA, sourceSha);
+  assert.equal(environments[0].NPM_CONFIG_USERCONFIG, "/dev/null");
+  assert.equal(environments[0].NPM_CONFIG_IGNORE_SCRIPTS, "true");
+  assert.throws(() => createNpmRegistryAdapter({ sourceSha: "main" }));
+});
+
+await test("real npm starts with isolated user and global configs", async () => {
+  const result = await runNpm(["--version"], {
+    PATH: process.env.PATH,
+    NPM_CONFIG_USERCONFIG: "/dev/null",
+    NPM_CONFIG_GLOBALCONFIG: "/dev/null",
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout.trim(), /^\d+\.\d+\.\d+$/);
 });

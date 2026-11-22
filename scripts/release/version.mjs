@@ -49,23 +49,37 @@ export async function validateAllocations(releases, readVersions = publishedVers
   }
 }
 
+/** Enter alpha mode only after checking that current baselines are ahead of npm.
+ * @param {{root:string,packages:{name:string,version:string}[],run:(args:string[])=>unknown,readVersions?:(name:string)=>Promise<string[]>}} input
+ */
+export async function ensureAlphaMode({ root, packages, run, readVersions = publishedVersions }) {
+  const prePath = join(root, ".changeset/pre.json");
+  if (!existsSync(prePath)) {
+    await validateAllocations(
+      packages.map((pkg) => ({ name: pkg.name, newVersion: pkg.version })),
+      readVersions,
+    );
+    run(["exec", "changeset", "pre", "enter", "alpha"]);
+  }
+  const pre = JSON.parse(readFileSync(prePath, "utf8"));
+  assert(pre.mode === "pre" && pre.tag === "alpha", "ALPHA_MODE_REQUIRED");
+}
+
 /** @param {string} [root] */
 export async function versionRelease(root = process.cwd()) {
   const entries = workspacePackages(root)
     .map((entry) => ({ ...entry, manifest: readManifest(entry.path) }))
     .filter((entry) => !entry.manifest.private);
   assert.equal(entries.length, 5, "EXPECTED_FIVE_PUBLIC_LIBRARIES");
-  const prePath = join(root, ".changeset/pre.json");
-  assert(
-    existsSync(prePath),
-    "ALPHA_MODE_REQUIRED: run pnpm exec changeset pre enter alpha after reviewing registry versions",
-  );
-  const pre = JSON.parse(readFileSync(prePath, "utf8"));
-  assert(pre.mode === "pre" && pre.tag === "alpha", "ALPHA_MODE_REQUIRED");
   const directory = mkdtempSync(join(tmpdir(), "ternent-version-plan-"));
   /** @param {string[]} args */
   const run = (args) => execFileSync("pnpm", args, { cwd: root, stdio: "inherit" });
   try {
+    await ensureAlphaMode({
+      root,
+      packages: entries.map((entry) => ({ name: entry.name, version: entry.manifest.version })),
+      run,
+    });
     const output = join(directory, "status.json");
     run(["exec", "changeset", "status", "--output", output]);
     const status = JSON.parse(readFileSync(output, "utf8"));
@@ -78,7 +92,7 @@ export async function versionRelease(root = process.cwd()) {
       assert(names.has(entry.name), `NON_PUBLIC_VERSION_INTENT: ${entry.name}`);
     await validateAllocations(releases);
     run(["exec", "changeset", "version"]);
-    run(["install", "--lockfile-only", "--ignore-scripts"]);
+    run(["install", "--lockfile-only", "--ignore-scripts", "--no-frozen-lockfile"]);
     const packages = entries
       .map((entry) => {
         const manifest = readManifest(entry.path);
@@ -96,6 +110,16 @@ export async function versionRelease(root = process.cwd()) {
       resolve(root, "release-intent.json"),
       `${JSON.stringify({ schema: 1, channel: "next", packages }, null, 2)}\n`,
     );
+    run([
+      "exec",
+      "vp",
+      "fmt",
+      ".changeset/pre.json",
+      "release-intent.json",
+      ...entries
+        .flatMap((entry) => [join(entry.path, "package.json"), join(entry.path, "CHANGELOG.md")])
+        .filter(existsSync),
+    ]);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

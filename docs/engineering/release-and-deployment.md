@@ -1,17 +1,33 @@
 # Library release contract and backlog
 
-Current scope, 2026-11-21: ship five independently usable npm products:
+Current scope, 2026-11-22: ship five independently usable npm products:
 `@ternent/identity`, `@ternent/armour`, `@ternent/ledger`, `@ternent/concord` and
 `@ternent/seal`. Ledger owns the common signed container; Concord composes the
 framework above it. [ADR 0020](../adr/0020-simplify-core-around-five-libraries.md)
 records the repository simplification. UI, portable tooling and hosted applications
 are outside this release. Workspace is deferred.
 
-The candidate planner, retryable publisher and production workflow chain are
-implemented. Account onboarding and the first registry-backed acceptance remain.
-Publication is disabled until explicitly configured. The verification scope is
-described in the [repository guide](repository-hygiene.md); candidate checks alone
-do not establish public-registry consumption.
+The first registry-backed alpha completed on 2026-11-22 through the protected
+[release run](https://github.com/ternent/core/actions/runs/45040724049), using
+[main verification](https://github.com/ternent/core/actions/runs/45040402005).
+All five packages published with npm provenance and passed fresh public-registry
+consumption on Node 22.18.0, 24.21.0 and 26.13.1, declarations, CLI and Chromium
+before `next` promotion. Existing `latest` tags were preserved.
+
+| Package             | Published `next` | Preserved `latest` |
+| ------------------- | ---------------- | ------------------ |
+| `@ternent/identity` | `0.6.0-alpha.1`  | `0.5.0`            |
+| `@ternent/armour`   | `0.3.0-alpha.1`  | `0.2.3`            |
+| `@ternent/ledger`   | `0.2.0-alpha.1`  | `0.1.8`            |
+| `@ternent/concord`  | `0.3.0-alpha.1`  | `0.2.9`            |
+| `@ternent/seal`     | `0.5.0-alpha.1`  | `0.3.10`           |
+
+Release ID: `0eea0155bc9ecfda049d60130c39c85c999ec36853eafe7bfaf4bdb5719cc538`.
+The retained receipt is complete; every downloaded npm tarball matched the plan,
+and the production Seal proof verified against the separately trusted release key.
+Retries reused identical published versions; Concord's unpublished candidate was
+corrected to include its provenance repository before its successful first publish.
+The verification scope is described in the [repository guide](repository-hygiene.md).
 
 ## Current boundary
 
@@ -32,38 +48,35 @@ resolution, not publication or consumption from the public registry.
 The publisher consumes a retained plan and tarballs, checks collisions, and journals
 partial publication and channel promotion. Its live entry point requires the
 `release.yml` workflow on main, explicit enablement, a trusted Seal key and pinned
-npm 12.2.3. No repository variables, secrets, environments or npm trust were
-configured during implementation. Merging this foundation cannot publish until
-the enablement variables and account setup below exist.
+npm 12.2.3. The repository App, protected environment, dedicated Seal release
+identity and all five npm trusted publishers are configured. Publication uses OIDC;
+no npm access token is configured in this release workflow.
 
-## Release backlog
+## Release acceptance
 
-The identifiers below retain the useful remaining shipping work without carrying
-forward completed migration slices or cancelled UI/tooling products.
+The identifiers below record the completed shipping acceptance without carrying
+forward cancelled UI/tooling products.
 
 | Item                        | Deliverable                                                                                                                    | Observable exit                                                                                                                                                                   |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | B13 — Candidate registry    | Implemented: serve all five final-name/version tarballs from an isolated temporary registry; install without sibling overrides | Candidate digests and resolution failure probes are checked by the consumer gate; each run's reports record the Node/browser/type/CLI/vector/isolation results                    |
 | B14 — Planner and publisher | Implemented: Changesets version intent, immutable release bundle and dependency-ordered retryable publisher                    | Release tests cover failure/retry and exact npm argv; CI exercises the pinned Seal Action and verifies the complete candidate bundle                                              |
-| B15 — Workflow chain        | Implemented: separate version-PR and protected signing/publishing workflows, immutable artifact handoff and retry restoration  | Tests cover provenance rejection, production signing, unchanged candidate bytes and resume; checksum-pinned actionlint validates workflows; account enablement remains below      |
-| B16 — Registry acceptance   | Verify existing versions/tags and trusted publisher settings; authorized test-channel proof and fresh published consumption    | Registry integrity matches retained tarballs; exact published versions work outside this checkout without overrides; receipts record incomplete as well as complete channel state |
+| B15 — Workflow chain        | Implemented: separate version-PR and protected signing/publishing workflows, immutable artifact handoff and retry restoration  | Tests cover provenance rejection, production signing, unchanged candidate bytes and resume; checksum-pinned actionlint validates workflows; account enablement completed          |
+| B16 — Registry acceptance   | Completed: trusted publishers, protected Seal signing, alpha publication and fresh public-registry consumption                 | Registry integrity matches retained tarballs; exact published versions work outside this checkout without overrides; receipts record incomplete as well as complete channel state |
 
 B13's consumer gate feeds B14's final artifact proof; B15 wires that proof into
-automation; B16 needs real account inputs and explicit release authorization. Implementations must inspect
-current npm/GitHub policy and supported tool versions rather than treating older
-external service details as permanent. No account setting has been established by
-this document. The separate Seal Action's package/version configuration and any
-registry-backed run belong to published-consumption acceptance.
+automation; B16 passed in the release linked above. Recheck current npm/GitHub
+policy and supported tool versions when changing the flow. Account configuration
+is operational state; this document does not establish it by itself.
 
 ## Immutable candidates and release plan
 
 `pnpm release:version` runs Changesets after checking proposed alpha versions against
 observed npm history. It updates the lockfile and writes `release-intent.json` with
-the five-library version snapshot. The pending foundation changeset records this
-branch's library changes. The first version run checks current alpha baselines
-against npm before entering Changesets alpha mode; proposed versions are checked
-again before manifests change. Allocation and a subsequent frozen reinstall have
-been exercised in a disposable clone, without changing this checkout's versions.
+the five-library version snapshot. The foundation changeset has been consumed.
+The first version run checks current alpha baselines against npm before entering
+Changesets alpha mode; proposed versions are checked again before manifests change.
+The first version PR, frozen reinstall and public publication have completed.
 
 After `pnpm check`, `pnpm release:plan` freezes the retained candidates and reports
 under `artifacts/release/`. The source must be committed and reports must bind that
@@ -94,7 +107,7 @@ signed bundle so retries cannot silently alter the accepted artifacts.
 `pnpm release:publish` uses only retained tarball paths. After publication under a
 release-specific candidate tag, it reuses the full consumer harness in fresh public
 registry mode, without packing or sibling overrides. Only then may it promote `next`.
-Public-registry execution remains unverified until the authorized B16 exercise.
+The first B16 run verified this public-registry path before promoting `next`.
 
 Use Changesets for independent package version intent and sibling range changes.
 Do not select versions from commit messages or reset existing npm names to a fresh
@@ -247,12 +260,10 @@ For **each** existing public package, configure npm trusted publishing:
 | Permissions       | Enable direct publication and dist-tag management separately |
 
 All five names already exist on npm, so no new-package token bootstrap is needed.
-An authenticated package owner must configure their trusted publishers. The
-implementation session found no repository release variables, secrets or
-environments and no authenticated npm session; it changed none of them.
-See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
-The first actual publication to `next`, registry integrity comparison, provenance
-inspection and fresh published consumption are B16 acceptance; they have not run.
+An authenticated package owner configures their trusted publishers; all five are
+configured for this flow. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
+The first `next` publication, registry integrity comparison, provenance inspection
+and fresh published consumption passed in the release linked above.
 
 ### Retry and retention
 
@@ -276,7 +287,7 @@ values from guesses. Inspect npm state and retained receipts before selecting a
 recovery path. Expired or untrusted artifacts cannot authorize a retry.
 
 Once enabled, normal main events provide routine release authorization. Draft
-version PRs and the initial enablement remain deliberate owner actions. Neither
+version PRs remain deliberate owner actions; initial enablement has completed. Neither
 merging an unrelated change nor pushing a tag creates new release intent.
 
 ## Applications and deployment

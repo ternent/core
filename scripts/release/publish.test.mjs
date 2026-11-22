@@ -145,6 +145,80 @@ await test("bounded propagation waits then fails explicitly without any next pro
   assert.equal(readJson(f.journalPath).status, "incomplete");
 });
 
+await test("registry visibility can lag by minutes without duplicate publishes or early promotion", async (t) => {
+  const f = setup(t);
+  let elapsed = 0;
+  /** @type {Map<string,number>} */ const publishedAt = new Map();
+  /** @type {number[]} */ const waits = [];
+  const publish = f.registry.publish;
+  f.registry.publish = async (pkg, file, tag) => {
+    await publish(pkg, file, tag);
+    publishedAt.set(pkg.name, elapsed);
+  };
+  f.registry.getVersion = async (name, version) => {
+    const value = f.versions.get(`${name}@${version}`),
+      start = publishedAt.get(name);
+    return value && start !== undefined && elapsed - start >= 180_000 ? { integrity: value } : null;
+  };
+  const result = await publishRelease({
+    ...f.options,
+    wait: async (ms) => {
+      waits.push(ms);
+      elapsed += ms;
+    },
+    verifyConsumers: async () => {
+      for (const pkg of f.plan.packages) assert(await f.registry.getVersion(pkg.name, pkg.version));
+      await f.options.verifyConsumers();
+    },
+  });
+  assert.equal(result.status, "complete");
+  assert(waits.every((ms) => ms <= 60_000));
+  assert.equal(f.calls.filter((call) => call[0] === "publish").length, 5);
+  assert.equal(f.calls.filter((call) => call[0] === "setTag").length, 5);
+});
+
+await test("channel changes are verified after delayed registry visibility", async (t) => {
+  const f = setup(t);
+  let elapsed = 0;
+  const visible = new Map(f.tags);
+  /** @type {Map<string,{version:string,at:number}>} */ const pending = new Map();
+  const setTag = f.registry.setTag;
+  f.registry.setTag = async (name, version, tag) => {
+    await setTag(name, version, tag);
+    pending.set(name, { version, at: elapsed + 180_000 });
+  };
+  f.registry.getTag = async (name) => {
+    const update = pending.get(name);
+    if (update && elapsed >= update.at) visible.set(name, update.version);
+    return visible.get(name) ?? null;
+  };
+  assert.equal(
+    (
+      await publishRelease({
+        ...f.options,
+        wait: async (ms) => {
+          elapsed += ms;
+        },
+      })
+    ).status,
+    "complete",
+  );
+  assert([...visible.values()].every((version) => version === "1.0.0-alpha.0"));
+});
+
+await test("lost promotion responses are compensated even when reads still show the previous tag", async (t) => {
+  const f = setup(t);
+  const setTag = f.registry.setTag;
+  f.registry.getTag = async () => "0.9.0";
+  f.registry.setTag = async (name, version, tag) => {
+    await setTag(name, version, tag);
+    if (version === "1.0.0-alpha.0") throw new Error("response lost before cache update");
+  };
+  await assert.rejects(publishRelease(f.options), error("PROMOTION_PARTIAL"));
+  assert([...f.tags.values()].every((version) => version === "0.9.0"));
+  assert.equal(readJson(f.journalPath).packages[f.plan.packages[0].name].promotion, "restored");
+});
+
 await test("published-consumer hook is mandatory and runs before channel promotion", async (t) => {
   const f = setup(t);
   let consumers = 0;

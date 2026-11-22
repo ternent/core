@@ -66,13 +66,21 @@ async function publishVerifiedRelease(options) {
       retryable: false,
       packages: [],
     };
-  const attempts = options.attempts ?? 4;
+  const attempts = options.attempts ?? 10;
   requireThat(
     Number.isSafeInteger(attempts) && attempts >= 1 && attempts <= 10,
     "HOST_CONFIGURATION",
     "Invalid propagation retry limit",
   );
   const wait = options.wait ?? ((ms) => new Promise((done) => setTimeout(done, ms)));
+  /** @param {()=>Promise<boolean>} check */
+  async function waitForRegistry(check) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (await check()) return true;
+      if (attempt + 1 < attempts) await wait(Math.min(2_000 * 2 ** attempt, 60_000));
+    }
+    return false;
+  }
   const journalPath = resolve(
     options.journalPath ??
       resolve(dirname(directory), "release-journals", `${plan.releaseId}.json`),
@@ -160,6 +168,18 @@ async function publishVerifiedRelease(options) {
     journal.packages[pkg.name].observedIntegrity = result?.integrity ?? null;
     return result;
   }
+  /** @param {ReleasePackage} pkg @param {string|null} expected @param {string|null} previous */
+  async function channelMatches(pkg, expected, previous) {
+    return waitForRegistry(async () => {
+      const current = await registry.getTag(pkg.name, "next");
+      requireThat(
+        current === expected || current === previous,
+        "TAG_CONFLICT",
+        "Channel changed outside this release",
+      );
+      return current === expected;
+    });
+  }
   try {
     // Inspect every version before the first registry mutation, even dependencies later in order.
     const existing = new Map();
@@ -200,14 +220,7 @@ async function publishVerifiedRelease(options) {
         state.publishAttempts++;
         persist();
         await registry.publish(pkg, tarball, `candidate-${plan.releaseId}`);
-        let verified = false;
-        for (let attempt = 0; attempt < attempts; attempt++) {
-          if (await observed(pkg)) {
-            verified = true;
-            break;
-          }
-          if (attempt + 1 < attempts) await wait(250 * (attempt + 1));
-        }
+        const verified = await waitForRegistry(async () => Boolean(await observed(pkg)));
         requireThat(
           verified,
           "REGISTRY_UNAVAILABLE",
@@ -258,7 +271,7 @@ async function publishVerifiedRelease(options) {
           persist();
           await registry.setTag(pkg.name, pkg.version, "next");
           requireThat(
-            (await registry.getTag(pkg.name, "next")) === pkg.version,
+            await channelMatches(pkg, pkg.version, state.previousTag),
             "PROMOTION_PARTIAL",
             "Channel promotion could not be verified",
           );
@@ -268,7 +281,7 @@ async function publishVerifiedRelease(options) {
       }
       for (const pkg of plan.packages)
         requireThat(
-          (await registry.getTag(pkg.name, "next")) === pkg.version,
+          await channelMatches(pkg, pkg.version, journal.packages[pkg.name].previousTag),
           "PROMOTION_PARTIAL",
           "Final channel verification failed",
         );
@@ -282,12 +295,11 @@ async function publishVerifiedRelease(options) {
             "TAG_CONFLICT",
             "Refusing to overwrite an external channel change",
           );
-          if (current !== state.previousTag) {
-            if (state.previousTag === null) await registry.removeTag(pkg.name, "next");
-            else await registry.setTag(pkg.name, state.previousTag, "next");
-          }
+          // A cached previous value cannot prove a possibly committed write failed.
+          if (state.previousTag === null) await registry.removeTag(pkg.name, "next");
+          else await registry.setTag(pkg.name, state.previousTag, "next");
           requireThat(
-            (await registry.getTag(pkg.name, "next")) === state.previousTag,
+            await channelMatches(pkg, state.previousTag, pkg.version),
             "PROMOTION_PARTIAL",
             "Channel restoration could not be verified",
           );

@@ -1,6 +1,6 @@
 {
   "name": "@ternent/armour",
-  "version": "0.3.0-alpha.0",
+  "version": "0.3.0-alpha.1",
   "description": "Identity-aware age encryption with text, binary and passphrase helpers",
   "license": "ISC",
   "repository": {

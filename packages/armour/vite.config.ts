@@ -1,29 +1,10 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
-import { createPackageExternal, resolvePackageDir } from "../../scripts/vite/package-lib-config";
-
-const configDir = dirname(fileURLToPath(import.meta.url));
-const external = createPackageExternal(resolvePackageDir(import.meta.url));
+import { defineConfig } from "vite-plus";
+import base from "../../vite.config.base.js";
 
 export default defineConfig({
-  build: {
-    outDir: "dist",
-    sourcemap: true,
-    target: "es2020",
-    minify: false,
-    lib: {
-      entry: resolve(configDir, "src/index.ts"),
-      name: "ternentArmour",
-      fileName: "index",
-      formats: ["es"],
-    },
-    rollupOptions: {
-      external,
-      output: {
-        format: "es",
-        entryFileNames: "index.js",
-      },
-    },
+  ...base,
+  pack: {
+    ...base.pack,
+    entry: { index: "src/index.ts" },
   },
 });

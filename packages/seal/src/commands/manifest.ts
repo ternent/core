@@ -1,12 +1,12 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
-import { createSealHash } from "../proof";
+import { createSealHash } from "../proof.js";
 import {
   SEAL_MANIFEST_TYPE,
   SEAL_MANIFEST_VERSION,
   stringifySealManifest,
   type SealManifestV1,
-} from "../manifest";
+} from "../manifest.js";
 
 function normalizeRelativePath(value: string): string {
   return value.split("\\").join("/");
@@ -20,7 +20,7 @@ async function collectFiles(
   const entries = await readdir(currentPath, { withFileTypes: true });
   const sorted = entries
     .filter((entry) => entry.name !== ".DS_Store")
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
   for (const entry of sorted) {
     const entryPath = join(currentPath, entry.name);
@@ -44,7 +44,7 @@ export async function createManifestArtifact(inputPath: string): Promise<{
   const resolvedInput = resolve(inputPath);
   const inputStat = await stat(resolvedInput);
   const root = basename(resolvedInput);
-  const files: SealManifestV1["files"] = {};
+  const files = Object.create(null) as SealManifestV1["files"];
 
   if (inputStat.isDirectory()) {
     await collectFiles(resolvedInput, resolvedInput, files);
@@ -60,7 +60,7 @@ export async function createManifestArtifact(inputPath: string): Promise<{
     type: SEAL_MANIFEST_TYPE,
     root,
     files: Object.fromEntries(
-      Object.entries(files).sort(([left], [right]) => left.localeCompare(right)),
+      Object.entries(files).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0)),
     ),
   };
 

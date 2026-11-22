@@ -5,7 +5,6 @@ export type ArmourOutputFormat = "armor" | "binary";
 export type ArmourBinaryInput = Uint8Array | ArrayBuffer | Blob;
 
 export type ArmourErrorCode =
-  | "ARMOUR_INIT_FAILED"
   | "ARMOUR_EMPTY_DATA"
   | "ARMOUR_EMPTY_RECIPIENTS"
   | "ARMOUR_INVALID_RECIPIENT"

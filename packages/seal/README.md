@@ -1,258 +1,119 @@
-# @ternent/seal-cli
+# @ternent/seal
 
-Seal signs files and manifests. It verifies artifacts offline. It emits portable proof JSON for legacy flows and recipient-targeted sealed artifacts for encrypted flows.
+Standalone file/manifest proofs and recipient-encrypted artifacts, with a browser-safe
+library and the Node `seal` executable. Uses the public Identity and Armour APIs;
+Armour's typage implementation needs no initialization or WASM step.
 
-## Install
+The local migration candidate is `0.5.0-alpha.0`. Registry publication is separate.
+Proof/public-key wire version remains `2`; manifest/artifact wire version remains `1`.
+The public proof type is `SealProofV2`.
 
-```bash
-pnpm add -D @ternent/seal-cli
-```
-
-## Environment
-
-Create a signer identity with Seal:
-
-```bash
-seal identity create --out identity.json
-```
-
-Create a mnemonic-backed identity and save the recovery phrase separately:
-
-```bash
-seal identity create --out identity.json --words 24 --mnemonic-out seal-seed-phrase.txt
-```
-
-`@ternent/seal-cli` reads signer material from a v2 identity JSON payload:
-
-```bash
-export SEAL_IDENTITY="$(cat identity.json)"
-# or
-export SEAL_IDENTITY_FILE="./identity.json"
-```
-
-## Commands
-
-```bash
-seal identity create --out identity.json
-seal identity create --out identity.json --words 24 --mnemonic-out seal-seed-phrase.txt
-seal manifest create --input apps/seal/dist --out apps/seal/dist/dist-manifest.json
-seal sign --input apps/seal/dist/dist-manifest.json --out apps/seal/dist/proof.json
-seal sign --input artifact.tar.gz --recipient age1... --recipient age1... --out artifact.seal.json
-seal verify --proof apps/seal/dist/proof.json --input apps/seal/dist/dist-manifest.json --json
-seal verify --artifact artifact.seal.json --json
-seal public-key --json
-```
-
-When one or more `--recipient` flags are provided, Seal encrypts the input bytes with `@ternent/armour`, then signs the unsigned artifact container. Recipient values are never serialized into the emitted artifact.
-
-## JavaScript API
-
-Create a Seal-compatible identity and persist it as the `SEAL_IDENTITY` payload:
+## Library
 
 ```ts
-import {
-  createSealIdentity,
-  createSealMnemonicIdentity,
-  exportIdentityJson,
-} from "@ternent/seal-cli";
+import { createSealIdentity } from "@ternent/seal/crypto";
+import { createSealHash, createSealProof, verifySealProofAgainstBytes } from "@ternent/seal/proof";
 
 const identity = await createSealIdentity();
-const identityJson = exportIdentityJson(identity);
-
-const { identity: mnemonicIdentity, mnemonic } = await createSealMnemonicIdentity({ words: 24 });
+const bytes = new TextEncoder().encode("signed bytes");
+const proof = await createSealProof({
+  signer: { identity },
+  subject: { kind: "file", path: "example.txt", hash: await createSealHash(bytes) },
+});
+const result = await verifySealProofAgainstBytes(proof, bytes);
 ```
 
-Create and verify recipient-targeted artifacts:
+Root re-exports the library. Typed subpaths are `/proof`, `/artifact`, `/manifest`,
+`/crypto` and `/errors`. They import no Node filesystem/CLI code. The CLI is a separate
+executable, with no import-time execution from public library paths. No Concord or
+Utils dependency is required.
 
 ```ts
+import { recipientFromIdentity } from "@ternent/armour";
 import {
   createSealArtifact,
-  decryptSealArtifactPayload,
   verifySealArtifact,
-} from "@ternent/seal-cli/artifact";
+  decryptSealArtifactPayload,
+} from "@ternent/seal/artifact";
 
+const recipient = await createSealIdentity();
 const artifact = await createSealArtifact({
   signer: { identity },
-  subjectPath: "artifact.tar.gz",
-  payload: artifactBytes,
-  recipients: ["age1..."],
+  subjectPath: "example.txt",
+  payload: bytes,
+  recipients: [await recipientFromIdentity(recipient)],
 });
-
 const verification = await verifySealArtifact(artifact);
-const plaintext = await decryptSealArtifactPayload({
-  artifact,
-  identity,
-});
+const plaintext = await decryptSealArtifactPayload({ artifact, identity: recipient });
 ```
 
-## GitHub Actions
+Verification is offline. The proof binds the canonical unsigned proof fields with
+Ed25519 over `UTF8("ternent-seal/v2") || 0x00 || UTF8(payload)`. Signer key ID is the
+SHA-256 of its raw Ed25519 public key. Signing validates seed/public-key/key-ID binding;
+verification uses Identity's strict point, encoding and signature checks. Valid signatures
+identify a key; the caller decides whether that signer is trusted.
 
-Use the published GitHub Action:
+Artifact verification checks the signed unsigned-container hash and the armored
+ciphertext hash before decryption. Payload bytes are encrypted; proof signer, subject
+path, timestamp, container metadata, sizes and age headers remain public. Recipients
+are not added as plaintext JSON fields; no traffic-pattern or metadata-hiding promise
+is made. Verification does not prove other recipients can decrypt.
 
-```yaml
-- name: Generate Seal artifacts
-  uses: samternent/seal-action@v2
-  env:
-    SEAL_IDENTITY: ${{ secrets.SEAL_IDENTITY }}
-  with:
-    assets-directory: dist
-    package-name: @ternent/seal-cli
-    package-version: latest
+Canonical JSON accepts plain objects, normal arrays, valid Unicode strings, booleans,
+null and safe integers, with a depth limit of 64. It rejects accessors, custom prototypes,
+`toJSON` hooks, symbols, cycles, sparse arrays, undefined, bigint, nonfinite/fractional
+numbers and negative zero. Object keys sort by UTF-16 code units before native JSON
+serialization; native integer-index enumeration is retained from the prior Seal codec.
+The format is Seal's own contract, not Concord canonicalization or a JCS claim.
+See [the format and fixed evidence](../../docs/seal/format.md).
+
+## CLI
+
+Run the installed package's `seal` executable. This source candidate has not been
+published by the migration.
+
+```sh
+seal --help
+seal identity create --out identity.json --words 24 --mnemonic-out seal-backup.txt --quiet
+export SEAL_IDENTITY_FILE=./identity.json
+seal manifest create --input dist --out dist/dist-manifest.json --quiet
+seal sign --input dist/dist-manifest.json --out dist/proof.json --quiet
+seal verify --proof dist/proof.json --input dist/dist-manifest.json --json
+seal public-key --json
+seal sign --input example.txt --recipient age1... --out example.seal.json --quiet
+seal verify --artifact example.seal.json --json
 ```
 
-The action is intentionally narrow. Your workflow still needs to:
+`SEAL_IDENTITY` may instead contain the serialized Identity v2 JSON and takes precedence
+over `SEAL_IDENTITY_FILE`. Identity and mnemonic output files are created/written with
+owner-only mode `0600`. `--quiet` suppresses normal output; without it, identity creation
+may print the secret identity/backup when JSON output is requested. Keep signer files
+outside the directory being manifested. Manifest creation hashes the actual files in
+its input tree, skips `.DS_Store` and non-file/non-directory entries, and includes
+prototype-like filenames safely. Use a clean build directory before generating the
+manifest/proof/public-key outputs into it.
 
-- check out the repo
-- set up Node
-- build the static directory you want to sign
+| Exit | Meaning                                             |
+| ---- | --------------------------------------------------- |
+| 0    | Success, including help                             |
+| 1    | General/argument/encryption failure                 |
+| 2    | Subject or artifact hash mismatch                   |
+| 3    | Invalid signature or signer key binding             |
+| 4    | Malformed proof/artifact schema or JSON             |
+| 5    | Missing, unreadable or invalid signer configuration |
 
-Inputs:
+The separately maintained Seal Action accepts `package-name`, `package-version` and
+`cli-command`. Its observed defaults still target the old package name. Select
+`@ternent/seal` and an actually published version when using its package path; an
+explicit CLI override can exercise a locally installed candidate. This migration
+proves its manifest/sign/public-key command sequence against the installed executable.
+Core CI also pins and invokes the actual Action with an explicit CLI command to sign
+the release candidate bundle, then verifies its complete file set and proof with a
+disposable test key. Production release verification requires an externally trusted
+public key. This does not release the Action or establish published consumption of
+the new Seal package.
 
-- `assets-directory`: built static directory to sign
-- `working-directory`: base directory for path resolution
-- `manifest-name`: manifest output filename
-- `proof-name`: proof output filename
-- `public-key-name`: public key output filename
-- `package-name`: npm package name to execute when `cli-command` is omitted
-- `package-version`: npm version or dist-tag to execute when `cli-command` is omitted
-- `cli-command`: command prefix used to invoke Seal
-
-Outputs:
-
-- `manifest-path`
-- `proof-path`
-- `public-key-path`
-
-The default path is npm-backed: if `cli-command` is empty, the action runs `npm exec --yes --package=<package-name>@<package-version> seal`.
-
-## Schemas
-
-Manifest:
-
-```json
-{
-  "version": "1",
-  "type": "seal-manifest",
-  "root": "dist",
-  "files": {
-    "assets/index.js": "sha256:..."
-  }
-}
-```
-
-Proof:
-
-```json
-{
-  "version": "2",
-  "type": "seal-proof",
-  "algorithm": "Ed25519",
-  "createdAt": "2026-03-13T00:00:00.000Z",
-  "subject": {
-    "kind": "manifest",
-    "path": "dist-manifest.json",
-    "hash": "sha256:..."
-  },
-  "signer": {
-    "publicKey": "BASE64URL-RAW-ED25519-PUBLIC-KEY",
-    "keyId": "..."
-  },
-  "signature": "..."
-}
-```
-
-Encrypted artifact:
-
-```json
-{
-  "version": "1",
-  "type": "seal-artifact",
-  "manifest": {
-    "version": "1",
-    "payloadType": "encrypted",
-    "payloadScheme": "age",
-    "payloadMode": "recipients",
-    "payloadEncoding": "armor",
-    "payloadHash": "sha256:..."
-  },
-  "payload": {
-    "type": "encrypted",
-    "scheme": "age",
-    "mode": "recipients",
-    "encoding": "armor",
-    "data": "-----BEGIN AGE ENCRYPTED FILE-----\n...\n-----END AGE ENCRYPTED FILE-----\n"
-  },
-  "proof": {
-    "version": "2",
-    "type": "seal-proof",
-    "algorithm": "Ed25519",
-    "createdAt": "2026-03-17T00:00:00.000Z",
-    "subject": {
-      "kind": "artifact",
-      "path": "artifact.tar.gz",
-      "hash": "sha256:..."
-    },
-    "signer": {
-      "publicKey": "BASE64URL-RAW-ED25519-PUBLIC-KEY",
-      "keyId": "..."
-    },
-    "signature": "..."
-  }
-}
-```
-
-Public key:
-
-```json
-{
-  "version": "2",
-  "type": "seal-public-key",
-  "algorithm": "Ed25519",
-  "publicKey": "BASE64URL-RAW-ED25519-PUBLIC-KEY",
-  "keyId": "..."
-}
-```
-
-Identity:
-
-```json
-{
-  "format": "ternent-identity",
-  "version": "2",
-  "algorithm": "Ed25519",
-  "createdAt": "2026-03-17T00:00:00.000Z",
-  "publicKey": "BASE64URL-RAW-ED25519-PUBLIC-KEY",
-  "keyId": "...",
-  "material": {
-    "kind": "seed",
-    "seed": "BASE64URL-RAW-32-BYTE-SEED"
-  }
-}
-```
-
-## Frontend Contract
-
-`apps/seal` verifies published artifacts by fetching:
-
-- `/dist-manifest.json`
-- `/proof.json`
-- `/public-key.json` (optional)
-
-Browser verification reuses `@ternent/seal-cli/proof`, `@ternent/seal-cli/crypto`, `@ternent/identity`, and `ternent-utils`.
-
-Validation rules:
-
-- parse `seal-proof`
-- recompute the fetched manifest hash from raw bytes
-- verify the embedded signature
-- verify `signer.keyId`
-- if `/public-key.json` exists, require its `publicKey` and `keyId` to match the proof signer
-
-## Exit Codes
-
-- `0` success
-- `1` general failure
-- `2` subject hash mismatch
-- `3` signature invalid
-- `4` invalid proof
-- `5` key or config error
+[Repository acceptance](../../docs/engineering/repository-hygiene.md#acceptance-boundaries)
+describes source and installed-consumer checks.
+[Release work](../../docs/engineering/release-and-deployment.md#release-backlog) remains
+separate from local candidate verification.

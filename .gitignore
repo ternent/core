@@ -16,3 +16,9 @@ node_modules
 
 # Ignore Vite's cache directory
 .vite   
+
+# Local install and verification outputs.
+.pnpm-store/
+artifacts/
+playwright-report/
+test-results/

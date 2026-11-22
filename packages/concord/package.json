@@ -1,51 +1,57 @@
 {
   "name": "@ternent/concord",
-  "version": "0.2.9",
+  "version": "0.3.0-alpha.0",
   "description": "Command-driven developer runtime for building non-custodial apps on @ternent/ledger",
   "license": "ISC",
   "files": [
     "dist",
-    "README.md",
-    "SPEC.md"
+    "README.md"
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     },
-    "./browser": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/browser.js",
-      "default": "./dist/browser.js"
+    "./protocol": {
+      "types": "./dist/protocol/index.d.ts",
+      "import": "./dist/protocol/index.js"
+    },
+    "./system": {
+      "types": "./dist/system/index.d.ts",
+      "import": "./dist/system/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
     }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "dev": "vite build --watch",
-    "build:browser": "pnpm --filter @ternent/ledger build && vite build -c vite.browser.config.ts",
-    "build": "pnpm --filter @ternent/ledger build && vite build && vite build -c vite.browser.config.ts",
-    "test": "pnpm run build && vitest run"
+    "fmt:check": "vp fmt --check .",
+    "lint": "vp lint --type-aware .",
+    "typecheck": "tsc6 --noEmit -p tsconfig.json",
+    "test": "vp test run",
+    "build": "vp pack",
+    "check:artifact": "publint --strict --pack false",
+    "check": "pnpm --filter @ternent/concord... run build && pnpm run fmt:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:artifact"
   },
   "dependencies": {
-    "@ternent/ledger": "workspace:*"
+    "@ternent/armour": "workspace:^",
+    "@ternent/identity": "workspace:^",
+    "@ternent/ledger": "workspace:^"
   },
   "devDependencies": {
-    "@ternent/armour": "workspace:*",
-    "@ternent/identity": "workspace:*",
-    "@ternent/rage": "workspace:*",
-    "@ternent/seal-cli": "workspace:*",
-    "@types/node": "^24.3.0",
-    "typescript": "^5.6.3",
-    "vite": "^4.5.3",
-    "vite-plugin-dts": "^1.7.3",
-    "vitest": "^1.6.0"
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite-plus": "1.7.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

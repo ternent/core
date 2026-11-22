@@ -1,37 +1,29 @@
 import { dirname, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { describe, expect, it, vi } from "vitest";
-import { createIdentity, serializeIdentity } from "../../identity-v2/src/index.ts";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { createIdentity, serializeIdentity } from "@ternent/identity";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageDir = resolve(testDir, "..");
 
 async function loadSourceModule() {
   vi.resetModules();
-  return import("../src/index.ts");
+  return import("../src/index.js");
 }
 
 describe("@ternent/armour", () => {
-  it("requires manual init before use", async () => {
+  it("encrypts and decrypts immediately after import", async () => {
     const armour = await loadSourceModule();
-
-    await expect(
-      armour.encryptWithPassphrase({
-        passphrase: "correct horse battery staple",
-        data: new TextEncoder().encode("hello"),
-      }),
-    ).rejects.toMatchObject({
-      name: "ArmourInitError",
-      code: "ARMOUR_INIT_FAILED",
+    const identity = await createIdentity();
+    const plaintext = new TextEncoder().encode("no setup required");
+    const ciphertext = await armour.encryptForIdentities({
+      identities: [identity],
+      data: plaintext,
     });
-  });
-
-  it("initializes idempotently", async () => {
-    const armour = await loadSourceModule();
-
-    await expect(armour.initArmour()).resolves.toBeUndefined();
-    await expect(armour.initArmour()).resolves.toBeUndefined();
+    await expect(armour.decryptWithIdentity({ identity, data: ciphertext })).resolves.toEqual(
+      plaintext,
+    );
   });
 
   it("derives age recipients and secrets from identity objects and strings", async () => {
@@ -61,7 +53,6 @@ describe("@ternent/armour", () => {
 
   it("encrypts for one identity and decrypts with the same identity", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
     const identity = await createIdentity();
 
     const ciphertext = await armour.encryptForIdentities({
@@ -78,7 +69,6 @@ describe("@ternent/armour", () => {
 
   it("encrypts for multiple identities in one pass", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
     const alice = await createIdentity();
     const bob = await createIdentity();
 
@@ -96,7 +86,6 @@ describe("@ternent/armour", () => {
 
   it("supports raw recipient passthrough and raw secret decryption", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
     const identity = await createIdentity();
     const recipient = await armour.recipientFromIdentity(identity);
     const secretKey = await armour.secretKeyFromIdentity(identity);
@@ -116,7 +105,6 @@ describe("@ternent/armour", () => {
 
   it("normalizes recipient validation failures", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
 
     await expect(
       armour.encryptForRecipients({
@@ -131,7 +119,6 @@ describe("@ternent/armour", () => {
 
   it("round trips passphrase encryption and rejects wrong passphrases", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
 
     const ciphertext = await armour.encryptWithPassphrase({
       passphrase: "correct horse battery staple",
@@ -157,7 +144,6 @@ describe("@ternent/armour", () => {
 
   it("rejects empty passphrases with structured validation errors", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
 
     await expect(
       armour.encryptWithPassphrase({
@@ -172,7 +158,6 @@ describe("@ternent/armour", () => {
 
   it("round trips text helpers", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
     const identity = await createIdentity();
 
     const ciphertext = await armour.encryptTextForIdentities({
@@ -190,7 +175,6 @@ describe("@ternent/armour", () => {
 
   it("accepts ArrayBuffer, Blob, and File-compatible inputs for binary helpers", async () => {
     const armour = await loadSourceModule();
-    await armour.initArmour();
     const identity = await createIdentity();
     const fileLike =
       typeof File === "undefined"
@@ -240,7 +224,6 @@ describe("@ternent/armour", () => {
     expect(source).not.toMatch(/\bencryptText\b(?!ForIdentities|WithPassphrase)/);
     expect(source).not.toMatch(/\bdecryptText\b(?!WithIdentity|WithPassphrase)/);
 
-    await armour.initArmour();
     await expect(
       armour.encryptForIdentities({
         identities: [identity],
@@ -253,8 +236,6 @@ describe("@ternent/armour", () => {
     const entryUrl = pathToFileURL(resolve(packageDir, "dist/index.js")).href;
     const armour = await import(entryUrl);
     const identity = await createIdentity();
-
-    await armour.initArmour();
 
     const ciphertext = await armour.encryptForIdentities({
       identities: [identity],

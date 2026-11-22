@@ -1,11 +1,12 @@
+import { SealCliError, EXIT_INVALID_PROOF } from "../errors.js";
 import { readFile } from "node:fs/promises";
 import {
   parseSealArtifactJson,
   verifySealArtifact,
   type SealArtifactV1,
   type VerifySealArtifactResult,
-} from "../artifact";
-import { parseSealProofJson, verifySealProofAgainstBytes, type SealProofV1 } from "../proof";
+} from "../artifact.js";
+import { parseSealProofJson, verifySealProofAgainstBytes, type SealProofV2 } from "../proof.js";
 
 export type VerifyArtifactResult = {
   valid: boolean;
@@ -20,13 +21,13 @@ export async function verifyProofArtifact(params: {
   proofPath: string;
   inputPath: string;
 }): Promise<{
-  proof: SealProofV1;
+  proof: SealProofV2;
   result: VerifyArtifactResult;
 }> {
   const rawProof = await readFile(params.proofPath, "utf8");
   const parsed = parseSealProofJson(rawProof);
   if (!parsed.ok || !parsed.proof) {
-    throw new Error(parsed.errors.join(" "));
+    throw new SealCliError(parsed.errors.join(" "), EXIT_INVALID_PROOF);
   }
 
   const subjectBytes = await readFile(params.inputPath);
@@ -44,7 +45,7 @@ export async function verifyArtifactProof(params: { artifactPath: string }): Pro
   const rawArtifact = await readFile(params.artifactPath, "utf8");
   const parsed = parseSealArtifactJson(rawArtifact);
   if (!parsed.ok || !parsed.artifact) {
-    throw new Error(parsed.errors.join(" "));
+    throw new SealCliError(parsed.errors.join(" "), EXIT_INVALID_PROOF);
   }
 
   return {

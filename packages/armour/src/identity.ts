@@ -5,7 +5,7 @@ import {
   type SerializedIdentity,
 } from "@ternent/identity";
 import { AGE_SECRET_KEY_PREFIX } from "./constants.js";
-import { ArmourIdentityError, ArmourValidationError, toArmourIdentityError } from "./errors.js";
+import { ArmourValidationError, toArmourIdentityError } from "./errors.js";
 import type { ArmourIdentityInput } from "./types.js";
 
 export async function resolveIdentity(input: ArmourIdentityInput): Promise<SerializedIdentity> {
@@ -59,14 +59,4 @@ export async function normalizeSecretKey(secretKey: string): Promise<string> {
   }
 
   return normalized;
-}
-
-export async function assertIdentityCapabilityRoot(
-  input: ArmourIdentityInput,
-): Promise<SerializedIdentity> {
-  const identity = await resolveIdentity(input);
-  if (identity.algorithm !== "Ed25519") {
-    throw new ArmourIdentityError("ARMOUR_INVALID_IDENTITY", "Identity algorithm must be Ed25519.");
-  }
-  return identity;
 }

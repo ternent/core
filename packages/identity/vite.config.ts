@@ -1,17 +1,10 @@
-import { resolve } from "node:path";
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
+import base from "../../vite.config.base.js";
 
 export default defineConfig({
-  build: {
-    target: "es2020",
-    lib: {
-      entry: resolve(__dirname, "src/index.ts"),
-      name: "ternentIdentityV2",
-      fileName: "index",
-    },
-    rollupOptions: {},
-  },
-  test: {
-    environment: "node",
+  ...base,
+  pack: {
+    ...base.pack,
+    entry: { index: "src/index.ts" },
   },
 });

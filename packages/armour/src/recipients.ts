@@ -1,7 +1,7 @@
 import {
   decryptWithIdentity as rageDecryptWithIdentity,
   encryptWithRecipients as rageEncryptWithRecipients,
-} from "@ternent/rage";
+} from "./engine.js";
 import {
   normalizeSecretKey,
   recipientFromIdentity,

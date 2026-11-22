@@ -1,236 +1,64 @@
 # @ternent/identity
 
-Ed25519 identity utilities with mnemonic support, signing, verification,
-X25519 derivation, and Age-compatible key helpers.
+The alpha capability interface builds on the existing Ed25519/X25519 derivation code.
+`signerFromSeed(seed)` and `generateSigner()` return structured results containing a
+`BaseIdentityCapability`: public identity, exact-byte signing, and scoped
+`withX25519Secret(callback)`. The copied scalar is zeroed after callback settlement,
+including rejection. Callers must not retain secret copies from that trusted callback.
+`validatePublicIdentity` and `verifySignature` enforce canonical prime-order points,
+identity binding and strict signatures. Empty-message signing follows RFC 8032.
 
----
+`ageRecipientFromPublicIdentity`, `ageRecipientFromSecret`, `ageSecretKey`, and
+`validateAgeRecipient` own the key/Bech32 conversions; `encodeBase64Url` and
+`decodeBase64Url` provide canonical byte encoding. The package does not implement age
+files or depend on Armour, Concord, or Seal.
 
-## Install
+The root explicitly exports two useful interfaces: capabilities for protocol work
+and seed/mnemonic/serialized helpers for host applications such as Seal. A
+`SerializedIdentity` contains private seed material; `PublicIdentity` is the public
+representation used in signed documents. Mnemonics and host identity exports are
+outside the Concord wire format. No identity account or recovery service is implied.
 
-```bash
-pnpm add @ternent/identity
-# or
-npm install @ternent/identity
-# or
-yarn add @ternent/identity
-```
+| Purpose                                | Public functions                                                                                                                                                            |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host identity creation and persistence | `createIdentity`, `createIdentityFromMnemonic`, `createMnemonicIdentity`, `generateMnemonic`, `validateMnemonic`, `parseIdentity`, `serializeIdentity`, `validateIdentity`  |
+| Raw key and age derivation             | `derivePublicKey`, `deriveKeyId`, `deriveX25519PrivateKey`, `deriveX25519PublicKey`, `convertEd25519PublicKeyToX25519PublicKey`, `deriveAgeRecipient`, `deriveAgeSecretKey` |
+| Contextual signing                     | `signBytes`, `signUtf8`, `verifyBytes`, `verifyUtf8`, `getDefaultSignatureContext`                                                                                          |
+| Mnemonic derivation details            | `getIdentityDerivationPath`                                                                                                                                                 |
 
----
+`parseIdentity` checks and normalizes the serialized shape; `validateIdentity` also
+checks that its seed, public key and key ID agree. Capability validation and
+`verifySignature` use the strict point/signature rules described above. The
+convenience verification helpers are not a substitute for protocol verification.
 
-## Quick Start
+`signBytes`/`signUtf8` sign `UTF8(context) || 0x00 || payload` and return a base64url
+signature. Their default context is `ternent-seal/v2`; pass an explicit context for
+another protocol. `verifyBytes`/`verifyUtf8` must use the same context. Capability
+`sign` signs exactly the supplied bytes and returns raw bytes inside a structured
+result. Concord constructs its own signing message and uses that exact-byte path.
 
-### Create Identity
-
-```ts
-import { createIdentity } from "@ternent/identity";
-
-const identity = await createIdentity();
-
-console.log(identity.publicKey);
-console.log(identity.keyId);
-```
-
-### Create Mnemonic Identity
-
-```ts
-import { createMnemonicIdentity } from "@ternent/identity";
-
-const { mnemonic, identity } = await createMnemonicIdentity({ words: 12 });
-
-console.log(mnemonic);
-console.log(identity);
-```
-
-### Restore From Mnemonic
+Historical implementations are available in Git. The distribution is ESM.
 
 ```ts
-import { createIdentityFromMnemonic } from "@ternent/identity";
-
-const identity = await createIdentityFromMnemonic({
-  mnemonic:
-    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-});
+import { signerFromSeed } from "@ternent/identity";
+const result = await signerFromSeed(seed); // copies the 32-byte seed
+if (!result.ok) throw new Error(result.error.code);
+const signature = await result.value.sign(new Uint8Array());
 ```
 
----
-
-## Signing
-
-### Sign UTF-8
+Host identity creation and persistence:
 
 ```ts
-import { signUtf8 } from "@ternent/identity";
-
-const signature = await signUtf8(identity, "hello world");
+import { createMnemonicIdentity, serializeIdentity } from "@ternent/identity";
+const { identity, mnemonic } = await createMnemonicIdentity({ words: 12 });
+const exportedIdentity = serializeIdentity(identity);
+// The host owns persistence of the private identity and recovery phrase.
 ```
 
-### Verify UTF-8
+Capability factories return `PrimitiveResult`; host helpers reject/throw on invalid
+input. Import `PublicIdentity`, `BaseIdentityCapability`, `PrimitiveResult`,
+`PrimitiveError`, `SerializedIdentity`, `IdentityMaterial` and `MnemonicWordCount`
+from the package root when those types are needed.
 
-```ts
-import { verifyUtf8 } from "@ternent/identity";
-
-const ok = await verifyUtf8(identity.publicKey, "hello world", signature);
-```
-
-### Custom Context
-
-```ts
-await signUtf8(identity, "payload", { context: "my-app/v1" });
-```
-
----
-
-## Mnemonics
-
-### Generate
-
-```ts
-import { generateMnemonic } from "@ternent/identity";
-
-const mnemonic = generateMnemonic({ words: 24 });
-```
-
-### Validate
-
-```ts
-import { validateMnemonic } from "@ternent/identity";
-
-const valid = validateMnemonic(mnemonic);
-```
-
----
-
-## Identity Utilities
-
-### Parse
-
-```ts
-import { parseIdentity } from "@ternent/identity";
-
-const identity = parseIdentity(json);
-```
-
-### Serialize
-
-```ts
-import { serializeIdentity } from "@ternent/identity";
-
-const json = serializeIdentity(identity);
-```
-
-### Validate Integrity
-
-```ts
-import { validateIdentity } from "@ternent/identity";
-
-await validateIdentity(identity);
-```
-
----
-
-## Public Key & Key ID
-
-### Derive Public Key
-
-```ts
-import { derivePublicKey } from "@ternent/identity";
-
-const publicKey = await derivePublicKey(seed);
-```
-
-### Derive Key ID
-
-```ts
-import { deriveKeyId } from "@ternent/identity";
-
-const keyId = await deriveKeyId(publicKey);
-```
-
----
-
-## Raw Signing
-
-### Sign Bytes
-
-```ts
-import { signBytes } from "@ternent/identity";
-
-const signature = await signBytes(identity, bytes);
-```
-
-### Verify Bytes
-
-```ts
-import { verifyBytes } from "@ternent/identity";
-
-const ok = await verifyBytes(identity.publicKey, bytes, signature);
-```
-
----
-
-## X25519 & Age
-
-### X25519 Private Key
-
-```ts
-import { deriveX25519PrivateKey } from "@ternent/identity";
-
-const privateKey = await deriveX25519PrivateKey(identity);
-```
-
-### X25519 Public Key
-
-```ts
-import { deriveX25519PublicKey } from "@ternent/identity";
-
-const publicKey = await deriveX25519PublicKey(identity);
-```
-
-### Convert Ed25519 → X25519
-
-```ts
-import { convertEd25519PublicKeyToX25519PublicKey } from "@ternent/identity";
-
-const x25519 = await convertEd25519PublicKeyToX25519PublicKey(identity.publicKey);
-```
-
-### Age Recipient
-
-```ts
-import { deriveAgeRecipient } from "@ternent/identity";
-
-const recipient = await deriveAgeRecipient(identity);
-```
-
-### Age Secret Key
-
-```ts
-import { deriveAgeSecretKey } from "@ternent/identity";
-
-const secret = await deriveAgeSecretKey(identity);
-```
-
----
-
-## Types
-
-```ts
-type MnemonicWordCount = 12 | 24;
-
-type SerializedIdentity = {
-  format: "ternent-identity";
-  version: "2";
-  algorithm: "Ed25519";
-  createdAt: string;
-  publicKey: string;
-  keyId: string;
-  material: {
-    kind: "seed";
-    seed: string;
-  };
-};
-```
-
----
-
-MIT License
+Run `pnpm check` at the repository root for built-package, browser and consumer proof.
+License: ISC.

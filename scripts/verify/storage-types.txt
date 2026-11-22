@@ -1,0 +1,27 @@
+import { type CommitId } from "@ternent/concord";
+import { createMemoryArtifactStore, createMemoryExpectedHeadStore, type ArtifactStore, type ExpectedHeadArtifactStore, type StorageError } from "@ternent/concord/testing";
+const raw: ArtifactStore = createMemoryArtifactStore();
+const store: ExpectedHeadArtifactStore = createMemoryExpectedHeadStore();
+const head: CommitId = `commit:${"0".repeat(64)}`;
+const bytes = new Uint8Array();
+await raw.write(bytes);
+await store.writeExpected(bytes,null);
+const result = await store.writeExpected(bytes,head);
+if (!result.ok) {
+  const error: StorageError = result.error;
+  if (error.code === "HEAD_CONFLICT") {
+    const remote: Uint8Array | null = error.remote;
+    void remote;
+  } else {
+    // @ts-expect-error An I/O failure does not invent remote snapshot evidence.
+    void error.remote;
+  }
+}
+// @ts-expect-error Basic byte stores do not advertise atomic head comparison.
+await raw.writeExpected(bytes,head);
+// @ts-expect-error Create-only must be explicit null, not an omitted expected head.
+await store.writeExpected(bytes);
+// @ts-expect-error Text is not an artifact byte buffer.
+await raw.write("snapshot");
+// @ts-expect-error The optional capability is readonly and always true on this reference store.
+store.expectedHead = false;

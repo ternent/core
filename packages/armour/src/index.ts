@@ -3,7 +3,6 @@ export {
   ArmourEncryptionError,
   ArmourError,
   ArmourIdentityError,
-  ArmourInitError,
   ArmourValidationError,
 } from "./errors.js";
 export {
@@ -12,12 +11,7 @@ export {
   encryptBinaryForIdentities,
   encryptBinaryWithPassphrase,
 } from "./files.js";
-export {
-  assertIdentityCapabilityRoot,
-  recipientFromIdentity,
-  resolveIdentity,
-  secretKeyFromIdentity,
-} from "./identity.js";
+export { recipientFromIdentity, resolveIdentity, secretKeyFromIdentity } from "./identity.js";
 export { decryptWithPassphrase, encryptWithPassphrase } from "./passphrase.js";
 export {
   decryptWithIdentity,
@@ -32,7 +26,6 @@ export {
   encryptTextForIdentities,
   encryptTextWithPassphrase,
 } from "./text.js";
-export { initArmour } from "./init.js";
 export type { SerializedIdentity } from "@ternent/identity";
 export type {
   ArmourBinaryInput,
@@ -54,3 +47,13 @@ export type {
   EncryptTextWithPassphraseInput,
   EncryptWithPassphraseInput,
 } from "./types.js";
+export {
+  encryptAge,
+  decryptAgeWithSecret,
+  withAgeDecryption,
+  identityFromSeed,
+  generateIdentity,
+} from "./age.js";
+export type { ReaderCapability, IdentityCapability } from "./age.js";
+export { createAgeCodec } from "./codec.js";
+export type { AgePayloadCodec, AgePayloadEncoder, AgePayloadDecoder } from "./codec.js";

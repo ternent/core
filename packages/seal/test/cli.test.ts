@@ -1,10 +1,10 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createIdentity, serializeIdentity } from "@ternent/identity";
 import { recipientFromIdentity } from "@ternent/armour";
-import { runCli } from "../src/cli";
+import { runCli } from "../src/cli.js";
 
 async function createSigningEnv() {
   const identity = await createIdentity();
@@ -205,4 +205,12 @@ describe("seal cli", () => {
     expect(writer.read().stderr).toContain("Recipient must be a valid age recipient string.");
     expect(writer.read().stderr).not.toContain("ARMOUR_");
   });
+});
+
+it("prints help successfully without requiring signer credentials", async () => {
+  const output = createWriter();
+  expect(await runCli(["--help"], { env: {}, writer: output.writer })).toBe(0);
+  expect(output.read().stdout).toContain("Usage: seal");
+  expect(output.read().stdout).toContain("seal verify");
+  expect(output.read().stderr).toBe("");
 });

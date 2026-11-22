@@ -1,12 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, open, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createManifestArtifact } from "./commands/manifest";
-import { createIdentityArtifact } from "./commands/identity";
-import { createProofArtifact, createRecipientArtifact } from "./commands/sign";
-import { createPublicKeyArtifact } from "./commands/publicKey";
-import { verifyArtifactProof, verifyProofArtifact } from "./commands/verify";
-import { resolveSealIdentityFromEnv } from "./node";
+import { createManifestArtifact } from "./commands/manifest.js";
+import { createIdentityArtifact } from "./commands/identity.js";
+import { createProofArtifact, createRecipientArtifact } from "./commands/sign.js";
+import { createPublicKeyArtifact } from "./commands/publicKey.js";
+import { verifyArtifactProof, verifyProofArtifact } from "./commands/verify.js";
+import { resolveSealIdentityFromEnv } from "./node.js";
 import {
   EXIT_FAILURE,
   EXIT_HASH_MISMATCH,
@@ -16,17 +16,17 @@ import {
   EXIT_SUCCESS,
   SealCliError,
   getExitCode,
-} from "./errors";
+} from "./errors.js";
 
 type ProcessEnvLike = Record<string, string | undefined>;
 
-declare const process: {
-  argv: string[];
-  env: ProcessEnvLike;
-  stdout: { write: (value: string) => void };
-  stderr: { write: (value: string) => void };
-  exitCode?: number;
-};
+const usage =
+  "Usage: seal identity create [--out <path>] [--words 12|24] [--passphrase <value>] [--mnemonic-out <path>] [--json] [--quiet]\n" +
+  "       seal manifest create --input <path> [--out <path>] [--json] [--quiet]\n" +
+  "       seal sign --input <path> [--recipient <age...>] [--out <path>] [--json] [--quiet]\n" +
+  "       seal verify --proof <proof.json> --input <path> [--json] [--quiet]\n" +
+  "       seal verify --artifact <artifact.json> [--json] [--quiet]\n" +
+  "       seal public-key [--json] [--quiet]";
 
 type ParsedArgs = {
   _: string[];
@@ -39,7 +39,7 @@ type OutputWriter = {
 };
 
 function parseArgs(argv: string[]): ParsedArgs {
-  const result: ParsedArgs = { _: [], flags: {} };
+  const result: ParsedArgs = { _: [], flags: Object.create(null) as ParsedArgs["flags"] };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (!arg.startsWith("--")) {
@@ -47,7 +47,9 @@ function parseArgs(argv: string[]): ParsedArgs {
       continue;
     }
 
-    const [rawKey, inlineValue] = arg.slice(2).split("=");
+    const equals = arg.indexOf("=");
+    const rawKey = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
+    const inlineValue = equals === -1 ? undefined : arg.slice(equals + 1);
     const key = rawKey.trim();
     const next = argv[index + 1];
     const hasNextValue = inlineValue === undefined && next && !next.startsWith("--");
@@ -122,10 +124,18 @@ function parseMnemonicWordCount(flags: ParsedArgs["flags"]): 12 | 24 | undefined
   throw new SealCliError("Mnemonic word count must be 12 or 24.", EXIT_FAILURE);
 }
 
-async function writeOutputFile(filePath: string, content: string): Promise<void> {
+async function writeOutputFile(filePath: string, content: string, secret = false): Promise<void> {
   const resolvedPath = resolve(filePath);
   await mkdir(dirname(resolvedPath), { recursive: true });
-  await writeFile(resolvedPath, content, "utf8");
+  if (secret) {
+    const file = await open(resolvedPath, "w", 0o600);
+    try {
+      await file.chmod(0o600);
+      await file.writeFile(content, "utf8");
+    } finally {
+      await file.close();
+    }
+  } else await writeFile(resolvedPath, content, "utf8");
 }
 
 function outputResult(writer: OutputWriter, json: boolean, quiet: boolean, value: unknown): void {
@@ -175,6 +185,10 @@ export async function runCli(
 
   try {
     const [command, subcommand] = parsed._;
+    if (hasFlag(parsed.flags, "help") || command === "help") {
+      if (!quiet) writer.stdout(`${usage}\n`);
+      return EXIT_SUCCESS;
+    }
 
     if (command === "identity" && subcommand === "create") {
       const mnemonicOutPath = getFlag(parsed.flags, "mnemonic-out");
@@ -185,10 +199,10 @@ export async function runCli(
       });
       const outPath = getFlag(parsed.flags, "out");
       if (outPath) {
-        await writeOutputFile(outPath, artifact.content);
+        await writeOutputFile(outPath, artifact.content, true);
       }
       if (mnemonicOutPath) {
-        await writeOutputFile(mnemonicOutPath, artifact.mnemonicContent || "");
+        await writeOutputFile(mnemonicOutPath, artifact.mnemonicContent || "", true);
       }
 
       if (outPath) {
@@ -335,16 +349,9 @@ export async function runCli(
       return EXIT_SUCCESS;
     }
 
-    throw new SealCliError(
-      "Usage: seal identity create [--out <path>] [--words 12|24] [--passphrase <value>] [--mnemonic-out <path>] [--json] [--quiet]\n" +
-        "       seal manifest create --input <path> [--out <path>] [--json] [--quiet]\n" +
-        "       seal sign --input <path> [--recipient <age...>] [--out <path>] [--json] [--quiet]\n" +
-        "       seal verify --proof <proof.json> --input <path> [--json] [--quiet]\n" +
-        "       seal verify --artifact <artifact.json> [--json] [--quiet]\n" +
-        "       seal public-key [--json] [--quiet]",
-      EXIT_FAILURE,
-    );
+    throw new SealCliError(usage, EXIT_FAILURE);
   } catch (error) {
+    if (error instanceof SealCliError) return outputError(writer, json, error);
     if (error instanceof Error && error.message.includes("Proof")) {
       return outputError(writer, json, new SealCliError(error.message, EXIT_INVALID_PROOF));
     }
@@ -366,7 +373,7 @@ const isDirectRun =
   fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 if (isDirectRun) {
-  runCli(process.argv.slice(2)).then((exitCode) => {
+  void runCli(process.argv.slice(2)).then((exitCode) => {
     process.exitCode = exitCode;
   });
 }

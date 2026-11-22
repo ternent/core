@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "a": "owner.document.json",
+      "b": "owner.document.json",
+      "expected": "equal"
+    },
+    {
+      "a": "owner.genesis.document.json",
+      "b": "owner.document.json",
+      "expected": "behind"
+    },
+    {
+      "a": "owner.document.json",
+      "b": "owner.genesis.document.json",
+      "expected": "ahead"
+    },
+    {
+      "a": "owner.document.json",
+      "b": "owner.fork.document.json",
+      "expected": "diverged"
+    },
+    {
+      "a": "owner.fork.document.json",
+      "b": "owner.document.json",
+      "expected": "diverged"
+    }
+  ]
+}

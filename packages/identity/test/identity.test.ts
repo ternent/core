@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   convertEd25519PublicKeyToX25519PublicKey,
   createIdentity,
@@ -16,7 +16,7 @@ import {
   signUtf8,
   validateMnemonic,
   verifyUtf8,
-} from "../src/index";
+} from "../src/index.js";
 
 describe("@ternent/identity", () => {
   it("round-trips a serialized identity", async () => {

@@ -16,6 +16,9 @@ scope. Ledger owns the common signed container and history lifecycle. Concord
 composes commands, authority and encryption above it. Staging is in memory;
 consumers choose commit cadence and own any draft persistence or recovery.
 
+Agents building applications should start with [llms.txt](llms.txt), which links
+to each package’s consumer interface guide and working examples.
+
 Use Node **26.13.1** and pnpm **12.21.0**:
 
 ```sh
@@ -43,7 +46,7 @@ Start with the [project brief](docs/concord/context.md),
 [repository guide](docs/engineering/repository-hygiene.md). Signed history is
 authoritative; projections are derived, and storage publication is a separate step.
 Candidate-registry checks and the release planner/publisher are implemented. CI
-exercises Seal proofs over retained candidate bundles. Production workflow wiring
-and registry onboarding remain on the [release backlog](docs/engineering/release-and-deployment.md).
+exercises Seal proofs over retained candidate bundles. The first registry-backed alpha is published; the [release record](docs/engineering/release-and-deployment.md)
+identifies its versions and acceptance evidence.
 
 ISC licensed. See [LICENSE](LICENSE).

@@ -1,0 +1,165 @@
+# @ternent/concord
+
+> Build a bounded application around typed commands, signed history and encrypted groups.
+
+Published interface baseline: `npm install @ternent/concord@0.3.0-alpha.1 @ternent/armour@0.3.0-alpha.1`.
+[Public README](https://github.com/ternent/core/blob/main/packages/concord/README.md).
+Root declarations: `dist/index.d.ts` and its referenced model/protocol types.
+Specialist exports: `/system`, `/protocol`, `/testing`.
+
+## Define a model and author a document
+
+```ts
+import {
+  defineModel,
+  createDocument,
+  openDocument,
+  type Result,
+  type ModelIssue,
+} from "@ternent/concord";
+import { createStandardSystemProfile } from "@ternent/concord/system";
+import { generateIdentity } from "@ternent/armour";
+
+type State = { value: string };
+type Commands = { set: { value: string } };
+type Event = { type: "value.set"; version: 1; data: { value: string } };
+function ok<T>(value: T): Result<T, ModelIssue> {
+  return { ok: true, value };
+}
+const invalid = (): Result<never, ModelIssue> => ({
+  ok: false,
+  error: { code: "VALUE_INVALID", message: "Expected a string value" },
+});
+function validate(input: unknown): Result<Commands["set"], ModelIssue> {
+  if (
+    !input ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    !("value" in input) ||
+    typeof input.value !== "string"
+  )
+    return invalid();
+  return ok({ value: input.value });
+}
+const model = defineModel<State, Commands, Event>({
+  ref: { id: "example.value", version: 1 },
+  initial: () => ({ value: "" }),
+  commands: {
+    set: { validate, decide: (input) => ok([{ type: "value.set", version: 1, data: input }]) },
+  },
+  validateEvent(input) {
+    if (
+      !input ||
+      typeof input !== "object" ||
+      Array.isArray(input) ||
+      !("type" in input) ||
+      input.type !== "value.set" ||
+      !("version" in input) ||
+      input.version !== 1 ||
+      !("data" in input)
+    )
+      return invalid();
+    const data = validate(input.data);
+    return data.ok ? ok({ type: "value.set", version: 1, data: data.value }) : data;
+  },
+  requirements: () => ["write"],
+  reduce: (_state, event) => ok({ value: event.data.value }),
+});
+const identityResult = await generateIdentity();
+if (!identityResult.ok) throw new Error(identityResult.error.code);
+const identity = identityResult.value;
+const system = createStandardSystemProfile();
+const created = await createDocument({ model, system, identity });
+if (!created.ok) throw new Error(created.error.code);
+const document = created.value;
+const written = await document.dispatch("set", { value: "hello" });
+if (!written.ok) throw new Error(written.error.code);
+const bytes = document.export();
+const reopened = await openDocument({ bytes, model, system, signer: identity });
+const state = reopened.state();
+if (state.status !== "ready") throw new Error(reopened.inspect().findings[0]?.code);
+console.log(state.projection.value);
+```
+
+The host owns the identity and chooses trusted model/system implementations. Persisting
+committed document bytes does not persist the identity capability. Reopen needs those
+implementations and the reader's keys to reconstruct private application state.
+
+## Model contract
+
+One document declares one stable model id/version. Commands validate unknown input,
+then decide events against the current projection (or draft preview). validateEvent
+checks recorded events during replay; reduce is pure and returns new JSON state.
+requirements declares needed capabilities and is checked during authoring and replay.
+Time, randomness and external reads belong in authored input, never reducers. Values
+must be portable JSON with safe integers, valid Unicode and no undefined or hooks.
+There is no in-place model upgrade or automatic plugin loading.
+
+## Handle lifecycle and errors
+
+createDocument returns Result<DocumentHandle>; openDocument returns a handle, including
+read-only inspection handles for invalid, incompatible, locked or stale input.
+state is either ready (projection, head, documentId, canWrite, coverage, lockedEntries)
+or inspection (reason). Always narrow status before rendering a projection. inspect
+exposes verification, system/application status, findings, requirements and evidence.
+verify returns an integrity report; it does not certify freshness or model validity.
+replay returns Result<{ projection, coverage, lockedEntries }>.
+Dispatch, commit and discardDraft return structured Results. Treat thrown host or
+transport failures separately. export returns Uint8Array committed bytes; inspection
+exports preserve original evidence. Default dispatch immediately signs a local commit.
+Publication to storage is a separate host operation.
+
+## Drafts
+
+Pass mode draft to create/open. dispatch stages command intents in memory; draft()
+returns baseHead, entryCount and preview. state/inspect/export/verify/replay continue
+to describe committed history. commit({ message: "..." }) signs the staged group;
+discardDraft drops it. Empty or immediate-mode commit fails NO_DRAFT. Genesis always
+commits immediately. Drafts are not exported or recovered by the library. The host
+owns autosave, command retention and recovery. Commit messages are public metadata.
+
+## Members, groups and readable replay
+
+Import createGroup, setMember, removeMember and createStandardSystemProfile from
+`@ternent/concord/system`. Genesis signer initially owns the default document group.
+Capabilities are read/write/grant/administer. System changes require an immediate-mode
+handle; draft mode does not implicitly switch modes. A default-group writer can
+createGroup(handle), receiving an AudienceId. Additional groups have independent
+memberships; document ownership does not grant their keys or administration.
+
+setMember(handle, { audience, identity: publicIdentity, capabilities: ["read", "write"] })
+admits or changes a member. Omitting audience selects document. Admission/readmission
+grants that group's history. removeMember(handle, { audience, identityId }) rotates
+future group encryption; historical keys/plaintext remain readable. Recipients' actual
+decryptability cannot be certified by another reader. Do not implement these operations
+with UI filters or by editing serialized history.
+
+A command's audience(input) selects exactly one group (default document) before its
+decision gets group-scoped facts. model.audience(event) must agree with every emitted
+event and its signed envelope. A command cannot span groups; a draft can group several
+commands that target different groups.
+
+Without reduceLocked, missing private events prevent trusted application replay.
+Opt into readable coverage with reduceLocked(state, { audience, epoch }, facts).
+Never invent hidden event contents. A ready readable projection has incomplete
+coverage; lockedEntries counts events, not distinct domain objects. Invalid reachable
+signed history blocks trusted state even for groups the reader cannot decrypt.
+
+## Storage, conflict retry and freshness
+
+export bytes for storage. `/testing` exports ArtifactStore/ExpectedHeadArtifactStore
+and copied-buffer in-memory reference stores, including createMemoryExpectedHeadStore.
+They are reference implementations, not a network sync provider. Production adapters
+must implement atomic expected-head writes using provider transactions or conditions.
+
+Keep a remembered remote head and the intended commands until publication succeeds.
+On an explicit HEAD_CONFLICT, retain local and remote bytes, inspect/compare snapshots,
+open the accepted remote snapshot and reissue the intent under current authority.
+Reissue creates new signed events and can fail validation or permission checks. Retain
+local work if it fails. Do not blindly retry an uncertain transport outcome or infer
+commands from encrypted event history. Runtime mutations do not publish or retry.
+
+openDocument({ bytes, model, system, signer, anchor: rememberedSnapshotBytes }) detects
+older/divergent snapshots relative to that verified anchor. Without it, valid integrity
+reports freshness unanchored. Storage latest-head discovery belongs to the adapter/host.
+There are no merge, fetch, push, pull or checkpoint methods in the runtime.

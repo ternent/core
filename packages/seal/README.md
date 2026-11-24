@@ -1,10 +1,12 @@
 # @ternent/seal
 
+[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
+
 Standalone file/manifest proofs and recipient-encrypted artifacts, with a browser-safe
 library and the Node `seal` executable. Uses the public Identity and Armour APIs;
 Armour's typage implementation needs no initialization or WASM step.
 
-The local migration candidate is `0.5.0-alpha.0`. Registry publication is separate.
+The published interface baseline is `0.5.0-alpha.1`.
 Proof/public-key wire version remains `2`; manifest/artifact wire version remains `1`.
 The public proof type is `SealProofV2`.
 
@@ -69,8 +71,7 @@ See [the format and fixed evidence](../../docs/seal/format.md).
 
 ## CLI
 
-Run the installed package's `seal` executable. This source candidate has not been
-published by the migration.
+Run the installed package's `seal` executable.
 
 ```sh
 seal --help
@@ -110,10 +111,10 @@ proves its manifest/sign/public-key command sequence against the installed execu
 Core CI also pins and invokes the actual Action with an explicit CLI command to sign
 the release candidate bundle, then verifies its complete file set and proof with a
 disposable test key. Production release verification requires an externally trusted
-public key. This does not release the Action or establish published consumption of
-the new Seal package.
+public key. The Action is independently released. Published-package acceptance is recorded
+in the repository release record.
 
 [Repository acceptance](../../docs/engineering/repository-hygiene.md#acceptance-boundaries)
 describes source and installed-consumer checks.
-[Release work](../../docs/engineering/release-and-deployment.md#release-backlog) remains
-separate from local candidate verification.
+[Release evidence](../../docs/engineering/release-and-deployment.md) is separate
+from local candidate verification.

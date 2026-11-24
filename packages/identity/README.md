@@ -1,5 +1,7 @@
 # @ternent/identity
 
+[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
+
 The alpha capability interface builds on the existing Ed25519/X25519 derivation code.
 `signerFromSeed(seed)` and `generateSigner()` return structured results containing a
 `BaseIdentityCapability`: public identity, exact-byte signing, and scoped

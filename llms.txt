@@ -1,0 +1,63 @@
+# Ternent libraries
+
+> TypeScript ESM libraries for portable signed history, encrypted application documents,
+> identity capabilities and standalone proofs. This is the consumer entry point for agents.
+
+## Choose the interface
+
+- [Concord](packages/concord/llms.txt): build an application using typed commands, events, authority, private groups and replay.
+- [Ledger](packages/ledger/llms.txt): build a standalone signed log without Concord application or permission semantics.
+- [Identity](packages/identity/llms.txt): generate/import identities, sign bytes and derive public encryption recipients.
+- [Armour](packages/armour/llms.txt): encrypt/decrypt with age; compose identity capabilities and explicit Ledger payload codecs.
+- [Seal](packages/seal/llms.txt): sign/verify file proofs, manifests and encrypted artifacts; use the Node CLI.
+
+The active libraries are exactly the five above. Workspace and UI are outside this
+release, and Utils and separate Seal CLI packages are retired. Use the published
+exports rather than historical workspace runtime/plugin examples.
+
+## Installation and source of truth
+
+Each package guide names the published prerelease baseline that provides these
+interfaces. Use those exact versions while the stable release is being prepared;
+the older default releases have different interfaces. Commit the consumer lockfile.
+
+Install only the libraries the application uses. An unqualified package install selects
+npm's `latest` tag; `@next` selects the preview channel. Dist-tags and version stability
+are separate: check the resolved version, including any prerelease suffix, in the
+consumer lockfile. Libraries support Node 22.18+ and modern browsers; Seal’s CLI
+and filesystem operations require Node. Core development uses its own pinned toolchain.
+
+The package guides link to their public README and declarations. The published
+`dist/*.d.ts` files define the installed interface; do not infer APIs from old examples
+or import repository source. Package READMEs and these guides are included in this
+checkout’s package file lists.
+
+Already published tarballs are immutable; moving a dist-tag does not add files to
+them. The baseline npm releases predate these guides. Use the repository guides
+with those releases until a documented package release is published.
+
+## Shared contracts
+
+Signed committed history is authoritative; projections are derived. Local commits and
+storage publication are separate. Staged Ledger entries and Concord drafts stay in
+memory. Private identity capabilities are held outside the document; the host owns
+identity persistence, recovery and synchronization.
+
+Use the owning library's verification and cryptography rather than implementing them
+in the application. Documents never load executable code: hosts select trusted models
+and system implementations. Treat inspection evidence separately from trusted state.
+
+Snapshots have one selected head. Compare equal/ahead/behind/diverged/unrelated; never
+silently choose or combine divergent history. A storage adapter may implement atomic
+expected-head publication. After an explicit rejected write, retain local bytes and
+command intents, reopen the accepted snapshot and reissue the intended command under
+current authority. Reissue can fail validation; retain the work for resolution. This
+is host behavior, not an automatic retry or merge method in Concord. No runtime
+`merge`, `push`, `pull`, checkpoint, draft persistence or model-upgrade API exists.
+
+## Further reading
+
+- [Concord vocabulary](CONTEXT.md): document, commit, projection, capability and audience definitions.
+- [Storage contract](docs/concord/storage-boundary.md): publication, conflicts and freshness anchors.
+- [Protocol](docs/concord/alpha-protocol.md): specialist wire, signatures and canonicalization.
+- [Contributor instructions](AGENTS.md): repository maintenance rather than application usage.

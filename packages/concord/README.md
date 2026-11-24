@@ -1,5 +1,7 @@
 # @ternent/concord
 
+[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
+
 A framework composing Ledger, Identity and Armour into portable signed documents
 with independent encrypted groups and explicit application replay coverage.
 The alpha implements

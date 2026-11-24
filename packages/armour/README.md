@@ -1,5 +1,7 @@
 # @ternent/armour
 
+[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
+
 Identity-aware age encryption, backed by the pinned pure TypeScript `age-encryption`
 engine. No runtime WASM initialization or command-line process is required.
 

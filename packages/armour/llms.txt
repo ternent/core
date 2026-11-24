@@ -1,0 +1,55 @@
+# @ternent/armour
+
+> age encryption and identity decryption capabilities. No init or WASM step.
+
+Published interface baseline: `npm install @ternent/armour@0.3.0-alpha.1 @ternent/identity@0.6.0-alpha.1`.
+[Public README](https://github.com/ternent/core/blob/main/packages/armour/README.md).
+Installed declarations: `dist/index.d.ts`. Imports use the package root.
+
+## Capability encryption
+
+```ts
+import { generateIdentity, encryptAge } from "@ternent/armour";
+import { ageRecipientFromPublicIdentity } from "@ternent/identity";
+const created = await generateIdentity();
+if (!created.ok) throw new Error(created.error.code);
+const identity = created.value;
+const recipient = ageRecipientFromPublicIdentity(identity.publicIdentity);
+if (!recipient.ok) throw new Error(recipient.error.code);
+const encrypted = await encryptAge({
+  recipients: [recipient.value],
+  plaintext: new TextEncoder().encode("hello"),
+});
+if (!encrypted.ok) throw new Error(encrypted.error.code);
+const decrypted = await identity.decryptAge(encrypted.value);
+if (!decrypted.ok) throw new Error(decrypted.error.code);
+```
+
+`generateIdentity()` and `identityFromSeed(seed)` return structured results containing
+`IdentityCapability`: publicIdentity, exact-byte sign and decryptAge. A
+`ReaderCapability` has publicIdentity and decryptAge only. `withAgeDecryption(base)`
+synchronously wraps an Identity base capability. Private material remains host-owned.
+`encryptAge({ recipients, plaintext })` returns a structured result containing binary
+age bytes, accepts empty plaintext and encrypts with fresh material each time.
+`decryptAgeWithSecret({ secret, ciphertext })` uses a raw 32-byte X25519 scalar.
+
+## Convenience functions
+
+`encryptForIdentities`, `encryptForRecipients`, `decryptWithIdentity` and
+`decryptWithSecretKey` work with serialized identities/age strings and bytes.
+`encryptWithPassphrase`/`decryptWithPassphrase`, text and binary variants are listed
+in the README. Convenience encryption defaults to ASCII armor; select
+`output: "binary"` where supported. Text decryptors return strings; byte/binary
+helpers return bytes. Convenience helpers require nonempty data with a 64 MiB limit
+and reject with ArmourError subclasses carrying codes; they do not return PrimitiveResult.
+No `initArmour` call exists.
+
+## Optional Ledger payload codec
+
+`createAgeCodec({ recipients?, reader? })` returns an explicit byte codec with id age.
+Recipients enable encode; reader enables decode. Supplying both guarantees both
+methods in its type. Compose it with Ledger's `encodePayload`/`decodePayload`; Armour
+never imports Ledger or manages its commits. A missing operation does not fall back
+to plaintext. Decoder authentication/decryption failures return null (Ledger reports
+locked); unexpected reader errors propagate. Signing, authorization, membership,
+document history and storage are owned by other layers.

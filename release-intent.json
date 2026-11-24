@@ -1,26 +1,26 @@
 {
   "schema": 1,
-  "channel": "next",
+  "channel": "latest",
   "packages": [
     {
       "name": "@ternent/armour",
-      "version": "0.3.0-alpha.1"
+      "version": "0.3.0"
     },
     {
       "name": "@ternent/concord",
-      "version": "0.3.0-alpha.1"
+      "version": "0.3.0"
     },
     {
       "name": "@ternent/identity",
-      "version": "0.6.0-alpha.1"
+      "version": "0.6.0"
     },
     {
       "name": "@ternent/ledger",
-      "version": "0.2.0-alpha.1"
+      "version": "0.2.0"
     },
     {
       "name": "@ternent/seal",
-      "version": "0.5.0-alpha.1"
+      "version": "0.5.0"
     }
   ]
 }

@@ -80,6 +80,7 @@ await test("stable allocation accepts the release after its alpha and rejects pr
 await test("Changesets exits alpha into a complete stable intent and keeps subsequent releases stable", async (t) => {
   const f = fixture();
   t.after(() => rmSync(f.root, { recursive: true, force: true }));
+  writeFileSync(join(f.root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\nimporters: {}\n");
   writeFileSync(join(f.root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
   mkdirSync(join(f.root, ".changeset"));
   const config = JSON.parse(readFileSync(".changeset/config.json", "utf8"));

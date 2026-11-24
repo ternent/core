@@ -184,3 +184,26 @@ await test("real npm starts with isolated user and global configs", async () => 
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout.trim(), /^\d+\.\d+\.\d+$/);
 });
+
+await test("an explicitly selected latest adapter cannot read or mutate next", async () => {
+  /** @type {string[][]} */ const calls = [];
+  const adapter = createNpmRegistryAdapter({
+    channel: "latest",
+    authorize: () => undefined,
+    run: async (args) => {
+      calls.push(args);
+      return {
+        code: 0,
+        stdout: JSON.stringify({ latest: "1.0.0", next: "1.1.0-alpha.0" }),
+        stderr: "",
+      };
+    },
+  });
+  assert.equal(await adapter.getTag(pkg.name, "latest"), "1.0.0");
+  await adapter.setTag(pkg.name, "1.0.0", "latest");
+  await adapter.removeTag(pkg.name, "latest");
+  await assert.rejects(adapter.getTag(pkg.name, "next"), { code: "PLAN_INVALID" });
+  await assert.rejects(adapter.setTag(pkg.name, "1.0.0", "next"), { code: "PLAN_INVALID" });
+  await assert.rejects(adapter.removeTag(pkg.name, "next"), { code: "PLAN_INVALID" });
+  assert(calls.every((args) => !args.includes("next")));
+});

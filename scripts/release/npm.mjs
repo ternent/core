@@ -31,11 +31,17 @@ export async function runNpm(args, env) {
 }
 /**
  * Fixed-registry argv adapter. Mutations are denied unless the trusted entrypoint authorizes each.
- * @param {{run?:(args:string[],env:NodeJS.ProcessEnv)=>Promise<CommandResult>,authorize?:()=>Promise<void>|void,sourceSha?:string}} [options]
+ * @param {{run?:(args:string[],env:NodeJS.ProcessEnv)=>Promise<CommandResult>,authorize?:()=>Promise<void>|void,sourceSha?:string,channel?:import('./shared.mjs').ReleaseChannel}} [options]
  * @returns {import('./publish.mjs').RegistryAdapter}
  */
 export function createNpmRegistryAdapter(options = {}) {
   const run = options.run ?? runNpm;
+  const channel = options.channel ?? "next";
+  requireThat(
+    channel === "next" || channel === "latest",
+    "PLAN_INVALID",
+    "Invalid release channel",
+  );
   if (options.sourceSha)
     requireThat(
       /^[a-f0-9]{40}$/.test(options.sourceSha),
@@ -139,7 +145,7 @@ export function createNpmRegistryAdapter(options = {}) {
     },
     async getTag(name, tag) {
       identity(name);
-      requireThat(tag === "next", "PLAN_INVALID", "Only the next channel is supported");
+      requireThat(tag === channel, "PLAN_INVALID", "Only the selected channel is supported");
       const value = await read(["view", name, "dist-tags"]);
       if (value === null) return null;
       requireThat(
@@ -147,7 +153,7 @@ export function createNpmRegistryAdapter(options = {}) {
         "REGISTRY_INVALID",
         "Registry tags are invalid",
       );
-      return value.next ?? null;
+      return value[channel] ?? null;
     },
     async publish(pkg, tarball, tag) {
       identity(pkg.name, pkg.version);
@@ -172,12 +178,12 @@ export function createNpmRegistryAdapter(options = {}) {
     },
     async setTag(name, version, tag) {
       identity(name, version);
-      requireThat(tag === "next", "PLAN_INVALID", "Only next can be promoted");
+      requireThat(tag === channel, "PLAN_INVALID", "Only the selected channel can be promoted");
       await write(["dist-tag", "add", `${name}@${version}`, tag], `${name}@${version}`);
     },
     async removeTag(name, tag) {
       identity(name);
-      requireThat(tag === "next", "PLAN_INVALID", "Only next can be restored");
+      requireThat(tag === channel, "PLAN_INVALID", "Only the selected channel can be restored");
       await write(["dist-tag", "rm", name, tag], name);
     },
   };

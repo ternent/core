@@ -2,7 +2,7 @@
 
 > Public identities, private seed capabilities, signatures and Ed25519-to-X25519 derivation.
 
-Published interface baseline: `npm install @ternent/identity@0.6.0-alpha.1`. All functions and types come from the package
+Stable interface: `npm install @ternent/identity@0.6.0`. All functions and types come from the package
 root. [Public README](https://github.com/ternent/core/blob/main/packages/identity/README.md).
 Installed declarations: `dist/index.d.ts`.
 

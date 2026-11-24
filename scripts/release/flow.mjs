@@ -14,7 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { packageNames, requireThat, sha256 } from "./shared.mjs";
+import { packageNames, requireThat, sha256, validateChannel } from "./shared.mjs";
 
 const repository = "ternent/core";
 const apiRoot = `repos/${repository}`;
@@ -117,12 +117,15 @@ export async function selectRelease({ runId, requestedReleaseId = "", api = gith
     parsed = JSON.parse(bytes.toString("utf8"));
   requireThat(
     parsed.schema === 1 &&
-      parsed.channel === "next" &&
       Array.isArray(parsed.packages) &&
       JSON.stringify(parsed.packages.map((/** @type {any} */ p) => p.name).sort()) ===
         JSON.stringify([...packageNames].sort()),
     "ORIGIN_INVALID",
     "Release intent must select the five public libraries",
+  );
+  validateChannel(
+    parsed.channel,
+    parsed.packages.map((/** @type {any} */ pkg) => pkg.version),
   );
   const commit = await api(`${apiRoot}/git/commits/${run.head_sha}`);
   const parent = commit?.parents?.[0]?.sha;
@@ -397,9 +400,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         });
         const status = JSON.parse(readFileSync(file, "utf8"));
         // Changesets 3 already excludes consumed .changeset/pre/* entries.
-        const needed = status.changesets.some(
-          (/** @type {any} */ change) => change.releases.length > 0,
-        );
+        const preFile = join(root, ".changeset/pre.json");
+        const exiting =
+          existsSync(preFile) && JSON.parse(readFileSync(preFile, "utf8")).mode === "exit";
+        const needed =
+          exiting ||
+          status.changesets.some((/** @type {any} */ change) => change.releases.length > 0);
         outputs({ needed: String(needed) });
       } finally {
         rmSync(temporary, { recursive: true, force: true });

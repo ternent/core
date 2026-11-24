@@ -2,7 +2,7 @@
 
 > age encryption and identity decryption capabilities. No init or WASM step.
 
-Published interface baseline: `npm install @ternent/armour@0.3.0-alpha.1 @ternent/identity@0.6.0-alpha.1`.
+Stable interface: `npm install @ternent/armour@0.3.0 @ternent/identity@0.6.0`.
 [Public README](https://github.com/ternent/core/blob/main/packages/armour/README.md).
 Installed declarations: `dist/index.d.ts`. Imports use the package root.
 

@@ -26,6 +26,7 @@ import {
   retentionMs,
   sha256,
   validateManifest,
+  validateChannel,
 } from "./shared.mjs";
 
 /** @typedef {import('./shared.mjs').ReleasePlan} ReleasePlan */
@@ -34,7 +35,7 @@ import {
 function validateIntent(intent) {
   closed(intent, ["schema", "channel", "packages"]);
   requireThat(
-    intent.schema === 1 && intent.channel === "next" && Array.isArray(intent.packages),
+    intent.schema === 1 && Array.isArray(intent.packages),
     "PLAN_INVALID",
     "Invalid release intent",
   );
@@ -42,6 +43,10 @@ function validateIntent(intent) {
     closed(pkg, ["name", "version"]);
     requireThat(typeof pkg.version === "string", "PLAN_INVALID", "Invalid intended version");
   }
+  validateChannel(
+    intent.channel,
+    intent.packages.map((pkg) => pkg.version),
+  );
   requireThat(
     jcs(intent.packages.map((pkg) => pkg.name).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) ===
       jcs([...packageNames].sort()),
@@ -107,6 +112,7 @@ export function createPlan(options) {
   const versions = new Map(manifests.map(({ manifest }) => [manifest.name, manifest.version]));
   const intentPath = join(root, "release-intent.json");
   const hasIntent = existsSync(intentPath);
+  const intent = hasIntent ? readJson(artifactPath(root, "release-intent.json")) : null;
   if (!hasIntent) {
     const previous =
       options.previousVersions ??
@@ -132,7 +138,7 @@ export function createPlan(options) {
       "A new public version requires committed release intent",
     );
   } else {
-    const intended = validateIntent(readJson(artifactPath(root, "release-intent.json")));
+    const intended = validateIntent(intent);
     requireThat(
       [...versions].every(([name, version]) => intended.get(name) === version),
       "PLAN_INVALID",
@@ -194,7 +200,7 @@ export function createPlan(options) {
     sourceSha,
     lockfileSha256: sha256(readFileSync(join(root, "pnpm-lock.yaml"))),
     intentSha256: hasIntent ? sha256(readFileSync(intentPath)) : null,
-    channel: "next",
+    channel: hasIntent ? validateChannel(intent.channel, [...versions.values()]) : "next",
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + retentionMs).toISOString(),
     toolchain: options.toolchain ?? {
@@ -250,7 +256,7 @@ export function validatePlan(input, options) {
   const plan = /** @type {ReleasePlan} */ (input);
   requireThat(
     plan.schema === 1 &&
-      plan.channel === "next" &&
+      (plan.channel === "next" || plan.channel === "latest") &&
       /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(plan.sourceSha) &&
       /^[0-9a-f]{64}$/.test(plan.lockfileSha256) &&
       /^[0-9a-f]{64}$/.test(plan.releaseId) &&
@@ -313,6 +319,7 @@ export function validatePlan(input, options) {
     consumer = readJson(artifactPath(options.directory, "reports/consumers.json"));
   validateReports(check, consumer, plan.sourceSha);
   const versions = new Map(packageNames.map((name) => [name, consumer.candidates[name].version]));
+  validateChannel(plan.channel, [...versions.values()]);
   /** @type {ReleasePackage[]} */ const candidates = [];
   for (const name of packageNames) {
     const accepted = consumer.candidates[name];
@@ -349,7 +356,13 @@ export function validatePlan(input, options) {
       "DIGEST_MISMATCH",
       "Release intent changed",
     );
-    const intended = validateIntent(readJson(intent));
+    const intendedRecord = readJson(intent);
+    const intended = validateIntent(intendedRecord);
+    requireThat(
+      intendedRecord.channel === plan.channel,
+      "PLAN_INVALID",
+      "Intent channel disagrees with plan",
+    );
     requireThat(
       [...versions].every(([name, version]) => intended.get(name) === version),
       "PLAN_INVALID",

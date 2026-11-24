@@ -17,9 +17,8 @@ exports rather than historical workspace runtime/plugin examples.
 
 ## Installation and source of truth
 
-Each package guide names the published prerelease baseline that provides these
-interfaces. Use those exact versions while the stable release is being prepared;
-the older default releases have different interfaces. Commit the consumer lockfile.
+Each package guide names its stable interface version. Check npm availability
+before installing from an unreleased checkout, and commit the consumer lockfile.
 
 Install only the libraries the application uses. An unqualified package install selects
 npm's `latest` tag; `@next` selects the preview channel. Dist-tags and version stability
@@ -33,8 +32,8 @@ or import repository source. Package READMEs and these guides are included in th
 checkout’s package file lists.
 
 Already published tarballs are immutable; moving a dist-tag does not add files to
-them. The baseline npm releases predate these guides. Use the repository guides
-with those releases until a documented package release is published.
+them. Older releases may predate these guides. Match the repository guide to the
+installed package's declarations when its tarball has no guide.
 
 ## Shared contracts
 

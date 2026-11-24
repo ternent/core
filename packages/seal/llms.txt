@@ -2,7 +2,7 @@
 
 > Standalone proofs, encrypted artifacts, manifests and the Node seal executable.
 
-Published interface baseline: `npm install @ternent/seal@0.5.0-alpha.1`.
+Stable interface: `npm install @ternent/seal@0.5.0`.
 [Public README](https://github.com/ternent/core/blob/main/packages/seal/README.md).
 Declarations accompany each dist entry. Root and `/proof`, `/artifact`, `/manifest`,
 `/crypto`, `/errors` are browser-safe. CLI/filesystem operations require Node.

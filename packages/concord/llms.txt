@@ -2,7 +2,7 @@
 
 > Build a bounded application around typed commands, signed history and encrypted groups.
 
-Published interface baseline: `npm install @ternent/concord@0.3.0-alpha.1 @ternent/armour@0.3.0-alpha.1`.
+Stable interface: `npm install @ternent/concord@0.3.0 @ternent/armour@0.3.0`.
 [Public README](https://github.com/ternent/core/blob/main/packages/concord/README.md).
 Root declarations: `dist/index.d.ts` and its referenced model/protocol types.
 Specialist exports: `/system`, `/protocol`, `/testing`.

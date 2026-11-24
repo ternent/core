@@ -192,7 +192,11 @@ try {
     const receipt = await publishRelease({
       plan,
       directory,
-      registry: createNpmRegistryAdapter({ authorize, sourceSha: plan.sourceSha }),
+      registry: createNpmRegistryAdapter({
+        authorize,
+        sourceSha: plan.sourceSha,
+        channel: plan.channel,
+      }),
       verifySeal: () => verifyReleaseSeal({ directory, expectedPublicKey }),
       verifyConsumers: async () => {
         execFileSync("pnpm", ["run", "check:artifact"], {

@@ -6,7 +6,7 @@ Standalone file/manifest proofs and recipient-encrypted artifacts, with a browse
 library and the Node `seal` executable. Uses the public Identity and Armour APIs;
 Armour's typage implementation needs no initialization or WASM step.
 
-The published interface baseline is `0.5.0-alpha.1`.
+The stable interface version is `0.5.0`.
 Proof/public-key wire version remains `2`; manifest/artifact wire version remains `1`.
 The public proof type is `SealProofV2`.
 

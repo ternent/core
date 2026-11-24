@@ -4,7 +4,7 @@
 
 A framework composing Ledger, Identity and Armour into portable signed documents
 with independent encrypted groups and explicit application replay coverage.
-The alpha implements
+The runtime implements
 create → dispatch/commit → export → open → verify → replay → inspect.
 
 Concord stores its framework records inside the common `ledger` v1 container.

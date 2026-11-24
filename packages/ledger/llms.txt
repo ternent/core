@@ -2,7 +2,7 @@
 
 > Standalone signed append-only history. Staging and committed history are distinct.
 
-Published interface baseline: `npm install @ternent/ledger@0.2.0-alpha.1 @ternent/identity@0.6.0-alpha.1`.
+Stable interface: `npm install @ternent/ledger@0.2.0 @ternent/identity@0.6.0`.
 [Public README](https://github.com/ternent/core/blob/main/packages/ledger/README.md).
 Declarations: `dist/index.d.ts`, `dist/protocol/index.d.ts` and referenced types.
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { test } from "node:test";
 import { validateAllocations, ensureAlphaMode, versionRelease } from "./version.mjs";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -105,6 +106,23 @@ await test("Changesets exits alpha into a complete stable intent and keeps subse
     );
     writeFileSync(path, JSON.stringify(manifest));
   }
+  /** @param {string[]} args */
+  const git = (args) =>
+    execFileSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", ...args], {
+      cwd: f.root,
+      stdio: "ignore",
+    });
+  git(["init", "-b", "main"]);
+  git(["add", "."]);
+  git([
+    "-c",
+    "user.name=Version test",
+    "-c",
+    "user.email=version@example.invalid",
+    "commit",
+    "-m",
+    "prerelease fixture",
+  ]);
   await versionRelease(f.root, async () => ["0.9.0", "1.0.0-alpha.0"]);
   const intent = JSON.parse(readFileSync(join(f.root, "release-intent.json"), "utf8"));
   assert.equal(intent.channel, "latest");

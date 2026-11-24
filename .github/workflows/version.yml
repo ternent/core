@@ -51,6 +51,6 @@ jobs:
         with:
           github-token: ${{ steps.app.outputs.token }}
           script: pnpm release:version
-          pr-title: Version alpha libraries
-          commit-message: "chore: version alpha libraries"
+          pr-title: Version libraries
+          commit-message: "chore: version libraries"
           pr-draft: create

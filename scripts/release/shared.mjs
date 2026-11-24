@@ -14,7 +14,8 @@ import semver from "semver";
 
 /** @typedef {{name:string, version:string}} Dependency */
 /** @typedef {Dependency & {tarball:string,sha256:string,integrity:string,dependencies:Dependency[]}} ReleasePackage */
-/** @typedef {{schema:1,sourceSha:string,lockfileSha256:string,intentSha256:string|null,channel:'next',createdAt:string,expiresAt:string,toolchain:Record<string,string>,packages:ReleasePackage[],reports:{path:string,sha256:string}[],releaseId:string}} ReleasePlan */
+/** @typedef {'next'|'latest'} ReleaseChannel */
+/** @typedef {{schema:1,sourceSha:string,lockfileSha256:string,intentSha256:string|null,channel:ReleaseChannel,createdAt:string,expiresAt:string,toolchain:Record<string,string>,packages:ReleasePackage[],reports:{path:string,sha256:string}[],releaseId:string}} ReleasePlan */
 export const packageNames = Object.freeze([
   "@ternent/identity",
   "@ternent/armour",
@@ -55,6 +56,22 @@ export class ReleaseError extends Error {
 /** @param {unknown} condition @param {string} code @param {string} message @returns {asserts condition} */
 export function requireThat(condition, code, message) {
   if (!condition) throw new ReleaseError(code, message);
+}
+/** @param {unknown} channel @param {string[]} versions @returns {ReleaseChannel} */
+export function validateChannel(channel, versions) {
+  requireThat(
+    channel === "next" || channel === "latest",
+    "PLAN_INVALID",
+    "Invalid release channel",
+  );
+  for (const version of versions)
+    requireThat(
+      semver.valid(version) === version &&
+        (channel !== "latest" || semver.prerelease(version) === null),
+      "PLAN_INVALID",
+      "Latest releases require stable versions",
+    );
+  return channel;
 }
 /** @param {unknown} value @param {string[]} keys @returns {asserts value is Record<string,any>} */
 export function closed(value, keys) {

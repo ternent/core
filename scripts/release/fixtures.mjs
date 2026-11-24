@@ -6,7 +6,7 @@ import { gateNames, integrity, packageNames, sha256, writeJson } from "./shared.
 
 export const sourceSha = "1".repeat(40);
 export const now = new Date("2026-11-21T12:00:00.000Z");
-/** @param {{intent?:boolean,edit?:(manifest:any)=>void,privatePackage?:boolean}} [options] */
+/** @param {{intent?:boolean,edit?:(manifest:any)=>void,privatePackage?:boolean,channel?:"next"|"latest"}} [options] */
 export function fixture(options = {}) {
   const root = mkdtempSync(join(tmpdir(), "ternent-release-test-"));
   mkdirSync(join(root, "artifacts/candidates"), { recursive: true });
@@ -16,7 +16,10 @@ export function fixture(options = {}) {
     packageManager: "pnpm@12.21.0",
   });
   writeFileSync(join(root, "pnpm-lock.yaml"), "fixture lockfile\n");
-  const versions = Object.fromEntries(packageNames.map((name) => [name, "1.0.0-alpha.0"]));
+  const channel = options.channel ?? "next";
+  const versions = Object.fromEntries(
+    packageNames.map((name) => [name, channel === "latest" ? "1.0.0" : "1.0.0-alpha.0"]),
+  );
   const dependencies = {
     "@ternent/identity": {},
     "@ternent/armour": { "@ternent/identity": "^1.0.0-alpha.0" },
@@ -75,7 +78,7 @@ export function fixture(options = {}) {
   }
   const intent = {
     schema: 1,
-    channel: "next",
+    channel,
     packages: packageNames.map((name) => ({ name, version: versions[name] })),
   };
   if (options.intent !== false) writeJson(join(root, "release-intent.json"), intent);

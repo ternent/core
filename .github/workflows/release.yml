@@ -129,7 +129,7 @@ jobs:
           SEAL_IDENTITY_FILE: ${{ steps.identity.outputs.identity-file }}
       - name: Verify the externally trusted release signature
         run: node scripts/release/cli.mjs verify-seal
-      - name: Publish retained bytes, verify fresh consumers and promote next
+      - name: Publish retained bytes, verify fresh consumers and promote the planned channel
         run: pnpm release:publish
       - name: Remove the temporary signing identity
         if: always()

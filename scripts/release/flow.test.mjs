@@ -126,6 +126,18 @@ await test("selection binds the exact successful main push, workflow and retaine
   );
 });
 
+await test("main selection accepts stable latest intent and rejects alpha packages on latest", async () => {
+  const f = responses();
+  const path = `${rootApi}/contents/release-intent.json?ref=${sourceSha}`;
+  const selected = JSON.parse(Buffer.from(f.values[path].content, "base64").toString("utf8"));
+  selected.channel = "latest";
+  f.values[path].content = Buffer.from(JSON.stringify(selected)).toString("base64");
+  await assert.rejects(selectRelease({ runId: 10, api: f.api }), /stable versions/);
+  selected.packages = selected.packages.map((/** @type {any} */ pkg) => ({ ...pkg, version: "1.0.0" }));
+  f.values[path].content = Buffer.from(JSON.stringify(selected)).toString("base64");
+  assert.equal((await selectRelease({ runId: 10, api: f.api })).status, "selected");
+});
+
 for (const [label, mutate] of /** @type {[string,(value:any)=>void][]} */ ([
   ["PR evidence", (run) => (run.event = "pull_request")],
   ["fork producer", (run) => (run.head_repository.full_name = "fork/core")],
@@ -422,6 +434,9 @@ await test("version detection ignores consumed Changesets 3 prereleases and acce
     return readFileSync(output, "utf8").trim();
   }
   assert.equal(detect(), "needed=false");
+  put(join(f.root, ".changeset/pre.json"), JSON.stringify({ mode: "exit", tag: "alpha" }));
+  assert.equal(detect(), "needed=true");
+  put(join(f.root, ".changeset/pre.json"), JSON.stringify({ mode: "pre", tag: "alpha" }));
   put(
     join(f.root, ".changeset/next-change.md"),
     '---\n"@ternent/ledger": patch\n---\nThe next release.\n',

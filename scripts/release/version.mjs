@@ -29,13 +29,22 @@ async function publishedVersions(name) {
  * inputs, not proof of publication permission or a reservation of the version number.
  * @param {{name:string,newVersion:string}[]} releases
  * @param {(name:string)=>Promise<string[]>} readVersions
+ * @param {'next'|'latest'} channel
  */
-export async function validateAllocations(releases, readVersions = publishedVersions) {
+export async function validateAllocations(
+  releases,
+  readVersions = publishedVersions,
+  channel = "next",
+) {
+  assert(channel === "next" || channel === "latest", "RELEASE_CHANNEL_INVALID");
   assert(releases.length > 0, "VERSION_INTENT_EMPTY: add a public library changeset first");
   for (const release of releases) {
     assert(
-      valid(release.newVersion) && prerelease(release.newVersion)?.[0] === "alpha",
-      `ALPHA_VERSION_REQUIRED: ${release.name}`,
+      valid(release.newVersion) &&
+        (channel === "next"
+          ? prerelease(release.newVersion)?.[0] === "alpha"
+          : prerelease(release.newVersion) === null),
+      `${channel === "next" ? "ALPHA" : "STABLE"}_VERSION_REQUIRED: ${release.name}`,
     );
     const versions = await readVersions(release.name);
     assert(
@@ -75,11 +84,19 @@ export async function versionRelease(root = process.cwd()) {
   /** @param {string[]} args */
   const run = (args) => execFileSync("pnpm", args, { cwd: root, stdio: "inherit" });
   try {
-    await ensureAlphaMode({
-      root,
-      packages: entries.map((entry) => ({ name: entry.name, version: entry.manifest.version })),
-      run,
-    });
+    const prePath = join(root, ".changeset/pre.json");
+    const pre = existsSync(prePath) ? JSON.parse(readFileSync(prePath, "utf8")) : null;
+    assert(
+      !pre || (pre.tag === "alpha" && ["pre", "exit"].includes(pre.mode)),
+      "ALPHA_MODE_REQUIRED",
+    );
+    const channel = pre?.mode === "pre" ? "next" : "latest";
+    if (channel === "next")
+      await ensureAlphaMode({
+        root,
+        packages: entries.map((entry) => ({ name: entry.name, version: entry.manifest.version })),
+        run,
+      });
     const output = join(directory, "status.json");
     run(["exec", "changeset", "status", "--output", output]);
     const status = JSON.parse(readFileSync(output, "utf8"));
@@ -90,7 +107,7 @@ export async function versionRelease(root = process.cwd()) {
     );
     for (const entry of releases)
       assert(names.has(entry.name), `NON_PUBLIC_VERSION_INTENT: ${entry.name}`);
-    await validateAllocations(releases);
+    await validateAllocations(releases, publishedVersions, channel);
     run(["exec", "changeset", "version"]);
     run(["install", "--lockfile-only", "--ignore-scripts", "--no-frozen-lockfile"]);
     const packages = entries
@@ -106,15 +123,19 @@ export async function versionRelease(root = process.cwd()) {
         return { name: manifest.name, version: manifest.version };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
+    assert(
+      channel !== "latest" || packages.every((pkg) => prerelease(pkg.version) === null),
+      "STABLE_VERSION_REQUIRED",
+    );
     writeFileSync(
       resolve(root, "release-intent.json"),
-      `${JSON.stringify({ schema: 1, channel: "next", packages }, null, 2)}\n`,
+      `${JSON.stringify({ schema: 1, channel, packages }, null, 2)}\n`,
     );
     run([
       "exec",
       "vp",
       "fmt",
-      ".changeset/pre.json",
+      ...(existsSync(prePath) ? [".changeset/pre.json"] : []),
       "release-intent.json",
       ...entries
         .flatMap((entry) => [join(entry.path, "package.json"), join(entry.path, "CHANGELOG.md")])

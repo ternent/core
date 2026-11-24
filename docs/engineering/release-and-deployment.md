@@ -71,12 +71,22 @@ is operational state; this document does not establish it by itself.
 
 ## Immutable candidates and release plan
 
-`pnpm release:version` runs Changesets after checking proposed alpha versions against
+`pnpm release:version` runs Changesets after checking proposed versions against
 observed npm history. It updates the lockfile and writes `release-intent.json` with
-the five-library version snapshot. The foundation changeset has been consumed.
-The first version run checks current alpha baselines against npm before entering
-Changesets alpha mode; proposed versions are checked again before manifests change.
-The first version PR, frozen reinstall and public publication have completed.
+the five-library version snapshot and selected channel. Active alpha prerelease
+mode selects `next`; exiting prerelease mode or ordinary versioning selects
+`latest`. A `latest` intent and plan require stable versions for all five libraries.
+The foundation changeset has been consumed. The first version PR, frozen reinstall
+and public alpha publication have completed.
+
+Working decision, 2026-11-24: prepare a new stable release of the five libraries
+through the existing version-PR and protected publication workflows. Committing
+`changeset pre exit` requests the transition; the version workflow generates the
+stable manifests, changelogs, lockfile and `latest` intent in a draft PR. Its merge
+remains the publication boundary. The intended first stable versions are Identity
+0.6.0, Armour 0.3.0, Ledger 0.2.0, Concord 0.3.0 and Seal 0.5.0, subject to the
+version allocator's fresh registry collision and sequence checks. No local npm
+credentials or separate dist-tag promotion workflow is required.
 
 After `pnpm check`, `pnpm release:plan` freezes the retained candidates and reports
 under `artifacts/release/`. The source must be committed and reports must bind that
@@ -106,13 +116,16 @@ signed bundle so retries cannot silently alter the accepted artifacts.
 
 `pnpm release:publish` uses only retained tarball paths. After publication under a
 release-specific candidate tag, it reuses the full consumer harness in fresh public
-registry mode, without packing or sibling overrides. Only then may it promote `next`.
+registry mode, without packing or sibling overrides. Only then may it promote the
+channel bound into the signed plan: `next` for alpha releases or `latest` for stable
+releases. The other channel is left unchanged. Journals bind their channel, and
+compensating writes restore only that channel after a failed promotion.
 The first B16 run verified this public-registry path before promoting `next`.
 
 Use Changesets for independent package version intent and sibling range changes.
 Do not select versions from commit messages or reset existing npm names to a fresh
 version sequence. Check actual registry state before allocating releases. Alpha
-versions use the `next` channel; stable `latest` promotion is an explicit policy.
+versions use the `next` channel; stable releases use `latest`.
 The prerelease version and registry dist-tag are separate concepts.
 
 A planner discovers eligible public manifests, validates the committed version plan

@@ -43,6 +43,7 @@ async function publishVerifiedRelease(options) {
       now,
     }),
   );
+  const channel = plan.channel;
   requireThat(
     typeof options.verifySeal === "function" && typeof options.verifyConsumers === "function",
     "HOST_CONFIGURATION",
@@ -59,6 +60,7 @@ async function publishVerifiedRelease(options) {
   if (!plan.packages.length)
     return {
       schema: 1,
+      channel,
       releaseId: plan.releaseId,
       sourceSha: plan.sourceSha,
       status: "noop",
@@ -96,6 +98,7 @@ async function publishVerifiedRelease(options) {
     ? readJson(journalPath)
     : {
         schema: 1,
+        channel,
         releaseId: plan.releaseId,
         sourceSha: plan.sourceSha,
         attempt: 0,
@@ -119,6 +122,7 @@ async function publishVerifiedRelease(options) {
       };
   requireThat(
     journal.schema === 1 &&
+      (journal.channel ?? "next") === channel &&
       journal.releaseId === plan.releaseId &&
       journal.sourceSha === plan.sourceSha &&
       Number.isSafeInteger(journal.attempt) &&
@@ -171,7 +175,7 @@ async function publishVerifiedRelease(options) {
   /** @param {ReleasePackage} pkg @param {string|null} expected @param {string|null} previous */
   async function channelMatches(pkg, expected, previous) {
     return waitForRegistry(async () => {
-      const current = await registry.getTag(pkg.name, "next");
+      const current = await registry.getTag(pkg.name, channel);
       requireThat(
         current === expected || current === previous,
         "TAG_CONFLICT",
@@ -186,7 +190,7 @@ async function publishVerifiedRelease(options) {
     for (const pkg of plan.packages) existing.set(pkg.name, await observed(pkg));
     for (const pkg of plan.packages) {
       const state = journal.packages[pkg.name],
-        tag = await registry.getTag(pkg.name, "next");
+        tag = await registry.getTag(pkg.name, channel);
       requireThat(
         tag === null || semver.valid(tag),
         "REGISTRY_INVALID",
@@ -195,7 +199,7 @@ async function publishVerifiedRelease(options) {
       requireThat(
         tag === null || !semver.gt(tag, pkg.version),
         "CHANNEL_DOWNGRADE",
-        `Refusing to roll next backward: ${pkg.name}`,
+        `Refusing to roll ${channel} backward: ${pkg.name}`,
       );
       if (state.previousTag === undefined) state.previousTag = tag;
       else
@@ -259,7 +263,7 @@ async function publishVerifiedRelease(options) {
     try {
       for (const pkg of plan.packages) {
         const state = journal.packages[pkg.name];
-        const current = await registry.getTag(pkg.name, "next");
+        const current = await registry.getTag(pkg.name, channel);
         if (current !== pkg.version) {
           requireThat(
             current === state.previousTag,
@@ -269,7 +273,7 @@ async function publishVerifiedRelease(options) {
           state.promotion = "promoting";
           touched.push(pkg);
           persist();
-          await registry.setTag(pkg.name, pkg.version, "next");
+          await registry.setTag(pkg.name, pkg.version, channel);
           requireThat(
             await channelMatches(pkg, pkg.version, state.previousTag),
             "PROMOTION_PARTIAL",
@@ -289,15 +293,15 @@ async function publishVerifiedRelease(options) {
       for (const pkg of touched.reverse()) {
         const state = journal.packages[pkg.name];
         try {
-          const current = await registry.getTag(pkg.name, "next");
+          const current = await registry.getTag(pkg.name, channel);
           requireThat(
             current === pkg.version || current === state.previousTag,
             "TAG_CONFLICT",
             "Refusing to overwrite an external channel change",
           );
           // A cached previous value cannot prove a possibly committed write failed.
-          if (state.previousTag === null) await registry.removeTag(pkg.name, "next");
-          else await registry.setTag(pkg.name, state.previousTag, "next");
+          if (state.previousTag === null) await registry.removeTag(pkg.name, channel);
+          else await registry.setTag(pkg.name, state.previousTag, channel);
           requireThat(
             await channelMatches(pkg, state.previousTag, pkg.version),
             "PROMOTION_PARTIAL",
@@ -321,6 +325,7 @@ async function publishVerifiedRelease(options) {
     persist();
     return {
       schema: 1,
+      channel,
       releaseId: plan.releaseId,
       sourceSha: plan.sourceSha,
       status: "complete",

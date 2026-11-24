@@ -86,6 +86,17 @@ await test("intent must be the closed five-library version snapshot", (t) => {
   }
 });
 
+await test("stable plans bind latest to stable candidates and reject a channel changed independently of intent", (t) => {
+  const f = setup(t, { channel: "latest" });
+  const { plan } = createPlan(f.planOptions);
+  assert.equal(plan.channel, "latest");
+  assert(plan.packages.every((pkg) => pkg.version === "1.0.0"));
+  validatePlan(plan, { directory: f.directory, now });
+  const changed = { ...plan, channel: /** @type {const} */ ("next") };
+  changed.releaseId = releaseId(changed);
+  assert.throws(() => validatePlan(changed, { directory: f.directory, now }), error("PLAN_INVALID"));
+});
+
 await test("incomplete, failed and stale-source acceptance cannot produce a bundle", (t) => {
   const f = setup(t);
   const path = join(f.root, "artifacts/check.json"),

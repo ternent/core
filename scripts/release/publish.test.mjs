@@ -381,3 +381,43 @@ await test("failure context is structured and journals cannot be placed in the s
     error("PATH_INVALID"),
   );
 });
+
+await test("stable publication verifies consumers before latest promotion and never changes next", async (t) => {
+  const f = setup(t, { channel: "latest" });
+  let consumers = 0;
+  const result = await publishRelease({
+    ...f.options,
+    verifyConsumers: async () => {
+      consumers++;
+      assert.equal(f.versions.size, 5);
+      assert(!f.calls.some((call) => call[0] === "setTag"));
+    },
+  });
+  assert.equal(result.status, "complete");
+  assert.equal(result.channel, "latest");
+  assert.equal(consumers, 1);
+  assert(f.calls.filter((call) => call[0] === "getTag").every((call) => call[2] === "latest"));
+  assert(f.calls.filter((call) => call[0] === "setTag").every((call) => call[3] === "latest"));
+  assert([...f.tags.values()].every((tag) => tag === "1.0.0"));
+  assert.equal(readJson(f.journalPath).channel, "latest");
+});
+
+await test("failed latest promotion restores latest and retries without publishing new bytes", async (t) => {
+  const f = setup(t, { channel: "latest" });
+  const setTag = f.registry.setTag;
+  let interrupted = false;
+  f.registry.setTag = async (name, version, tag) => {
+    await setTag(name, version, tag);
+    if (!interrupted && name === f.plan.packages[1].name && version === "1.0.0") {
+      interrupted = true;
+      throw new Error("lost response");
+    }
+  };
+  await assert.rejects(publishRelease(f.options), error("PROMOTION_PARTIAL"));
+  assert([...f.tags.values()].every((tag) => tag === "0.9.0"));
+  assert(f.calls.filter((call) => call[0] === "setTag").every((call) => call[3] === "latest"));
+  const published = f.calls.filter((call) => call[0] === "publish").length;
+  assert.equal((await publishRelease(f.options)).status, "complete");
+  assert.equal(f.calls.filter((call) => call[0] === "publish").length, published);
+  assert([...f.tags.values()].every((tag) => tag === "1.0.0"));
+});

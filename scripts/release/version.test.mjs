@@ -54,3 +54,14 @@ await test("first alpha setup checks npm baselines before entering prerelease mo
   writeFileSync(join(root, ".changeset/pre.json"), JSON.stringify({ mode: "pre", tag: "beta" }));
   await assert.rejects(() => ensureAlphaMode({ root, packages, run }), /ALPHA_MODE_REQUIRED/);
 });
+
+await test("stable allocation accepts the release after its alpha and rejects prereleases, collisions and resets", async () => {
+  const releases = [{ name: "@ternent/concord", newVersion: "0.3.0" }];
+  await validateAllocations(releases, async () => ["0.2.9", "0.3.0-alpha.1"], "latest");
+  await assert.rejects(
+    validateAllocations([{ name: "@ternent/concord", newVersion: "0.3.0-alpha.2" }], async () => [], "latest"),
+    /STABLE_VERSION_REQUIRED/,
+  );
+  await assert.rejects(validateAllocations(releases, async () => ["0.3.0"], "latest"), /VERSION_ALREADY_EXISTS/);
+  await assert.rejects(validateAllocations(releases, async () => ["0.4.0"], "latest"), /VERSION_SEQUENCE_RESET/);
+});

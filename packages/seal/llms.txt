@@ -1,0 +1,63 @@
+# @ternent/seal
+
+> Standalone proofs, encrypted artifacts, manifests and the Node seal executable.
+
+Published interface baseline: `npm install @ternent/seal@0.5.0-alpha.1`.
+[Public README](https://github.com/ternent/core/blob/main/packages/seal/README.md).
+Declarations accompany each dist entry. Root and `/proof`, `/artifact`, `/manifest`,
+`/crypto`, `/errors` are browser-safe. CLI/filesystem operations require Node.
+
+## Sign and verify exact file bytes
+
+```ts
+import { createSealIdentity } from "@ternent/seal/crypto";
+import { createSealHash, createSealProof, verifySealProofAgainstBytes } from "@ternent/seal/proof";
+const identity = await createSealIdentity();
+const bytes = new TextEncoder().encode("signed content");
+const proof = await createSealProof({
+  signer: { identity },
+  subject: { kind: "file", path: "example.txt", hash: await createSealHash(bytes) },
+});
+const checked = await verifySealProofAgainstBytes(proof, bytes);
+if (!checked.valid) throw new Error("Verification failed");
+```
+
+Identity helpers return a private SerializedIdentity, not a capability Result. Host
+helpers reject/throw on invalid input. verifySealProofAgainstBytes reports valid,
+hashMatch and signatureValid separately. Valid signatures identify a public key;
+the caller must compare it against an independently trusted key. A public-key artifact
+bundled with a proof cannot establish its own trust.
+
+Proof/public-key wire version is 2 (SealProofV2); manifest/artifact wire version is 1.
+Package semver is unrelated. Use Seal's functions for canonical proof bytes and hashes.
+It has its own canonical JSON contract; do not substitute Ledger canonicalization or
+claim JCS compatibility. Proof signing uses context ternent-seal/v2.
+
+## Encrypted artifacts
+
+createSealArtifact({ signer: { identity }, subjectPath, payload: bytes, recipients })
+returns an encrypted artifact. Obtain age recipients with Armour recipientFromIdentity
+for serialized identities. verifySealArtifact checks the proof, unsigned container hash
+and ciphertext hash; decryptSealArtifactPayload({ artifact, identity }) verifies before
+asking Armour for plaintext. Decryption requires a recipient's private identity.
+Metadata, signer, path, timing, size and age headers remain public. No init is needed.
+Seal is independent of Concord and is not a Concord document or authority system.
+
+## Node CLI
+
+```sh
+seal --help
+seal identity create --out identity.json --words 24 --mnemonic-out backup.txt --quiet
+export SEAL_IDENTITY_FILE=./identity.json
+seal sign --input example.txt --out proof.json --quiet
+seal verify --proof proof.json --input example.txt --json
+seal public-key --json
+```
+
+SEAL_IDENTITY (serialized private JSON) takes precedence over SEAL_IDENTITY_FILE.
+Use private identity/backup files outside build assets; never commit them. Manifest
+creation hashes regular files and skips symlinks. Keep outputs outside the input tree
+or generate them only after the intended build is complete. CLI exits: 0 success,
+1 general/argument/encryption error, 2 hash mismatch, 3 signature/key-binding failure,
+4 malformed schema/JSON, 5 missing/invalid signer configuration. Use quiet to avoid
+printing private identity/recovery material. No separate Seal CLI package is needed.

@@ -1,5 +1,7 @@
 # @ternent/ledger
 
+[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
+
 A standalone signed append-only log. Create or load a log, stage JSON entries,
 commit them, verify the history and replay it into a projection. Ledger has no
 dependency on Concord, Armour, Seal, a framework, storage or Node filesystem APIs.

@@ -94,7 +94,10 @@ await test("stable plans bind latest to stable candidates and reject a channel c
   validatePlan(plan, { directory: f.directory, now });
   const changed = { ...plan, channel: /** @type {const} */ ("next") };
   changed.releaseId = releaseId(changed);
-  assert.throws(() => validatePlan(changed, { directory: f.directory, now }), error("PLAN_INVALID"));
+  assert.throws(
+    () => validatePlan(changed, { directory: f.directory, now }),
+    error("PLAN_INVALID"),
+  );
 });
 
 await test("incomplete, failed and stale-source acceptance cannot produce a bundle", (t) => {

@@ -133,7 +133,10 @@ await test("main selection accepts stable latest intent and rejects alpha packag
   selected.channel = "latest";
   f.values[path].content = Buffer.from(JSON.stringify(selected)).toString("base64");
   await assert.rejects(selectRelease({ runId: 10, api: f.api }), /stable versions/);
-  selected.packages = selected.packages.map((/** @type {any} */ pkg) => ({ ...pkg, version: "1.0.0" }));
+  selected.packages = selected.packages.map((/** @type {any} */ pkg) => ({
+    ...pkg,
+    version: "1.0.0",
+  }));
   f.values[path].content = Buffer.from(JSON.stringify(selected)).toString("base64");
   assert.equal((await selectRelease({ runId: 10, api: f.api })).status, "selected");
 });

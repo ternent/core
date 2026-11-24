@@ -192,7 +192,11 @@ await test("an explicitly selected latest adapter cannot read or mutate next", a
     authorize: () => undefined,
     run: async (args) => {
       calls.push(args);
-      return { code: 0, stdout: JSON.stringify({ latest: "1.0.0", next: "1.1.0-alpha.0" }), stderr: "" };
+      return {
+        code: 0,
+        stdout: JSON.stringify({ latest: "1.0.0", next: "1.1.0-alpha.0" }),
+        stderr: "",
+      };
     },
   });
   assert.equal(await adapter.getTag(pkg.name, "latest"), "1.0.0");

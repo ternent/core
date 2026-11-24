@@ -74,8 +74,8 @@ export async function ensureAlphaMode({ root, packages, run, readVersions = publ
   assert(pre.mode === "pre" && pre.tag === "alpha", "ALPHA_MODE_REQUIRED");
 }
 
-/** @param {string} [root] */
-export async function versionRelease(root = process.cwd()) {
+/** @param {string} [root] @param {(name:string)=>Promise<string[]>} [readVersions] */
+export async function versionRelease(root = process.cwd(), readVersions = publishedVersions) {
   const entries = workspacePackages(root)
     .map((entry) => ({ ...entry, manifest: readManifest(entry.path) }))
     .filter((entry) => !entry.manifest.private);
@@ -96,6 +96,7 @@ export async function versionRelease(root = process.cwd()) {
         root,
         packages: entries.map((entry) => ({ name: entry.name, version: entry.manifest.version })),
         run,
+        readVersions,
       });
     const output = join(directory, "status.json");
     run(["exec", "changeset", "status", "--output", output]);
@@ -107,7 +108,7 @@ export async function versionRelease(root = process.cwd()) {
     );
     for (const entry of releases)
       assert(names.has(entry.name), `NON_PUBLIC_VERSION_INTENT: ${entry.name}`);
-    await validateAllocations(releases, publishedVersions, channel);
+    await validateAllocations(releases, readVersions, channel);
     run(["exec", "changeset", "version"]);
     run(["install", "--lockfile-only", "--ignore-scripts", "--no-frozen-lockfile"]);
     const packages = entries

@@ -1,55 +1,32 @@
 # @ternent/armour
 
-> age encryption and identity decryption capabilities. No init or WASM step.
+> Encrypt and decrypt bytes with age for Ternent identities, groups and passphrases.
 
-Stable interface: `npm install @ternent/armour@0.3.0 @ternent/identity@0.6.0`.
-[Public README](https://github.com/ternent/core/blob/main/packages/armour/README.md).
-Installed declarations: `dist/index.d.ts`. Imports use the package root.
-
-## Capability encryption
+Two exports from the package root: `encrypt` and `decrypt`. Type: `Passphrase`.
+Declarations: `dist/index.d.ts`.
 
 ```ts
-import { generateIdentity, encryptAge } from "@ternent/armour";
-import { ageRecipientFromPublicIdentity } from "@ternent/identity";
-const created = await generateIdentity();
-if (!created.ok) throw new Error(created.error.code);
-const identity = created.value;
-const recipient = ageRecipientFromPublicIdentity(identity.publicIdentity);
-if (!recipient.ok) throw new Error(recipient.error.code);
-const encrypted = await encryptAge({
-  recipients: [recipient.value],
-  plaintext: new TextEncoder().encode("hello"),
-});
-if (!encrypted.ok) throw new Error(encrypted.error.code);
-const decrypted = await identity.decryptAge(encrypted.value);
-if (!decrypted.ok) throw new Error(decrypted.error.code);
+import { createIdentity } from "@ternent/identity";
+import { encrypt, decrypt } from "@ternent/armour";
+
+const alice = await createIdentity();
+const ciphertext = await encrypt(bytes, [alice.publicIdentity]);
+const plaintext = await decrypt(ciphertext, alice);
+
+// Groups: native age X25519 keys, e.g. from age-encryption's generateX25519Identity().
+await encrypt(bytes, [alice.publicIdentity, "age1…"]);
+await decrypt(ciphertext, "AGE-SECRET-KEY-1…");
+
+// Backups: a nonempty passphrase, used exactly as given.
+const locked = await encrypt(new TextEncoder().encode(alice.export()), { passphrase });
 ```
 
-`generateIdentity()` and `identityFromSeed(seed)` return structured results containing
-`IdentityCapability`: publicIdentity, exact-byte sign and decryptAge. A
-`ReaderCapability` has publicIdentity and decryptAge only. `withAgeDecryption(base)`
-synchronously wraps an Identity base capability. Private material remains host-owned.
-`encryptAge({ recipients, plaintext })` returns a structured result containing binary
-age bytes, accepts empty plaintext and encrypts with fresh material each time.
-`decryptAgeWithSecret({ secret, ciphertext })` uses a raw 32-byte X25519 scalar.
-
-## Convenience functions
-
-`encryptForIdentities`, `encryptForRecipients`, `decryptWithIdentity` and
-`decryptWithSecretKey` work with serialized identities/age strings and bytes.
-`encryptWithPassphrase`/`decryptWithPassphrase`, text and binary variants are listed
-in the README. Convenience encryption defaults to ASCII armor; select
-`output: "binary"` where supported. Text decryptors return strings; byte/binary
-helpers return bytes. Convenience helpers require nonempty data with a 64 MiB limit
-and reject with ArmourError subclasses carrying codes; they do not return PrimitiveResult.
-No `initArmour` call exists.
-
-## Optional Ledger payload codec
-
-`createAgeCodec({ recipients?, reader? })` returns an explicit byte codec with id age.
-Recipients enable encode; reader enables decode. Supplying both guarantees both
-methods in its type. Compose it with Ledger's `encodePayload`/`decodePayload`; Armour
-never imports Ledger or manages its commits. A missing operation does not fall back
-to plaintext. Decoder authentication/decryption failures return null (Ledger reports
-locked); unexpected reader errors propagate. Signing, authorization, membership,
-document history and storage are owned by other layers.
+- `encrypt(plaintext, recipients | { passphrase })`; `decrypt(ciphertext, identity | secretKey | { passphrase })`.
+  Both take and return `Uint8Array`.
+- Recipient strings must be X25519 `age1…`; secret keys must be `AGE-SECRET-KEY-1…`.
+  Hybrid and plugin keys are rejected.
+- Failures reject with an ordinary `Error`; there are no error codes.
+- Output is binary. For text, use `armor.encode`/`armor.decode` from `age-encryption`.
+- Bound ciphertext size before decrypting; this is an in-memory API.
+- Passphrase decryption runs scrypt synchronously: use a worker in browsers.
+- Armour does not sign. Seal the ciphertext bytes with `@ternent/seal` to prove authorship.

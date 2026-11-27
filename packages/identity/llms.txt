@@ -1,0 +1,38 @@
+# @ternent/identity
+
+> One Ed25519 identity: create, back up, restore, recover from words, sign and verify.
+
+All exports come from the package root. Declarations: `dist/index.d.ts`.
+[Public README](https://github.com/ternent/core/blob/main/packages/identity/README.md).
+
+```ts
+import {
+  createIdentity,
+  restoreIdentity,
+  createMnemonicIdentity,
+  recoverIdentity,
+  verify,
+  validatePublicIdentity,
+  type Identity,
+  type PublicIdentity,
+} from "@ternent/identity";
+
+const identity = await createIdentity();
+const backup = identity.export(); // JSON with the private seed; the app stores it
+const restored = await restoreIdentity(backup);
+const signature = await identity.sign(bytes); // 64 bytes over exactly `bytes`
+const ok = await verify(identity.publicIdentity, bytes, signature);
+```
+
+- Pass the `Identity` itself to Ledger, Seal and Armour. Do not decode the seed or
+  build a second signer.
+- `PublicIdentity` is `{ version: 1, algorithm: "Ed25519", publicKey, id }` with a
+  base64url key and `id = "identity:" + hex(sha256(publicKey))`. It is safe to put
+  in documents. Check untrusted values with `validatePublicIdentity` (throws).
+- `verify` never throws; it returns `false` for a bad identity, signature or match.
+- `restoreIdentity`, `recoverIdentity` and `createMnemonicIdentity` reject with an
+  ordinary `Error` on invalid input.
+- `withX25519Secret(use)` lends a temporary X25519 secret for decryption and zeroes
+  it after `use` settles. Do not retain it.
+- Recovery words are opt-in, shown once, and never part of the backup.
+- Encryption, storage, accounts and two-factor checks belong to the application.

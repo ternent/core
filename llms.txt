@@ -7,9 +7,9 @@
 
 - [Concord](packages/concord/llms.txt): build an application using typed commands, events, authority, private groups and replay.
 - [Ledger](packages/ledger/llms.txt): build a standalone signed log without Concord application or permission semantics.
-- [Identity](packages/identity/llms.txt): generate/import identities, sign bytes and derive public encryption recipients.
+- [Identity](packages/identity/llms.txt): create, back up, restore or recover one identity; sign and verify bytes.
 - [Armour](packages/armour/llms.txt): encrypt/decrypt with age; compose identity capabilities and explicit Ledger payload codecs.
-- [Seal](packages/seal/llms.txt): sign/verify file proofs, manifests and encrypted artifacts; use the Node CLI.
+- [Seal](packages/seal/llms.txt): sign and verify a detached proof over any bytes' hash; use the Node CLI.
 
 The active libraries are exactly the five above. Workspace and UI are outside this
 release, and Utils and separate Seal CLI packages are retired. Use the published

@@ -1,5 +1,7 @@
 # @ternent/seal
 
+[Agent interface guide](llms.txt): public imports, examples and contracts.
+
 A detached Ed25519 proof over a content hash. Identity supplies the signer.
 
 ```ts

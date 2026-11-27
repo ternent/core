@@ -1,5 +1,7 @@
 # @ternent/identity
 
+[Agent interface guide](llms.txt): public imports, examples and contracts.
+
 One Ed25519 identity for the Ternent libraries. Create or restore it once and pass it
 to Ledger, Seal and Armour; no consumer handles the seed.
 

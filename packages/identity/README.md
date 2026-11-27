@@ -1,66 +1,46 @@
 # @ternent/identity
 
-[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
-
-The capability interface builds on the existing Ed25519/X25519 derivation code.
-`signerFromSeed(seed)` and `generateSigner()` return structured results containing a
-`BaseIdentityCapability`: public identity, exact-byte signing, and scoped
-`withX25519Secret(callback)`. The copied scalar is zeroed after callback settlement,
-including rejection. Callers must not retain secret copies from that trusted callback.
-`validatePublicIdentity` and `verifySignature` enforce canonical prime-order points,
-identity binding and strict signatures. Empty-message signing follows RFC 8032.
-
-`ageRecipientFromPublicIdentity`, `ageRecipientFromSecret`, `ageSecretKey`, and
-`validateAgeRecipient` own the key/Bech32 conversions; `encodeBase64Url` and
-`decodeBase64Url` provide canonical byte encoding. The package does not implement age
-files or depend on Armour, Concord, or Seal.
-
-The root explicitly exports two useful interfaces: capabilities for protocol work
-and seed/mnemonic/serialized helpers for host applications such as Seal. A
-`SerializedIdentity` contains private seed material; `PublicIdentity` is the public
-representation used in signed documents. Mnemonics and host identity exports are
-outside the Concord wire format. No identity account or recovery service is implied.
-
-| Purpose                                | Public functions                                                                                                                                                            |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host identity creation and persistence | `createIdentity`, `createIdentityFromMnemonic`, `createMnemonicIdentity`, `generateMnemonic`, `validateMnemonic`, `parseIdentity`, `serializeIdentity`, `validateIdentity`  |
-| Raw key and age derivation             | `derivePublicKey`, `deriveKeyId`, `deriveX25519PrivateKey`, `deriveX25519PublicKey`, `convertEd25519PublicKeyToX25519PublicKey`, `deriveAgeRecipient`, `deriveAgeSecretKey` |
-| Contextual signing                     | `signBytes`, `signUtf8`, `verifyBytes`, `verifyUtf8`, `getDefaultSignatureContext`                                                                                          |
-| Mnemonic derivation details            | `getIdentityDerivationPath`                                                                                                                                                 |
-
-`parseIdentity` checks and normalizes the serialized shape; `validateIdentity` also
-checks that its seed, public key and key ID agree. Capability validation and
-`verifySignature` use the strict point/signature rules described above. The
-convenience verification helpers are not a substitute for protocol verification.
-
-`signBytes`/`signUtf8` sign `UTF8(context) || 0x00 || payload` and return a base64url
-signature. Their default context is `ternent-seal/v2`; pass an explicit context for
-another protocol. `verifyBytes`/`verifyUtf8` must use the same context. Capability
-`sign` signs exactly the supplied bytes and returns raw bytes inside a structured
-result. Concord constructs its own signing message and uses that exact-byte path.
-
-Historical implementations are available in Git. The distribution is ESM.
+One Ed25519 identity for the Ternent libraries. Create or restore it once and pass it
+to Ledger, Seal and Armour; no consumer handles the seed.
 
 ```ts
-import { signerFromSeed } from "@ternent/identity";
-const result = await signerFromSeed(seed); // copies the 32-byte seed
-if (!result.ok) throw new Error(result.error.code);
-const signature = await result.value.sign(new Uint8Array());
+import { createIdentity, restoreIdentity, verify } from "@ternent/identity";
+
+const identity = await createIdentity();
+const backup = identity.export(); // private: contains the seed
+const restored = await restoreIdentity(backup);
+
+const signature = await identity.sign(bytes);
+await verify(identity.publicIdentity, bytes, signature); // true
 ```
 
-Host identity creation and persistence:
+Recovery words are opt-in:
 
 ```ts
-import { createMnemonicIdentity, serializeIdentity } from "@ternent/identity";
-const { identity, mnemonic } = await createMnemonicIdentity({ words: 12 });
-const exportedIdentity = serializeIdentity(identity);
-// The host owns persistence of the private identity and recovery phrase.
+const { identity, mnemonic } = await createMnemonicIdentity({ words: 24, passphrase });
+const same = await recoverIdentity(mnemonic, passphrase);
 ```
 
-Capability factories return `PrimitiveResult`; host helpers reject/throw on invalid
-input. Import `PublicIdentity`, `BaseIdentityCapability`, `PrimitiveResult`,
-`PrimitiveError`, `SerializedIdentity`, `IdentityMaterial` and `MnemonicWordCount`
-from the package root when those types are needed.
+| Export                                          | Purpose                                                    |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| `createIdentity()`                              | New identity from a random seed                            |
+| `restoreIdentity(backup)`                       | Identity from `export()` JSON; rejects mismatched fields   |
+| `createMnemonicIdentity({ words, passphrase })` | New identity and its 12- or 24-word BIP-39 phrase          |
+| `recoverIdentity(mnemonic, passphrase?)`        | Same identity from the same words and passphrase           |
+| `verify(publicIdentity, bytes, signature)`      | Strict Ed25519 verification; `false` for any invalid input |
+| `validatePublicIdentity(input)`                 | Frozen `PublicIdentity` from untrusted input, or throws    |
 
-Run `pnpm check` at the repository root for built-package, browser and consumer proof.
+An `Identity` has `publicIdentity`, `export()`, `sign(bytes)` and
+`withX25519Secret(use)`. `sign` signs exactly the bytes given; protocols add their
+own domain separation. The X25519 secret lent to `use` is zeroed when the callback
+settles, so keep no copy.
+
+The backup is `ternent-identity` version `"2"` JSON. Encrypting and storing it is
+the application's job, using Armour when needed. Recovery words derive the seed at
+SLIP-0010 path `m/101010'/25519'/0'`; a different passphrase gives a different
+identity.
+
+Verification rejects non-canonical encodings, small-order and mixed-order keys and
+`R` values, and `S` outside the group order.
+
 License: ISC.

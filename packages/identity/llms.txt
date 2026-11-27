@@ -1,73 +1,38 @@
 # @ternent/identity
 
-> Public identities, private seed capabilities, signatures and Ed25519-to-X25519 derivation.
+> One Ed25519 identity: create, back up, restore, recover from words, sign and verify.
 
-Stable interface: `npm install @ternent/identity@0.6.0`. All functions and types come from the package
-root. [Public README](https://github.com/ternent/core/blob/main/packages/identity/README.md).
-Installed declarations: `dist/index.d.ts`.
-
-## Capability interface
-
-```ts
-import { generateSigner, verifySignature } from "@ternent/identity";
-const created = await generateSigner();
-if (!created.ok) throw new Error(created.error.code);
-const signer = created.value;
-const message = new TextEncoder().encode("application.example/v1\0hello");
-const signed = await signer.sign(message);
-if (!signed.ok) throw new Error(signed.error.code);
-const verified = await verifySignature(signer.publicIdentity, message, signed.value);
-if (!verified.ok || !verified.value) throw new Error("Invalid signature");
-```
-
-`generateSigner()` and `signerFromSeed(seed)` return `PrimitiveResult<BaseIdentityCapability>`.
-A seed is exactly 32 private bytes and is copied by the factory. The capability has
-`publicIdentity`, exact-byte `sign(message)` and trusted `withX25519Secret(callback)`.
-The borrowed scalar is zeroed after the callback settles; do not retain a copy.
-Armour's `withAgeDecryption(base)` adds decryption without exporting the seed.
-
-`PublicIdentity` has version 1, algorithm Ed25519, a canonical base64url public key
-and its derived identity ID. Validate untrusted identities with `validatePublicIdentity`.
-`verifySignature` verifies raw message/signature bytes with strict encoding and point
-checks. `ageRecipientFromPublicIdentity` returns a result; `ageRecipientFromSecret`
-and `ageSecretKey` encode raw X25519 material. Identity does not encrypt age files.
-
-## Host persistence and recovery
+All exports come from the package root. Declarations: `dist/index.d.ts`.
+[Public README](https://github.com/ternent/core/blob/main/packages/identity/README.md).
 
 ```ts
 import {
+  createIdentity,
+  restoreIdentity,
   createMnemonicIdentity,
-  serializeIdentity,
-  parseIdentity,
-  validateIdentity,
-  decodeBase64Url,
-  signerFromSeed,
+  recoverIdentity,
+  verify,
+  validatePublicIdentity,
+  type Identity,
+  type PublicIdentity,
 } from "@ternent/identity";
-const { identity, mnemonic } = await createMnemonicIdentity({ words: 24 });
-const privateExport = serializeIdentity(identity);
-const checked = await validateIdentity(parseIdentity(privateExport));
-const seed = decodeBase64Url(checked.material.seed);
-if (!seed.ok) throw new Error(seed.error.code);
-const restored = await signerFromSeed(seed.value);
-seed.value.fill(0);
-if (!restored.ok) throw new Error(restored.error.code);
+
+const identity = await createIdentity();
+const backup = identity.export(); // JSON with the private seed; the app stores it
+const restored = await restoreIdentity(backup);
+const signature = await identity.sign(bytes); // 64 bytes over exactly `bytes`
+const ok = await verify(identity.publicIdentity, bytes, signature);
 ```
 
-`SerializedIdentity` contains the private seed; it is not `PublicIdentity` or a
-Concord document record. The host protects private exports and recovery phrases.
-`parseIdentity` normalizes/checks shape; `validateIdentity` additionally checks
-seed/public-key/key-ID consistency. These host helpers throw/reject on invalid input.
-The restored base capability signs with the same identity. Armour’s
-`withAgeDecryption(restored.value)` adds the decryption operation required by Concord.
-Persist the private serialized identity securely; the executable capability itself
-is not a portable persistence format.
-
-## Signing conventions and errors
-
-Capability operations return `PrimitiveResult` (`{ ok: true, value }` or
-`{ ok: false, error: { code, message } }`). Host mnemonic/serialized helpers throw.
-`signBytes`/`signUtf8` and `verifyBytes`/`verifyUtf8` use a context prefix and return/use
-base64url signatures. Their default context is `ternent-seal/v2`; select an explicit
-context for another application. They are not interchangeable with exact-byte
-capability signing. Concord and Ledger construct their own domain-separated messages.
-Do not invent an account/profile service or persist secrets inside signed documents.
+- Pass the `Identity` itself to Ledger, Seal and Armour. Do not decode the seed or
+  build a second signer.
+- `PublicIdentity` is `{ version: 1, algorithm: "Ed25519", publicKey, id }` with a
+  base64url key and `id = "identity:" + hex(sha256(publicKey))`. It is safe to put
+  in documents. Check untrusted values with `validatePublicIdentity` (throws).
+- `verify` never throws; it returns `false` for a bad identity, signature or match.
+- `restoreIdentity`, `recoverIdentity` and `createMnemonicIdentity` reject with an
+  ordinary `Error` on invalid input.
+- `withX25519Secret(use)` lends a temporary X25519 secret for decryption and zeroes
+  it after `use` settles. Do not retain it.
+- Recovery words are opt-in, shown once, and never part of the backup.
+- Encryption, storage, accounts and two-factor checks belong to the application.

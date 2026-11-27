@@ -1,0 +1,60 @@
+{
+  "rfc8032": {
+    "seedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "proof": {
+      "format": "seal",
+      "version": 1,
+      "createdAt": "2026-11-26T12:00:00.000Z",
+      "subject": {
+        "hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "signer": {
+        "version": 1,
+        "algorithm": "Ed25519",
+        "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+        "id": "identity:21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9"
+      },
+      "signature": "A3werKnxfw5ZNuto4BlAbWmghn8k3mKtUpDgnIdQQiTXKHJmiXnw05xtWy51HgC9vvnoLU8Kz-aX5S2tnScmCA"
+    }
+  },
+  "ledger": [
+    {
+      "subjectUtf8": "ledger.commit/2\u0000{\"entries\":[],\"metadata\":{\"model\":\"expenses\"},\"nonce\":\"AQEBAQEBAQEBAQEBAQEBAQ\",\"parent\":null}",
+      "signatureMessageUtf8": "ternent-seal/v1\u0000{\"createdAt\":\"2026-11-27T12:00:00.000Z\",\"format\":\"seal\",\"signer\":{\"algorithm\":\"Ed25519\",\"id\":\"identity:34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e\",\"publicKey\":\"iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w\",\"version\":1},\"subject\":{\"hash\":\"sha256:c1cdc29b334ce1e6e53777539f0ac941fa98c9118cd0c17231cb7e89319bcc81\"},\"version\":1}",
+      "proof": {
+        "format": "seal",
+        "version": 1,
+        "createdAt": "2026-11-27T12:00:00.000Z",
+        "subject": {
+          "hash": "sha256:c1cdc29b334ce1e6e53777539f0ac941fa98c9118cd0c17231cb7e89319bcc81"
+        },
+        "signer": {
+          "version": 1,
+          "algorithm": "Ed25519",
+          "publicKey": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+          "id": "identity:34750f98bd59fcfc946da45aaabe933be154a4b5094e1c4abf42866505f3c97e"
+        },
+        "signature": "Qmqca3aN4guyg8TXiYMN3po0UInwGBYB8JXuxglbMYYlH-ItT06b0P8gwk5XcRYEO4mTodvhrwfDxlRloA25AA"
+      }
+    },
+    {
+      "subjectUtf8": "ledger.commit/2\u0000{\"entries\":[{\"kind\":\"expense.recorded\",\"meta\":{\"example\":true},\"nonce\":\"AwMDAwMDAwMDAwMDAwMDAw\",\"payload\":{\"amount\":2500}},{\"kind\":\"expense.tagged\",\"nonce\":\"BAQEBAQEBAQEBAQEBAQEBA\",\"payload\":{\"10\":\"train\",\"2\":\"travel\"}}],\"nonce\":\"AgICAgICAgICAgICAgICAg\",\"parent\":\"commit:b0e752d63fc76670e3bd6a9e69baa7de336894dc50b1360a5c0d86f85d36f18a\"}",
+      "signatureMessageUtf8": "ternent-seal/v1\u0000{\"createdAt\":\"2026-11-27T12:00:01.000Z\",\"format\":\"seal\",\"signer\":{\"algorithm\":\"Ed25519\",\"id\":\"identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827\",\"publicKey\":\"gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q\",\"version\":1},\"subject\":{\"hash\":\"sha256:c8192893ef94449bf584a4f0e6119c32504554aad64f987cd4226c0deb958aab\"},\"version\":1}",
+      "proof": {
+        "format": "seal",
+        "version": 1,
+        "createdAt": "2026-11-27T12:00:01.000Z",
+        "subject": {
+          "hash": "sha256:c8192893ef94449bf584a4f0e6119c32504554aad64f987cd4226c0deb958aab"
+        },
+        "signer": {
+          "version": 1,
+          "algorithm": "Ed25519",
+          "publicKey": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q",
+          "id": "identity:6a3803d5f059902a1c6dafbc9ba4729212f7caac08634cc3ae76b27529f03827"
+        },
+        "signature": "a1m92SrdIZnz8ov-rLot7c9JoIRIZ0gAfg60DDjLKxYHWKIyVYkFdK-V9ATtkiu5o_b4k8M0gR5Jj1IhHpiXDw"
+      }
+    }
+  ]
+}

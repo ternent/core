@@ -1,379 +1,63 @@
-import { mkdir, open, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { createManifestArtifact } from "./commands/manifest.js";
-import { createIdentityArtifact } from "./commands/identity.js";
-import { createProofArtifact, createRecipientArtifact } from "./commands/sign.js";
-import { createPublicKeyArtifact } from "./commands/publicKey.js";
-import { verifyArtifactProof, verifyProofArtifact } from "./commands/verify.js";
-import { resolveSealIdentityFromEnv } from "./node.js";
-import {
-  EXIT_FAILURE,
-  EXIT_HASH_MISMATCH,
-  EXIT_INVALID_PROOF,
-  EXIT_KEY_CONFIG,
-  EXIT_SIGNATURE_INVALID,
-  EXIT_SUCCESS,
-  SealCliError,
-  getExitCode,
-} from "./errors.js";
+import { readFile, writeFile } from "node:fs/promises";
+import { parseArgs } from "node:util";
+import { restoreIdentity } from "@ternent/identity";
+import { createSealHash, createSealProof, verifySealProof } from "./index.js";
 
-type ProcessEnvLike = Record<string, string | undefined>;
+const usage = `Usage: seal sign --input <file> [--out <proof.json>]
+       seal verify --proof <proof.json> --input <file>
 
-const usage =
-  "Usage: seal identity create [--out <path>] [--words 12|24] [--passphrase <value>] [--mnemonic-out <path>] [--json] [--quiet]\n" +
-  "       seal manifest create --input <path> [--out <path>] [--json] [--quiet]\n" +
-  "       seal sign --input <path> [--recipient <age...>] [--out <path>] [--json] [--quiet]\n" +
-  "       seal verify --proof <proof.json> --input <path> [--json] [--quiet]\n" +
-  "       seal verify --artifact <artifact.json> [--json] [--quiet]\n" +
-  "       seal public-key [--json] [--quiet]";
+sign reads the identity backup named by SEAL_IDENTITY_FILE.
+Exit codes: 0 success, 1 error, 2 invalid proof.`;
 
-type ParsedArgs = {
-  _: string[];
-  flags: Record<string, string | boolean | string[]>;
+type Io = {
+  env: Record<string, string | undefined>;
+  stdout: (text: string) => void;
+  stderr: (text: string) => void;
 };
 
-type OutputWriter = {
-  stdout: (value: string) => void;
-  stderr: (value: string) => void;
+const processIo: Io = {
+  env: process.env,
+  stdout: (text) => process.stdout.write(text),
+  stderr: (text) => process.stderr.write(text),
 };
 
-function parseArgs(argv: string[]): ParsedArgs {
-  const result: ParsedArgs = { _: [], flags: Object.create(null) as ParsedArgs["flags"] };
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (!arg.startsWith("--")) {
-      result._.push(arg);
-      continue;
-    }
-
-    const equals = arg.indexOf("=");
-    const rawKey = equals === -1 ? arg.slice(2) : arg.slice(2, equals);
-    const inlineValue = equals === -1 ? undefined : arg.slice(equals + 1);
-    const key = rawKey.trim();
-    const next = argv[index + 1];
-    const hasNextValue = inlineValue === undefined && next && !next.startsWith("--");
-    const value = inlineValue ?? (hasNextValue ? next : undefined);
-
-    if (hasNextValue) {
-      index += 1;
-    }
-
-    if (value === undefined) {
-      result.flags[key] = true;
-      continue;
-    }
-
-    const existing = result.flags[key];
-    if (existing === undefined) {
-      result.flags[key] = value;
-      continue;
-    }
-
-    if (Array.isArray(existing)) {
-      existing.push(value);
-      result.flags[key] = existing;
-      continue;
-    }
-
-    result.flags[key] = [String(existing), value];
-  }
-
-  return result;
-}
-
-function getFlag(flags: ParsedArgs["flags"], key: string): string | undefined {
-  const value = flags[key];
-  if (Array.isArray(value)) {
-    return value[value.length - 1];
-  }
-  return typeof value === "string" ? value : undefined;
-}
-
-function getFlags(flags: ParsedArgs["flags"], key: string): string[] {
-  const value = flags[key];
-  if (Array.isArray(value)) {
-    return value.map(String);
-  }
-  if (typeof value === "string") {
-    return [value];
-  }
-  return [];
-}
-
-function hasFlag(flags: ParsedArgs["flags"], key: string): boolean {
-  return flags[key] === true;
-}
-
-function requireFlag(flags: ParsedArgs["flags"], key: string): string {
-  const value = getFlag(flags, key);
-  if (!value) {
-    throw new SealCliError(`Missing --${key}`, EXIT_FAILURE);
-  }
-  return value;
-}
-
-function parseMnemonicWordCount(flags: ParsedArgs["flags"]): 12 | 24 | undefined {
-  const words = getFlag(flags, "words");
-  if (!words) {
-    return undefined;
-  }
-  if (words === "12" || words === "24") {
-    return Number(words) as 12 | 24;
-  }
-  throw new SealCliError("Mnemonic word count must be 12 or 24.", EXIT_FAILURE);
-}
-
-async function writeOutputFile(filePath: string, content: string, secret = false): Promise<void> {
-  const resolvedPath = resolve(filePath);
-  await mkdir(dirname(resolvedPath), { recursive: true });
-  if (secret) {
-    const file = await open(resolvedPath, "w", 0o600);
-    try {
-      await file.chmod(0o600);
-      await file.writeFile(content, "utf8");
-    } finally {
-      await file.close();
-    }
-  } else await writeFile(resolvedPath, content, "utf8");
-}
-
-function outputResult(writer: OutputWriter, json: boolean, quiet: boolean, value: unknown): void {
-  if (quiet) {
-    return;
-  }
-
-  if (typeof value === "string") {
-    writer.stdout(`${value}\n`);
-    return;
-  }
-
-  if (json) {
-    writer.stdout(`${JSON.stringify(value, null, 2)}\n`);
-    return;
-  }
-
-  writer.stdout(`${JSON.stringify(value, null, 2)}\n`);
-}
-
-function outputError(writer: OutputWriter, json: boolean, error: unknown): number {
-  const exitCode = getExitCode(error);
-  const message = error instanceof Error ? error.message : String(error);
-  if (json) {
-    writer.stderr(`${JSON.stringify({ error: message, exitCode }, null, 2)}\n`);
-  } else {
-    writer.stderr(`${message}\n`);
-  }
-  return exitCode;
-}
-
-export async function runCli(
-  argv: string[],
-  params: {
-    env?: ProcessEnvLike;
-    writer?: OutputWriter;
-  } = {},
-): Promise<number> {
-  const parsed = parseArgs(argv);
-  const env = params.env ?? process.env;
-  const writer: OutputWriter = params.writer ?? {
-    stdout: (value) => process.stdout.write(value),
-    stderr: (value) => process.stderr.write(value),
-  };
-  const json = hasFlag(parsed.flags, "json");
-  const quiet = hasFlag(parsed.flags, "quiet");
-
+export async function runCli(argv: string[], io: Io = processIo): Promise<number> {
   try {
-    const [command, subcommand] = parsed._;
-    if (hasFlag(parsed.flags, "help") || command === "help") {
-      if (!quiet) writer.stdout(`${usage}\n`);
-      return EXIT_SUCCESS;
+    const { positionals, values } = parseArgs({
+      args: argv,
+      allowPositionals: true,
+      options: {
+        input: { type: "string" },
+        out: { type: "string" },
+        proof: { type: "string" },
+        help: { type: "boolean" },
+      },
+    });
+    const [command] = positionals;
+
+    if (values.help || positionals.length === 0) {
+      io.stdout(`${usage}\n`);
+      return 0;
     }
-
-    if (command === "identity" && subcommand === "create") {
-      const mnemonicOutPath = getFlag(parsed.flags, "mnemonic-out");
-      const artifact = await createIdentityArtifact({
-        withMnemonic: Boolean(mnemonicOutPath),
-        words: parseMnemonicWordCount(parsed.flags),
-        passphrase: getFlag(parsed.flags, "passphrase"),
-      });
-      const outPath = getFlag(parsed.flags, "out");
-      if (outPath) {
-        await writeOutputFile(outPath, artifact.content, true);
-      }
-      if (mnemonicOutPath) {
-        await writeOutputFile(mnemonicOutPath, artifact.mnemonicContent || "", true);
-      }
-
-      if (outPath) {
-        outputResult(
-          writer,
-          json,
-          quiet,
-          json
-            ? artifact.mnemonic
-              ? {
-                  identity: artifact.identity,
-                  mnemonic: artifact.mnemonic,
-                  mnemonicFile: mnemonicOutPath || null,
-                }
-              : artifact.identity
-            : outPath,
-        );
-      } else {
-        outputResult(
-          writer,
-          true,
-          quiet,
-          artifact.mnemonic
-            ? {
-                identity: artifact.identity,
-                mnemonic: artifact.mnemonic,
-                mnemonicFile: mnemonicOutPath || null,
-              }
-            : artifact.identity,
-        );
-      }
-      return EXIT_SUCCESS;
+    if (command === "sign" && positionals.length === 1 && values.input && !values.proof) {
+      const identityFile = io.env.SEAL_IDENTITY_FILE;
+      if (!identityFile) throw new Error("Set SEAL_IDENTITY_FILE to an identity backup");
+      const signer = await restoreIdentity(await readFile(identityFile, "utf8"));
+      const hash = await createSealHash(await readFile(values.input));
+      const proof = `${JSON.stringify(await createSealProof({ signer, subject: { hash } }), null, 2)}\n`;
+      if (values.out) await writeFile(values.out, proof);
+      else io.stdout(proof);
+      return 0;
     }
-
-    if (command === "manifest" && subcommand === "create") {
-      const artifact = await createManifestArtifact(requireFlag(parsed.flags, "input"));
-      const outPath = getFlag(parsed.flags, "out");
-      if (outPath) {
-        await writeOutputFile(outPath, artifact.content);
-        outputResult(writer, json, quiet, json ? artifact.manifest : outPath);
-      } else {
-        outputResult(writer, true, quiet, artifact.manifest);
-      }
-      return EXIT_SUCCESS;
+    if (command === "verify" && positionals.length === 1 && values.input && values.proof) {
+      const proof: unknown = JSON.parse(await readFile(values.proof, "utf8"));
+      const result = await verifySealProof(proof, await readFile(values.input));
+      io.stdout(`${JSON.stringify(result)}\n`);
+      return result.valid ? 0 : 2;
     }
-
-    if (command === "sign") {
-      const identity = await resolveSealIdentityFromEnv(env);
-      const recipients = getFlags(parsed.flags, "recipient");
-      const inputPath = requireFlag(parsed.flags, "input");
-      const outPath = getFlag(parsed.flags, "out");
-      if (recipients.length > 0) {
-        const artifact = await createRecipientArtifact({
-          inputPath,
-          identity,
-          recipients,
-        });
-        if (outPath) {
-          await writeOutputFile(outPath, artifact.content);
-          outputResult(writer, json, quiet, json ? artifact.artifact : outPath);
-        } else {
-          outputResult(writer, true, quiet, artifact.artifact);
-        }
-      } else {
-        const artifact = await createProofArtifact({
-          inputPath,
-          identity,
-        });
-        if (outPath) {
-          await writeOutputFile(outPath, artifact.content);
-          outputResult(writer, json, quiet, json ? artifact.proof : outPath);
-        } else {
-          outputResult(writer, true, quiet, artifact.proof);
-        }
-      }
-      return EXIT_SUCCESS;
-    }
-
-    if (command === "verify") {
-      const artifactPath = getFlag(parsed.flags, "artifact");
-      if (artifactPath) {
-        const { result } = await verifyArtifactProof({ artifactPath });
-        outputResult(
-          writer,
-          json,
-          quiet,
-          json
-            ? result
-            : [
-                `valid=${result.valid}`,
-                `hashMatch=${result.hashMatch}`,
-                `signatureValid=${result.signatureValid}`,
-                `encrypted=${result.encrypted}`,
-                `payloadScheme=${result.payloadScheme}`,
-                `payloadMode=${result.payloadMode}`,
-                `keyId=${result.keyId}`,
-                `algorithm=${result.algorithm}`,
-                `subjectHash=${result.subjectHash}`,
-              ].join("\n"),
-        );
-
-        if (!result.hashMatch) {
-          return EXIT_HASH_MISMATCH;
-        }
-        if (!result.signatureValid) {
-          return EXIT_SIGNATURE_INVALID;
-        }
-        return EXIT_SUCCESS;
-      }
-
-      const proofPath = requireFlag(parsed.flags, "proof");
-      const inputPath = requireFlag(parsed.flags, "input");
-      const { result } = await verifyProofArtifact({ proofPath, inputPath });
-      outputResult(
-        writer,
-        json,
-        quiet,
-        json
-          ? result
-          : [
-              `valid=${result.valid}`,
-              `hashMatch=${result.hashMatch}`,
-              `signatureValid=${result.signatureValid}`,
-              `keyId=${result.keyId}`,
-              `algorithm=${result.algorithm}`,
-              `subjectHash=${result.subjectHash}`,
-            ].join("\n"),
-      );
-
-      if (!result.hashMatch) {
-        return EXIT_HASH_MISMATCH;
-      }
-      if (!result.signatureValid) {
-        return EXIT_SIGNATURE_INVALID;
-      }
-      return EXIT_SUCCESS;
-    }
-
-    if (command === "public-key") {
-      const artifact = await createPublicKeyArtifact({
-        identity: await resolveSealIdentityFromEnv(env),
-      });
-      outputResult(writer, true, quiet, artifact);
-      return EXIT_SUCCESS;
-    }
-
-    throw new SealCliError(usage, EXIT_FAILURE);
+    throw new Error(usage);
   } catch (error) {
-    if (error instanceof SealCliError) return outputError(writer, json, error);
-    if (error instanceof Error && error.message.includes("Proof")) {
-      return outputError(writer, json, new SealCliError(error.message, EXIT_INVALID_PROOF));
-    }
-    if (
-      error instanceof Error &&
-      (error.message.includes("public key") ||
-        error.message.includes("SEAL_IDENTITY") ||
-        error.message.includes("identity"))
-    ) {
-      return outputError(writer, json, new SealCliError(error.message, EXIT_KEY_CONFIG));
-    }
-    return outputError(writer, json, error);
+    io.stderr(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
   }
-}
-
-const isDirectRun =
-  typeof process !== "undefined" &&
-  process.argv[1] &&
-  fileURLToPath(import.meta.url) === resolve(process.argv[1]);
-
-if (isDirectRun) {
-  void runCli(process.argv.slice(2)).then((exitCode) => {
-    process.exitCode = exitCode;
-  });
 }

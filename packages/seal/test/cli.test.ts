@@ -1,216 +1,86 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vite-plus/test";
-import { createIdentity, serializeIdentity } from "@ternent/identity";
-import { recipientFromIdentity } from "@ternent/armour";
+import { expect, test } from "vite-plus/test";
+import { createIdentity } from "@ternent/identity";
 import { runCli } from "../src/cli.js";
 
-async function createSigningEnv() {
+async function setup() {
+  const dir = await mkdtemp(join(tmpdir(), "seal-cli-"));
   const identity = await createIdentity();
-  return {
-    SEAL_IDENTITY: serializeIdentity(identity, false).trim(),
-  };
+  const identityFile = join(dir, "identity.json");
+  await writeFile(identityFile, identity.export());
+  const input = join(dir, "release-manifest.json");
+  await writeFile(input, '{"release":"1.0.0"}\n');
+  return { dir, identity, input, env: { SEAL_IDENTITY_FILE: identityFile } };
 }
 
-async function createTempFile(name: string, content: string): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "seal-cli-"));
-  const filePath = join(root, name);
-  await writeFile(filePath, content, "utf8");
-  return filePath;
-}
-
-function createWriter() {
-  let stdout = "";
-  let stderr = "";
+function io(env: Record<string, string | undefined> = {}) {
+  const out = { stdout: "", stderr: "" };
   return {
-    writer: {
-      stdout: (value: string) => {
-        stdout += value;
-      },
-      stderr: (value: string) => {
-        stderr += value;
-      },
+    out,
+    io: {
+      env,
+      stdout: (text: string) => void (out.stdout += text),
+      stderr: (text: string) => void (out.stderr += text),
     },
-    read: () => ({ stdout, stderr }),
   };
 }
 
-describe("seal cli", () => {
-  it("verifies a proof successfully", async () => {
-    const env = await createSigningEnv();
-    const subjectPath = await createTempFile("sample.txt", "sample file\n");
-    const proofPath = await createTempFile("proof.json", "");
-    const writer = createWriter();
+test("sign writes a proof that verify accepts", async () => {
+  const { dir, identity, input, env } = await setup();
+  const proofPath = join(dir, "proof.json");
+  expect(await runCli(["sign", "--input", input, "--out", proofPath], io(env).io)).toBe(0);
+  expect(JSON.parse(await readFile(proofPath, "utf8")).signer).toEqual(identity.publicIdentity);
 
-    const signExit = await runCli(["sign", "--input", subjectPath, "--out", proofPath], {
-      env,
-      writer: writer.writer,
-    });
-    const verifyExit = await runCli(
-      ["verify", "--proof", proofPath, "--input", subjectPath, "--json"],
-      { env, writer: writer.writer },
-    );
-
-    expect(signExit).toBe(0);
-    expect(verifyExit).toBe(0);
-    expect(writer.read().stdout).toContain('"valid": true');
-  });
-
-  it("signs and verifies an encrypted artifact successfully", async () => {
-    const env = await createSigningEnv();
-    const recipient = await createIdentity();
-    const recipientValue = await recipientFromIdentity(recipient);
-    const subjectPath = await createTempFile("sample.txt", "sample file\n");
-    const artifactPath = await createTempFile("artifact.json", "");
-    const writer = createWriter();
-
-    const signExit = await runCli(
-      ["sign", "--input", subjectPath, "--recipient", recipientValue, "--out", artifactPath],
-      { env, writer: writer.writer },
-    );
-    const verifyExit = await runCli(["verify", "--artifact", artifactPath, "--json"], {
-      writer: writer.writer,
-    });
-
-    expect(signExit).toBe(0);
-    expect(verifyExit).toBe(0);
-    expect(await readFile(artifactPath, "utf8")).toContain('"type": "seal-artifact"');
-    expect(writer.read().stdout).toContain('"encrypted": true');
-  });
-
-  it("creates an identity file", async () => {
-    const identityPath = await createTempFile("identity.json", "");
-    const writer = createWriter();
-
-    const exitCode = await runCli(["identity", "create", "--out", identityPath, "--json"], {
-      writer: writer.writer,
-    });
-
-    expect(exitCode).toBe(0);
-    expect(writer.read().stdout).toContain('"format": "ternent-identity"');
-    expect(await readFile(identityPath, "utf8")).toContain('"material"');
-  });
-
-  it("creates a mnemonic-backed identity and writes the seed phrase", async () => {
-    const identityPath = await createTempFile("identity.json", "");
-    const mnemonicPath = await createTempFile("seed.txt", "");
-    const writer = createWriter();
-
-    const exitCode = await runCli(
-      [
-        "identity",
-        "create",
-        "--out",
-        identityPath,
-        "--words",
-        "24",
-        "--mnemonic-out",
-        mnemonicPath,
-        "--json",
-      ],
-      { writer: writer.writer },
-    );
-
-    expect(exitCode).toBe(0);
-    expect(writer.read().stdout).toContain('"mnemonic"');
-    expect(await readFile(identityPath, "utf8")).toContain('"format": "ternent-identity"');
-    expect(await readFile(mnemonicPath, "utf8")).toContain("Seal seed phrase backup");
-  });
-
-  it("returns exit code 2 for a hash mismatch", async () => {
-    const env = await createSigningEnv();
-    const subjectPath = await createTempFile("sample.txt", "sample file\n");
-    const mismatchPath = await createTempFile("different.txt", "different\n");
-    const proofPath = await createTempFile("proof.json", "");
-
-    await runCli(["sign", "--input", subjectPath, "--out", proofPath], { env });
-    const exitCode = await runCli(["verify", "--proof", proofPath, "--input", mismatchPath], {
-      env,
-    });
-
-    expect(exitCode).toBe(2);
-  });
-
-  it("keeps the legacy proof output when no recipients are provided", async () => {
-    const env = await createSigningEnv();
-    const subjectPath = await createTempFile("sample.txt", "sample file\n");
-    const proofPath = await createTempFile("proof.json", "");
-
-    const exitCode = await runCli(["sign", "--input", subjectPath, "--out", proofPath], { env });
-
-    expect(exitCode).toBe(0);
-    expect(await readFile(proofPath, "utf8")).toContain('"type": "seal-proof"');
-  });
-
-  it("returns exit code 3 for an invalid signature", async () => {
-    const env = await createSigningEnv();
-    const otherEnv = await createSigningEnv();
-    const subjectPath = await createTempFile("sample.txt", "sample file\n");
-    const proofPath = await createTempFile("proof.json", "");
-
-    await runCli(["sign", "--input", subjectPath, "--out", proofPath], {
-      env: otherEnv,
-    });
-
-    const rawProof = await readFile(proofPath, "utf8");
-    const parsed = JSON.parse(rawProof) as Record<string, unknown>;
-    parsed.signer = {
-      ...(parsed.signer as Record<string, unknown>),
-      keyId: "bad-key-id",
-    };
-    await writeFile(proofPath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-
-    const exitCode = await runCli(["verify", "--proof", proofPath, "--input", subjectPath], {
-      env,
-    });
-
-    expect(exitCode).toBe(3);
-  });
-
-  it("returns exit code 4 for schema invalid proof", async () => {
-    const env = await createSigningEnv();
-    const subjectPath = await createTempFile("sample.txt", "sample file\n");
-    const proofPath = await createTempFile("proof.json", '{"type":"bad"}');
-
-    const exitCode = await runCli(["verify", "--proof", proofPath, "--input", subjectPath], {
-      env,
-    });
-
-    expect(exitCode).toBe(4);
-  });
-
-  it("returns exit code 5 for key mismatch", async () => {
-    const writer = createWriter();
-
-    const exitCode = await runCli(["public-key"], {
-      env: {},
-      writer: writer.writer,
-    });
-
-    expect(exitCode).toBe(5);
-  });
-
-  it("surfaces invalid recipients without leaking armour errors", async () => {
-    const env = await createSigningEnv();
-    const subjectPath = await createTempFile("sample.txt", "sample file\n");
-    const writer = createWriter();
-
-    const exitCode = await runCli(
-      ["sign", "--input", subjectPath, "--recipient", "bad-recipient"],
-      { env, writer: writer.writer },
-    );
-
-    expect(exitCode).toBe(1);
-    expect(writer.read().stderr).toContain("Recipient must be a valid age recipient string.");
-    expect(writer.read().stderr).not.toContain("ARMOUR_");
+  const verified = io();
+  expect(await runCli(["verify", "--proof", proofPath, "--input", input], verified.io)).toBe(0);
+  expect(JSON.parse(verified.out.stdout)).toEqual({
+    valid: true,
+    signatureValid: true,
+    hashMatch: true,
   });
 });
 
-it("prints help successfully without requiring signer credentials", async () => {
-  const output = createWriter();
-  expect(await runCli(["--help"], { env: {}, writer: output.writer })).toBe(0);
-  expect(output.read().stdout).toContain("Usage: seal");
-  expect(output.read().stdout).toContain("seal verify");
-  expect(output.read().stderr).toBe("");
+test("sign without --out prints the proof", async () => {
+  const { input, env } = await setup();
+  const signed = io(env);
+  expect(await runCli(["sign", "--input", input], signed.io)).toBe(0);
+  expect(JSON.parse(signed.out.stdout).format).toBe("seal");
+});
+
+test("verify exits 2 when the input changed", async () => {
+  const { dir, input, env } = await setup();
+  const proofPath = join(dir, "proof.json");
+  await runCli(["sign", "--input", input, "--out", proofPath], io(env).io);
+  await writeFile(input, '{"release":"1.0.1"}\n');
+  const verified = io();
+  expect(await runCli(["verify", "--proof", proofPath, "--input", input], verified.io)).toBe(2);
+  expect(JSON.parse(verified.out.stdout)).toMatchObject({ valid: false, hashMatch: false });
+});
+
+test("usage errors, missing identity and unreadable files exit 1", async () => {
+  const { dir, input, env } = await setup();
+  const badIdentity = join(dir, "bad.json");
+  await writeFile(badIdentity, "{}");
+  const cases: [string[], Record<string, string>][] = [
+    [["sign", "--input", input], {}],
+    [["sign", "--input", input], { SEAL_IDENTITY_FILE: badIdentity }],
+    [["sign"], env],
+    [["verify", "--input", input], env],
+    [["verify", "--proof", join(dir, "missing.json"), "--input", input], env],
+    [["publish", "--input", input], env],
+    [["sign", "--input", input, "--unknown"], env],
+  ];
+  for (const [argv, caseEnv] of cases) {
+    const run = io(caseEnv);
+    expect(await runCli(argv, run.io)).toBe(1);
+    expect(run.out.stderr).not.toBe("");
+  }
+});
+
+test("help prints usage", async () => {
+  const run = io();
+  expect(await runCli(["--help"], run.io)).toBe(0);
+  expect(run.out.stdout).toMatch(/^Usage: seal sign/);
 });

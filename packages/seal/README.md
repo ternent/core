@@ -1,120 +1,58 @@
 # @ternent/seal
 
-[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
-
-Standalone file/manifest proofs and recipient-encrypted artifacts, with a browser-safe
-library and the Node `seal` executable. Uses the public Identity and Armour APIs;
-Armour's typage implementation needs no initialization or WASM step.
-
-The stable interface version is `0.5.0`.
-Proof/public-key wire version remains `2`; manifest/artifact wire version remains `1`.
-The public proof type is `SealProofV2`.
-
-## Library
+A detached Ed25519 proof over a content hash. Identity supplies the signer.
 
 ```ts
-import { createSealIdentity } from "@ternent/seal/crypto";
-import { createSealHash, createSealProof, verifySealProofAgainstBytes } from "@ternent/seal/proof";
+import { createSealHash, createSealProof, verifySealProof } from "@ternent/seal";
 
-const identity = await createSealIdentity();
-const bytes = new TextEncoder().encode("signed bytes");
 const proof = await createSealProof({
-  signer: { identity },
-  subject: { kind: "file", path: "example.txt", hash: await createSealHash(bytes) },
+  signer: identity,
+  subject: { hash: await createSealHash(bytes) },
 });
-const result = await verifySealProofAgainstBytes(proof, bytes);
+const { valid, signatureValid, hashMatch } = await verifySealProof(proof, bytes);
 ```
 
-Root re-exports the library. Typed subpaths are `/proof`, `/artifact`, `/manifest`,
-`/crypto` and `/errors`. They import no Node filesystem/CLI code. The CLI is a separate
-executable, with no import-time execution from public library paths. No Concord or
-Utils dependency is required.
+`createSealHash(bytes)` returns `sha256:` and 64 lowercase hex digits (Web Crypto).
+`createSealProof({ signer, subject, createdAt? })` signs with any object that has an
+Identity's `publicIdentity` and `sign`, checks the returned signature, and returns the
+proof. `verifySealProof(proof, bytes)` never throws: a malformed proof is invalid.
+`valid` needs both the signature and the hash to match.
 
-```ts
-import { recipientFromIdentity } from "@ternent/armour";
-import {
-  createSealArtifact,
-  verifySealArtifact,
-  decryptSealArtifactPayload,
-} from "@ternent/seal/artifact";
+A valid proof says which key signed. Whether that key is trusted is the caller's
+decision: compare `proof.signer` with the public identity you expect.
 
-const recipient = await createSealIdentity();
-const artifact = await createSealArtifact({
-  signer: { identity },
-  subjectPath: "example.txt",
-  payload: bytes,
-  recipients: [await recipientFromIdentity(recipient)],
-});
-const verification = await verifySealArtifact(artifact);
-const plaintext = await decryptSealArtifactPayload({ artifact, identity: recipient });
+Seal anything as bytes. For a release, seal a manifest that lists the release and
+each file's hash, then check the files against it. For encrypted data, seal the exact
+ciphertext bytes you store, so the proof verifies before decryption. For armored
+text, hash its UTF-8 bytes, line endings included.
+
+## Format
+
+```json
+{
+  "format": "seal",
+  "version": 1,
+  "createdAt": "2026-11-26T12:00:00.000Z",
+  "subject": { "hash": "sha256:e3b0c442…b855" },
+  "signer": { "version": 1, "algorithm": "Ed25519", "publicKey": "…", "id": "identity:…" },
+  "signature": "…"
+}
 ```
 
-Verification is offline. The proof binds the canonical unsigned proof fields with
-Ed25519 over `UTF8("ternent-seal/v2") || 0x00 || UTF8(payload)`. Signer key ID is the
-SHA-256 of its raw Ed25519 public key. Signing validates seed/public-key/key-ID binding;
-verification uses Identity's strict point, encoding and signature checks. Valid signatures
-identify a key; the caller decides whether that signer is trusted.
-
-Artifact verification checks the signed unsigned-container hash and the armored
-ciphertext hash before decryption. Payload bytes are encrypted; proof signer, subject
-path, timestamp, container metadata, sizes and age headers remain public. Recipients
-are not added as plaintext JSON fields; no traffic-pattern or metadata-hiding promise
-is made. Verification does not prove other recipients can decrypt.
-
-Canonical JSON accepts plain objects, normal arrays, valid Unicode strings, booleans,
-null and safe integers, with a depth limit of 64. It rejects accessors, custom prototypes,
-`toJSON` hooks, symbols, cycles, sparse arrays, undefined, bigint, nonfinite/fractional
-numbers and negative zero. Object keys sort by UTF-16 code units before native JSON
-serialization; native integer-index enumeration is retained from the prior Seal codec.
-The format is Seal's own contract, not Concord canonicalization or a JCS claim.
-See [the format and fixed evidence](../../docs/seal/format.md).
+The signature covers `UTF8("ternent-seal/v1") || 0x00 || JSON` of every field except
+`signature`, with object keys in UTF-16 order and no whitespace. Verification accepts
+exactly these fields, a millisecond UTC `createdAt` and canonical unpadded base64url.
+`createdAt` is the signer's claim, not evidence of time.
 
 ## CLI
 
-Run the installed package's `seal` executable.
-
 ```sh
-seal --help
-seal identity create --out identity.json --words 24 --mnemonic-out seal-backup.txt --quiet
-export SEAL_IDENTITY_FILE=./identity.json
-seal manifest create --input dist --out dist/dist-manifest.json --quiet
-seal sign --input dist/dist-manifest.json --out dist/proof.json --quiet
-seal verify --proof dist/proof.json --input dist/dist-manifest.json --json
-seal public-key --json
-seal sign --input example.txt --recipient age1... --out example.seal.json --quiet
-seal verify --artifact example.seal.json --json
+SEAL_IDENTITY_FILE=identity.json seal sign --input release-manifest.json --out proof.json
+seal verify --proof proof.json --input release-manifest.json
 ```
 
-`SEAL_IDENTITY` may instead contain the serialized Identity v2 JSON and takes precedence
-over `SEAL_IDENTITY_FILE`. Identity and mnemonic output files are created/written with
-owner-only mode `0600`. `--quiet` suppresses normal output; without it, identity creation
-may print the secret identity/backup when JSON output is requested. Keep signer files
-outside the directory being manifested. Manifest creation hashes the actual files in
-its input tree, skips `.DS_Store` and non-file/non-directory entries, and includes
-prototype-like filenames safely. Use a clean build directory before generating the
-manifest/proof/public-key outputs into it.
+`sign` reads an Identity backup from `SEAL_IDENTITY_FILE` and prints the proof
+unless `--out` is given. `verify` prints `{ valid, signatureValid, hashMatch }`.
+Exit codes: 0 success, 1 error, 2 invalid proof.
 
-| Exit | Meaning                                             |
-| ---- | --------------------------------------------------- |
-| 0    | Success, including help                             |
-| 1    | General/argument/encryption failure                 |
-| 2    | Subject or artifact hash mismatch                   |
-| 3    | Invalid signature or signer key binding             |
-| 4    | Malformed proof/artifact schema or JSON             |
-| 5    | Missing, unreadable or invalid signer configuration |
-
-The separately maintained Seal Action accepts `package-name`, `package-version` and
-`cli-command`. Its observed defaults still target the old package name. Select
-`@ternent/seal` and an actually published version when using its package path; an
-explicit CLI override can exercise a locally installed candidate. This migration
-proves its manifest/sign/public-key command sequence against the installed executable.
-Core CI also pins and invokes the actual Action with an explicit CLI command to sign
-the release candidate bundle, then verifies its complete file set and proof with a
-disposable test key. Production release verification requires an externally trusted
-public key. The Action is independently released. Published-package acceptance is recorded
-in the repository release record.
-
-[Repository acceptance](../../docs/engineering/repository-hygiene.md#acceptance-boundaries)
-describes source and installed-consumer checks.
-[Release evidence](../../docs/engineering/release-and-deployment.md) is separate
-from local candidate verification.
+License: ISC.

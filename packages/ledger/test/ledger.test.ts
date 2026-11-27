@@ -1,370 +1,291 @@
-import { createHash, createPrivateKey, sign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test } from "vite-plus/test";
-import { signerFromSeed, type BaseIdentityCapability } from "@ternent/identity";
-import {
-  createLedger,
-  verifyLedger,
-  compareLedgers,
-  encodeJson,
-  Fault,
-  type LedgerSnapshot,
-  type LedgerSigner,
-} from "../src/index.js";
+import { createHash } from "node:crypto";
+import { createIdentity, type Identity } from "@ternent/identity";
+import * as api from "../src/index.js";
+import { createLedger, createWriter, openLedger, type History } from "../src/index.js";
 
-const seed = Uint8Array.from(
-  Buffer.from("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60", "hex"),
-);
-async function signer(byte?: number): Promise<BaseIdentityCapability> {
-  const result = await signerFromSeed(byte === undefined ? seed : new Uint8Array(32).fill(byte));
-  if (!result.ok) throw new Error(result.error.code);
-  return result.value;
-}
-const now = () => "2026-11-21T00:00:00.000Z";
-function canonical(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  return `{${Object.keys(value)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
-    .join(",")}}`;
-}
-async function saved(): Promise<LedgerSnapshot> {
-  const log = await createLedger({ signer: await signer(), now });
-  await log.create({ metadata: { title: "log" } });
-  await log.append({ kind: "reading", payload: { value: 7 } });
-  await log.commit();
-  return log.export();
-}
-test("standalone staged log: create, append, preview, commit, export and reopen", async () => {
-  const log = await createLedger({ signer: await signer(), now });
-  await log.create();
-  const empty = await log.export();
-  const input = { kind: "measurement", payload: { value: 0 } };
-  const appended = log.append(input);
-  input.payload.value = 99;
-  await appended;
-  expect(await log.export()).toEqual(empty);
-  expect(await log.replay()).toMatchObject([
-    { kind: "measurement", payload: { data: { value: 0 } }, committed: false },
+const vector = JSON.parse(readFileSync(new URL("vectors.json", import.meta.url), "utf8"));
+const utf8 = (text: string) => new TextEncoder().encode(text);
+const text = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
+// An independent canonical form: keys sorted recursively, no whitespace. It writes the
+// string directly because objects list integer-like keys ("2", "10") numerically.
+const canonicalJson = (value: unknown): string =>
+  Array.isArray(value)
+    ? `[${value.map(canonicalJson).join(",")}]`
+    : typeof value === "object" && value !== null
+      ? `{${Object.keys(value)
+          .sort()
+          .map((key) => `${JSON.stringify(key)}:${canonicalJson((value as never)[key])}`)
+          .join(",")}}`
+      : JSON.stringify(value);
+const vectorBytes = () => utf8(canonicalJson(vector.document));
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+
+test("the public interface is create, open and write", () => {
+  expect(Object.keys(api).sort()).toEqual(["createLedger", "createWriter", "openLedger"]);
+});
+
+test("the v2 vector opens with the expected IDs and exports the same bytes", async () => {
+  const bytes = vectorBytes();
+  const history = await openLedger(bytes);
+  expect(history.documentId).toBe(vector.expected.documentId);
+  expect(history.head).toBe(vector.expected.head);
+  expect(
+    history.commits.map((commit) => ({ id: commit.id, entryIds: commit.entries.map((e) => e.id) })),
+  ).toEqual(
+    vector.expected.commits.map((c: { commitId: string; entryIds: string[] }) => ({
+      id: c.commitId,
+      entryIds: c.entryIds,
+    })),
+  );
+  expect(history.export()).toEqual(bytes);
+  expect(bytes.length).toBe(1403);
+});
+
+test("IDs and signed messages match an independent Node hash of the vector", async () => {
+  const history = await openLedger(vectorBytes());
+  vector.expected.commits.forEach(
+    (expected: { bodyMessageUtf8: string; signatureMessageUtf8: string }, index: number) => {
+      const commit = history.commits[index];
+      expect(commit.proof.subject.hash).toBe(`sha256:${sha256(expected.bodyMessageUtf8)}`);
+      const proofJson = JSON.parse(expected.signatureMessageUtf8.split("\0")[1]);
+      expect(proofJson.subject.hash).toBe(commit.proof.subject.hash);
+    },
+  );
+  const child = history.commits[1];
+  expect(text(history.export())).toContain('"payload":{"10":"train","2":"travel"}');
+  expect(child.entries[0].meta).toEqual({ example: true });
+});
+
+test("create, write, commit, export and reopen round-trip", async () => {
+  const alice = await createIdentity();
+  const genesis = await createLedger({ signer: alice, metadata: { model: "expenses" } });
+  expect(genesis.commits).toHaveLength(1);
+  expect(genesis.commits[0].entries).toEqual([]);
+
+  const writer = createWriter(genesis, alice);
+  writer.append({ kind: "expense.recorded", payload: { amount: 2500, note: "café ☕" } });
+  writer.append([
+    { kind: "expense.tagged", payload: ["travel"], meta: { source: "test" } },
+    { kind: "expense.noted", payload: null },
   ]);
-  expect(await log.replay({ includeStaged: false })).toEqual([]);
-  expect((await log.verify()).integrity).toBe("valid");
-  const meta = { note: "captured" };
-  const pending = log.commit({ metadata: meta });
-  meta.note = "changed";
-  const receipt = await pending;
-  expect(receipt.commit.subject.metadata).toEqual({ note: "captured" });
-  expect(log.getState().staged).toEqual([]);
-  const snapshot = await log.export();
-  const reopened = await createLedger();
-  await reopened.import(encodeJson(snapshot));
-  expect(await reopened.replay()).toEqual(await log.replay());
-  expect(await reopened.replay()).toMatchObject([{ committed: true, commitId: receipt.commit.id }]);
-  await expect(reopened.append({ kind: "no" })).rejects.toMatchObject({
-    finding: { code: "READ_ONLY_RUNTIME" },
-  });
+  expect(writer.staged).toHaveLength(3);
+  const next = await writer.commit({ device: "phone" });
+
+  expect(writer.history).toBe(next);
+  expect(writer.staged).toEqual([]);
+  expect(genesis.commits).toHaveLength(1);
+  expect(next.commits[0]).toBe(genesis.commits[0]);
+  expect(next.commits[1].parent).toBe(genesis.head);
+  expect(next.commits[1].proof.signer).toEqual(alice.publicIdentity);
+
+  const bytes = next.export();
+  const reopened = await openLedger(bytes);
+  expect(reopened.commits).toEqual(next.commits);
+  expect(reopened.export()).toEqual(bytes);
+  expect(reopened.compare(next)).toBe("equal");
+  await expect(openLedger(bytes, { maxBytes: bytes.length })).resolves.toBeDefined();
+  await expect(openLedger(bytes, { maxBytes: bytes.length - 1 })).rejects.toThrow(RangeError);
 });
-test("independent Node author verifies Ledger hash and signature subjects", async () => {
-  const fixed = JSON.parse(
-    readFileSync(new URL("./vectors/signed-log.json", import.meta.url), "utf8"),
-  ) as LedgerSnapshot;
-  const generated = await saved();
-  const key = createPrivateKey({
-    key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]),
-    format: "der",
-    type: "pkcs8",
-  });
-  for (const wire of [fixed, generated]) {
-    for (const [kind, records] of [
-      ["entry", wire.entries],
-      ["commit", wire.commits],
-    ] as const)
-      for (const record of records)
-        expect(record.id).toBe(
-          `${kind}:${createHash("sha256").update(`ledger.${kind}/1\0`).update(canonical(record.subject)).digest("hex")}`,
-        );
-    for (const record of wire.commits)
-      expect(record.signature).toBe(
-        sign(null, Buffer.from(`ledger.signature/1\0${canonical(record.subject)}`), key).toString(
-          "base64url",
-        ),
-      );
-    expect((await verifyLedger(encodeJson(wire))).integrity).toBe("valid");
-  }
-  const reader = await createLedger();
-  await reader.import(fixed);
-  expect((await reader.replay())[0].payload.data).toEqual({ value: 7 });
+
+test("staged entry IDs are kept through commit", async () => {
+  const alice = await createIdentity();
+  const writer = createWriter(await createLedger({ signer: alice }), alice);
+  writer.append({ kind: "a", payload: 1, nonce: "AAAAAAAAAAAAAAAAAAAAAA" });
+  const [staged] = writer.staged;
+  const history = await writer.commit();
+  expect(history.commits[1].entries[0]).toEqual(staged);
+  const reopened = await openLedger(history.export());
+  expect(reopened.commits[1].entries[0].id).toBe(staged.id);
 });
-test("custom projection replays saved history and includes explicitly marked staged entries", async () => {
-  const log = await createLedger({
-    signer: await signer(),
-    now,
-    initialProjection: 0,
-    projector: (total, entry) => total + Number((entry.payload.data as { value: number }).value),
-  });
-  await log.load(await saved());
-  expect(await log.replay()).toBe(7);
-  await log.append({ kind: "reading", payload: { value: 3 } });
-  expect(log.getState().projection).toBe(10);
-  expect(await log.replay({ includeStaged: false })).toBe(7);
-  await log.clearStaged();
-  expect(await log.recompute()).toBe(7);
+
+test("compare reports equal, ahead, behind, diverged and unrelated", async () => {
+  const alice = await createIdentity();
+  const base = await createLedger({ signer: alice });
+  const one = createWriter(base, alice);
+  one.append({ kind: "a", payload: 1 });
+  const ahead = await one.commit();
+  const two = createWriter(base, alice);
+  two.append({ kind: "b", payload: 2 });
+  const fork = await two.commit();
+  const other = await createLedger({ signer: alice });
+
+  expect(base.compare(base)).toBe("equal");
+  expect(ahead.compare(base)).toBe("ahead");
+  expect(base.compare(ahead)).toBe("behind");
+  expect(ahead.compare(fork)).toBe("diverged");
+  expect(base.compare(other)).toBe("unrelated");
 });
-test("concurrent operations serialize into the same commit, with no lost entries", async () => {
-  const log = await createLedger({ signer: await signer(), now });
-  await log.create();
-  const [a, b, committed] = await Promise.all([
-    log.append({ kind: "a", payload: 1 }),
-    log.append({ kind: "b", payload: 2 }),
-    log.commit(),
-  ]);
-  expect(committed.committedEntryIds).toEqual([a.entry.id, b.entry.id]);
-  expect((await log.export()).entries).toHaveLength(2);
+
+test("histories can only come from Ledger", async () => {
+  const alice = await createIdentity();
+  const history = await createLedger({ signer: alice });
+  const lookalike = { ...history, commits: history.commits } as History;
+  const prototypeCopy = Object.create(Object.getPrototypeOf(history)) as History;
+  expect(() => createWriter(lookalike, alice)).toThrow();
+  expect(() => createWriter(prototypeCopy, alice)).toThrow();
+  expect(() => history.compare(lookalike)).toThrow();
+  const Constructor = history.constructor as new (...args: unknown[]) => History;
+  expect(() => new Constructor(Symbol("issue"), [], [], 0, 1)).toThrow();
 });
-test("genesis entries and supplied context nonces use the same Ledger lifecycle", async () => {
-  const log = await createLedger({ signer: await signer(), now });
-  const contextNonce = Buffer.alloc(16, 7).toString("base64url");
-  await log.create({
-    metadata: { framework: "example" },
-    entries: [{ kind: "init", nonce: contextNonce, payload: { initialized: true } }],
-  });
-  const wire = await log.export();
-  expect(wire.commits).toHaveLength(1);
-  expect(wire.entries).toHaveLength(1);
-  expect(wire.entries[0].subject).toMatchObject({ parent: null, nonce: contextNonce });
-  expect((await log.verify()).integrity).toBe("valid");
-  await log.append({ kind: "next", nonce: contextNonce });
-  const before = log.getState();
-  await expect(log.append({ kind: "duplicate", nonce: contextNonce })).rejects.toMatchObject({
-    finding: { code: "SCHEMA_INVALID" },
-  });
-  expect(log.getState()).toBe(before);
-  await expect(log.append({ kind: "malformed", nonce: "bad" })).rejects.toMatchObject({
-    finding: { code: "SCHEMA_INVALID" },
-  });
+
+test("an empty commit rejects, and discard clears staging", async () => {
+  const alice = await createIdentity();
+  const writer = createWriter(await createLedger({ signer: alice }), alice);
+  await expect(writer.commit()).rejects.toThrow();
+  writer.append({ kind: "a", payload: 1 });
+  writer.discard();
+  expect(writer.staged).toEqual([]);
+  writer.append([]);
+  expect(writer.staged).toEqual([]);
 });
-test("signing failures preserve the committed snapshot and staged entries for retry", async () => {
-  const identity = await signer();
-  let broken = false;
-  const cap: LedgerSigner = {
-    publicIdentity: identity.publicIdentity,
-    sign: (bytes) => {
-      if (broken) throw new Error("secret implementation failure");
-      return identity.sign(bytes);
+
+test("a batch is validated whole before any of it is staged", async () => {
+  const alice = await createIdentity();
+  const writer = createWriter(await createLedger({ signer: alice }), alice);
+  const nonce = "AAAAAAAAAAAAAAAAAAAAAA";
+  writer.append({ kind: "a", payload: 1, nonce });
+  const invalid = [
+    [
+      { kind: "ok", payload: 1 },
+      { kind: "", payload: 1 },
+    ],
+    [
+      { kind: "ok", payload: 1 },
+      { kind: "x".repeat(129), payload: 1 },
+    ],
+    [
+      { kind: "ok", payload: 1 },
+      { kind: "b", payload: 1, nonce },
+    ],
+    [{ kind: "b", payload: 1, nonce: "short" }],
+    [{ kind: "b", payload: 1.5 }],
+    [{ kind: "b", payload: -0 }],
+    [{ kind: "b", payload: Number.MAX_SAFE_INTEGER + 1 }],
+    [{ kind: "b", payload: "\ud800" }],
+    [{ kind: "b", payload: new Date() }],
+    [{ kind: "b", payload: undefined }],
+    [{ kind: "b", payload: 1, meta: [] }],
+  ];
+  for (const batch of invalid) expect(() => writer.append(batch as never)).toThrow();
+  expect(writer.staged).toHaveLength(1);
+});
+
+test("inputs are copied when staged and committed views are frozen", async () => {
+  const alice = await createIdentity();
+  const writer = createWriter(await createLedger({ signer: alice }), alice);
+  const payload = { amount: 1, tags: ["a"] };
+  writer.append({ kind: "a", payload });
+  payload.tags.push("b");
+  const history = await writer.commit();
+  const entry = history.commits[1].entries[0];
+  expect(entry.payload).toEqual({ amount: 1, tags: ["a"] });
+  expect(Object.isFrozen(entry.payload)).toBe(true);
+  expect(Object.isFrozen(history.commits)).toBe(true);
+  expect(() => (history.commits as Commit[]).push(history.commits[0])).toThrow();
+});
+type Commit = History["commits"][number];
+
+test("mutations reject during a commit; reads see the previous history", async () => {
+  const alice = await createIdentity();
+  const history = await createLedger({ signer: alice });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const slowSigner = {
+    publicIdentity: alice.publicIdentity,
+    sign: async (bytes: Uint8Array) => {
+      await gate;
+      return alice.sign(bytes);
     },
   };
-  const log = await createLedger({ signer: cap, now });
-  await log.create();
-  await log.append({ kind: "retry", payload: false });
-  const before = log.getState();
-  broken = true;
-  await expect(log.commit()).rejects.toMatchObject({ finding: { code: "SIGNING_FAILED" } });
-  expect(log.getState()).toBe(before);
-  broken = false;
-  await log.commit();
-  expect(log.getState().staged).toEqual([]);
+  const writer = createWriter(history, slowSigner);
+  writer.append({ kind: "a", payload: 1 });
+  const pending = writer.commit();
+  expect(writer.history).toBe(history);
+  expect(writer.staged).toHaveLength(1);
+  expect(() => writer.append({ kind: "b", payload: 2 })).toThrow();
+  expect(() => writer.discard()).toThrow();
+  await expect(writer.commit()).rejects.toThrow();
+  release();
+  await pending;
+  writer.append({ kind: "b", payload: 2 });
+  expect(writer.staged).toHaveLength(1);
 });
-test("a signature from another key cannot publish a candidate", async () => {
-  const a = await signer(),
-    b = await signer(2);
-  const log = await createLedger({
-    signer: { publicIdentity: a.publicIdentity, sign: b.sign },
-    now,
-  });
-  await expect(log.create()).rejects.toMatchObject({ finding: { code: "SIGNATURE_INVALID" } });
-  expect(log.getState().container).toBeNull();
+
+test("a failed commit keeps history and staging, and a retry succeeds", async () => {
+  const alice = await createIdentity();
+  const mallory = await createIdentity();
+  const history = await createLedger({ signer: alice });
+  let wrongKey = true;
+  const flaky: Pick<Identity, "publicIdentity" | "sign"> = {
+    publicIdentity: alice.publicIdentity,
+    sign: (bytes) => (wrongKey ? mallory.sign(bytes) : alice.sign(bytes)),
+  };
+  const writer = createWriter(history, flaky);
+  writer.append({ kind: "a", payload: 1 });
+  await expect(writer.commit()).rejects.toThrow();
+  expect(writer.history).toBe(history);
+  expect(writer.staged).toHaveLength(1);
+  wrongKey = false;
+  expect((await writer.commit()).commits).toHaveLength(2);
 });
-test("invalid inputs and failed batch projections leave staged and committed state intact", async () => {
-  const log = await createLedger({
-    signer: await signer(),
-    now,
-    initialProjection: [] as string[],
-    projector: (entries, entry) => {
-      if (entry.kind === "rejected") throw new Error("reducer failure");
-      return [...entries, entry.kind];
-    },
-  });
-  await log.create();
-  const before = log.getState();
-  await expect(log.appendMany([{ kind: "ok" }, { kind: "rejected" }])).rejects.toThrow(
-    "reducer failure",
-  );
-  expect(log.getState()).toBe(before);
-  let read = false;
-  const payload = Object.defineProperty({}, "value", {
-    enumerable: true,
-    get() {
-      read = true;
-      return 1;
-    },
-  });
-  await expect(log.append({ kind: "accessor", payload })).rejects.toBeInstanceOf(Fault);
-  expect(read).toBe(false);
-  expect(log.getState()).toBe(before);
-  await log.append({ kind: "ok" });
-  await expect(log.load(await saved())).rejects.toMatchObject({
-    finding: { code: "DRAFT_PENDING" },
-  });
-  expect(log.getState().staged).toHaveLength(1);
+
+test("a commit that would pass maxBytes rejects and keeps staging", async () => {
+  const alice = await createIdentity();
+  const genesis = await createLedger({ signer: alice, maxBytes: 2000 });
+  const writer = createWriter(genesis, alice);
+  writer.append({ kind: "a", payload: "x".repeat(2000) });
+  await expect(writer.commit()).rejects.toThrow(RangeError);
+  expect(writer.staged).toHaveLength(1);
+  writer.discard();
+  writer.append({ kind: "a", payload: "é".repeat(100) });
+  const next = await writer.commit();
+  expect(next.export().length).toBeLessThanOrEqual(2000);
+  await expect(openLedger(next.export(), { maxBytes: 2000 })).resolves.toBeDefined();
 });
-test("tampering, duplicate records, unsupported formats and bad signatures never replace valid state", async () => {
-  const original = await saved();
-  const mutations: ((wire: LedgerSnapshot) => void)[] = [
-    (wire) => {
-      wire.entries[0].subject.payload.data = "tampered";
-    },
-    (wire) => {
-      wire.commits[1].subject.metadata = { altered: true };
-    },
-    (wire) => {
-      wire.commits[1].signature = Buffer.alloc(64).toString("base64url");
-    },
-    (wire) => {
-      wire.entries.push(wire.entries[0]);
-    },
-    (wire) => {
-      wire.commits.reverse();
-    },
-    (wire) => {
-      wire.format = "concord" as "ledger";
-    },
-  ];
-  const log = await createLedger();
-  await log.load(original);
-  for (const mutate of mutations) {
-    const wire = structuredClone(original);
-    mutate(wire);
-    expect((await verifyLedger(encodeJson(wire))).integrity).not.toBe("valid");
-    await expect(log.import(wire)).rejects.toBeInstanceOf(Fault);
-    expect(await log.export()).toEqual(original);
-  }
-});
-test("new signers can append without introducing framework membership or authority policy", async () => {
-  const log = await createLedger({ signer: await signer(3), now });
-  await log.load(await saved());
-  await log.append({ kind: "second-writer" });
-  await log.commit();
-  expect((await log.verify()).integrity).toBe("valid");
-  const wire = await log.export();
-  expect(wire.entries[1].subject.author).toBe(wire.commits[2].subject.signer.id);
-});
-test("snapshot relationships retain independent forks and reject cross-protocol imports", async () => {
-  const base = await saved(),
-    a = await createLedger({ signer: await signer(), now }),
-    b = await createLedger({ signer: await signer(2), now });
-  await a.load(base);
-  await b.load(base);
-  await a.append({ kind: "a" });
-  await b.append({ kind: "b" });
-  await a.commit();
-  await b.commit();
-  const x = encodeJson(await a.export()),
-    y = encodeJson(await b.export());
-  expect(await compareLedgers(x, y)).toEqual({ ok: true, value: "diverged" });
-  expect(await compareLedgers(encodeJson(base), x)).toEqual({ ok: true, value: "behind" });
-});
-test("resource bounds and observer failures preserve usable committed state", async () => {
-  const log = await createLedger({
-    signer: await signer(),
-    now,
-    limits: { maxPayloadBytes: 16, maxMetadataBytes: 16 },
-  });
-  let notifications = 0;
-  const unsubscribe = log.subscribe(() => {
-    notifications++;
-    throw new Error("observer");
-  });
-  await log.create();
-  await expect(log.append({ kind: "large", payload: "x".repeat(20) })).rejects.toMatchObject({
-    finding: { code: "RESOURCE_LIMIT" },
-  });
-  await log.append({ kind: "ok", payload: null });
-  await expect(log.commit({ metadata: { large: "x".repeat(20) } })).rejects.toMatchObject({
-    finding: { code: "RESOURCE_LIMIT" },
-  });
-  await log.commit();
-  expect(notifications).toBeGreaterThan(2);
-  unsubscribe();
-  await log.destroy();
-  await expect(log.export()).rejects.toMatchObject({ finding: { code: "LEDGER_DESTROYED" } });
-});
-test("default Ledger readers accept opaque framework payloads within the shared snapshot cap", async () => {
-  const log = await createLedger({ signer: await signer(), now });
-  await log.create();
-  await log.append({ kind: "opaque", payload: { ciphertext: "A".repeat(1400 * 1024) } });
-  await log.commit();
-  const reader = await createLedger();
-  await reader.load(await log.export());
-  expect((await reader.verify()).integrity).toBe("valid");
-});
-test("callbacks cannot synchronously reenter the same mutation queue", async () => {
-  const log = await createLedger({ signer: await signer(), now });
-  await log.create();
-  const attempts: Promise<unknown>[] = [];
-  log.subscribe(() => {
-    attempts.push(log.append({ kind: "recursive" }));
-  });
-  await Promise.all(
-    attempts.map((pending) =>
-      expect(pending).rejects.toMatchObject({ finding: { code: "HOST_CONFIGURATION" } }),
-    ),
-  );
-  expect(log.getState().staged).toEqual([]);
-});
-test("invalid option shapes cannot sign or change the current state", async () => {
-  const identity = await signer();
-  let signatures = 0;
-  const log = await createLedger({
-    signer: {
-      publicIdentity: identity.publicIdentity,
-      sign(bytes) {
-        signatures++;
-        return identity.sign(bytes);
-      },
-    },
-    now,
-  });
-  const empty = log.getState();
-  for (const invalid of [null, 7, false, "", []]) {
-    await expect(createLedger(invalid as never)).rejects.toMatchObject({
-      finding: { code: "HOST_CONFIGURATION" },
-    });
-    await expect(log.create(invalid as never)).rejects.toMatchObject({
-      finding: { code: "SCHEMA_INVALID" },
-    });
-    expect(log.getState()).toBe(empty);
-  }
-  expect(signatures).toBe(0);
-  await expect(createLedger({ limits: [] as never })).rejects.toMatchObject({
-    finding: { code: "HOST_CONFIGURATION" },
-  });
-  await log.create();
-  await log.append({ kind: "pending" });
-  const staged = log.getState();
-  for (const invalid of [null, 7, false, "", []]) {
-    await expect(log.commit(invalid as never)).rejects.toMatchObject({
-      finding: { code: "SCHEMA_INVALID" },
-    });
-    await expect(log.replay(invalid as never)).rejects.toMatchObject({
-      finding: { code: "HOST_CONFIGURATION" },
-    });
-    expect(log.getState()).toBe(staged);
-  }
-  expect(signatures).toBe(1);
-  await log.commit();
-  expect(signatures).toBe(2);
-});
-test("oversized byte imports reject and preserve the current state", async () => {
-  const log = await createLedger({ signer: await signer(), now, limits: { maxBytes: 4096 } });
-  await log.create();
-  const before = log.getState();
-  const input = new Uint8Array(4097);
-  for (const load of [
-    (bytes: Uint8Array) => log.load(bytes),
-    (bytes: Uint8Array) => log.import(bytes),
+
+test("open rejects tampering, broken linkage, non-canonical bytes and other versions", async () => {
+  const doc = () => structuredClone(vector.document);
+  const reject = async (document: unknown) =>
+    expect(openLedger(utf8(canonicalJson(document)))).rejects.toThrow();
+
+  const payload = doc();
+  payload.commits[1].body.entries[0].payload.amount = 2501;
+  await reject(payload);
+  const kind = doc();
+  kind.commits[1].body.entries[1].kind = "expense.untagged";
+  await reject(kind);
+  const parent = doc();
+  parent.commits[1].body.parent = `commit:${"0".repeat(64)}`;
+  await reject(parent);
+  const order = doc();
+  order.commits.reverse();
+  await reject(order);
+  const signer = doc();
+  signer.commits[1].proof.signer = signer.commits[0].proof.signer;
+  await reject(signer);
+  const extra = doc();
+  extra.commits[1].body.entries[0].extra = true;
+  await reject(extra);
+  const empty = doc();
+  empty.commits[1].body.entries = [];
+  await reject(empty);
+  const duplicate = doc();
+  duplicate.commits[1].body.entries[1].nonce = duplicate.commits[1].body.entries[0].nonce;
+  await reject(duplicate);
+  await reject({ ...doc(), version: 1 });
+  await reject({ ...doc(), commits: [] });
+
+  const canonical = text(vectorBytes());
+  for (const variant of [
+    JSON.stringify(vector.document, null, 2),
+    `﻿${canonical}`,
+    canonical.replace('"amount":2500', '"amount":2.5e3'),
+    canonical.replace('"format":"ledger"', '"format":"ledger","format":"ledger"'),
+    canonical.replace('"model"', '"\\u006dodel"'),
   ]) {
-    await expect(load(input)).rejects.toMatchObject({ finding: { code: "RESOURCE_LIMIT" } });
-    expect(log.getState()).toBe(before);
+    await expect(openLedger(utf8(variant))).rejects.toThrow();
   }
+  await expect(openLedger(new Uint8Array([0xff]))).rejects.toThrow();
 });

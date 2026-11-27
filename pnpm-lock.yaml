@@ -283,9 +283,15 @@ importers:
       '@noble/hashes':
         specifier: 2.4.0
         version: 2.4.0
+      '@scure/base':
+        specifier: 2.4.0
+        version: 2.4.0
       '@ternent/identity':
         specifier: workspace:^
         version: link:../identity
+      '@ternent/seal':
+        specifier: workspace:^
+        version: link:../seal
     devDependencies:
       typescript:
         specifier: npm:@typescript/typescript6@6.0.2

@@ -12,9 +12,7 @@ import {
   validatePublicIdentity,
 } from "../src/index.js";
 
-const saved = JSON.parse(
-  readFileSync(new URL("../../../docs/seal/vectors/proof.v2.json", import.meta.url), "utf8"),
-);
+const vectors = JSON.parse(readFileSync(new URL("vectors.json", import.meta.url), "utf8"));
 const mnemonic =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
@@ -53,13 +51,13 @@ test("create, export, restore and exact-byte signing use one usable identity", a
 });
 
 test("existing version 2 backups preserve keys, metadata, signatures and age derivation", async () => {
-  const identity = await restoreIdentity(JSON.stringify(saved.identity));
-  expect(JSON.parse(identity.export())).toEqual(saved.identity);
+  const identity = await restoreIdentity(JSON.stringify(vectors.backup));
+  expect(JSON.parse(identity.export())).toEqual(vectors.backup);
   expect(identity.publicIdentity).toEqual({
     version: 1,
     algorithm: "Ed25519",
-    publicKey: saved.identity.publicKey,
-    id: `identity:${saved.identity.keyId}`,
+    publicKey: vectors.backup.publicKey,
+    id: `identity:${vectors.backup.keyId}`,
   });
   expect(hex.encode(await identity.sign(new Uint8Array()))).toBe(
     "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
@@ -67,8 +65,8 @@ test("existing version 2 backups preserve keys, metadata, signatures and age der
   expect(
     await verify(
       identity.publicIdentity,
-      hex.decode(saved.messageHex),
-      base64urlnopad.decode(saved.proof.signature),
+      hex.decode(vectors.signedMessageHex),
+      base64urlnopad.decode(vectors.signature),
     ),
   ).toBe(true);
   await identity.withX25519Secret((secret) => {
@@ -85,7 +83,7 @@ test("existing version 2 backups preserve keys, metadata, signatures and age der
 });
 
 test("mutable signing input is captured and temporary secrets are cleared on settlement", async () => {
-  const identity = await restoreIdentity(JSON.stringify(saved.identity));
+  const identity = await restoreIdentity(JSON.stringify(vectors.backup));
   const bytes = new Uint8Array([1, 2, 3]);
   const signature = identity.sign(bytes);
   bytes.fill(0);
@@ -123,24 +121,24 @@ test("restore rejects malformed and mismatched backup fields", async () => {
   const invalid = [
     null,
     {},
-    { ...saved.identity, version: "1" },
-    { ...saved.identity, algorithm: "other" },
-    { ...saved.identity, createdAt: 42 },
-    { ...saved.identity, publicKey: other.publicKey },
-    { ...saved.identity, keyId: other.keyId },
-    { ...saved.identity, material: { kind: "seed", seed: other.material.seed } },
+    { ...vectors.backup, version: "1" },
+    { ...vectors.backup, algorithm: "other" },
+    { ...vectors.backup, createdAt: 42 },
+    { ...vectors.backup, publicKey: other.publicKey },
+    { ...vectors.backup, keyId: other.keyId },
+    { ...vectors.backup, material: { kind: "seed", seed: other.material.seed } },
   ];
   for (const input of invalid)
     await expect(restoreIdentity(JSON.stringify(input))).rejects.toThrow();
   for (const seed of [
     "",
-    saved.identity.material.seed + "!",
-    saved.identity.material.seed + "=",
-    " " + saved.identity.material.seed,
+    vectors.backup.material.seed + "!",
+    vectors.backup.material.seed + "=",
+    " " + vectors.backup.material.seed,
     base64urlnopad.encode(new Uint8Array(31)),
   ]) {
     await expect(
-      restoreIdentity(JSON.stringify({ ...saved.identity, material: { kind: "seed", seed } })),
+      restoreIdentity(JSON.stringify({ ...vectors.backup, material: { kind: "seed", seed } })),
     ).rejects.toThrow();
   }
   await expect(restoreIdentity("not json")).rejects.toThrow();

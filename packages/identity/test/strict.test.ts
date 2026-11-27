@@ -10,9 +10,7 @@ import {
   type PublicIdentity,
 } from "../src/index.js";
 
-const vector = JSON.parse(
-  readFileSync(new URL("../../../docs/concord/vectors/primitives.json", import.meta.url), "utf8"),
-).identity as {
+const vector = JSON.parse(readFileSync(new URL("vectors.json", import.meta.url), "utf8")).seed as {
   seedHex: string;
   public: PublicIdentity;
   x25519SecretHex: string;

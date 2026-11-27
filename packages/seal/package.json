@@ -25,8 +25,7 @@
   "files": [
     "bin",
     "dist",
-    "README.md",
-    "llms.txt"
+    "README.md"
   ],
   "type": "module",
   "sideEffects": false,

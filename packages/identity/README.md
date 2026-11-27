@@ -30,6 +30,10 @@ const same = await recoverIdentity(mnemonic, passphrase);
 | `verify(publicIdentity, bytes, signature)`      | Strict Ed25519 verification; `false` for any invalid input |
 | `validatePublicIdentity(input)`                 | Frozen `PublicIdentity` from untrusted input, or throws    |
 
+A `PublicIdentity` is `{ version: 1, algorithm: "Ed25519", publicKey, id }`, with a
+base64url key and `id` = `identity:` + hex SHA-256 of the key. It is safe to store in
+documents.
+
 An `Identity` has `publicIdentity`, `export()`, `sign(bytes)` and
 `withX25519Secret(use)`. `sign` signs exactly the bytes given; protocols add their
 own domain separation. The X25519 secret lent to `use` is zeroed when the callback

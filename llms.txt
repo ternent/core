@@ -5,7 +5,7 @@
 
 ## Choose the interface
 
-- [Concord](packages/concord/llms.txt): build an application using typed commands, events, authority, private groups and replay.
+- [Concord](packages/concord/llms.txt): build an application whose data is a shared, signed document with private groups.
 - [Ledger](packages/ledger/llms.txt): a signed, append-only history of JSON entries, verified on open, without Concord's application or permission rules.
 - [Identity](packages/identity/llms.txt): create, back up, restore or recover one identity; sign and verify bytes.
 - [Armour](packages/armour/llms.txt): encrypt and decrypt bytes with age for identities, groups and passphrases.

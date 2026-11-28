@@ -239,6 +239,9 @@ importers:
 
   packages/concord:
     dependencies:
+      '@scure/base':
+        specifier: 2.4.0
+        version: 2.4.0
       '@ternent/armour':
         specifier: workspace:^
         version: link:../armour
@@ -248,6 +251,9 @@ importers:
       '@ternent/ledger':
         specifier: workspace:^
         version: link:../ledger
+      age-encryption:
+        specifier: 0.3.1
+        version: 0.3.1
     devDependencies:
       typescript:
         specifier: npm:@typescript/typescript6@6.0.2

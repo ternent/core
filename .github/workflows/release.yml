@@ -71,7 +71,6 @@ jobs:
       id-token: write
     env:
       CORE_RELEASE_ENABLED: ${{ vars.CORE_RELEASE_ENABLED }}
-      SEAL_RELEASE_PUBLIC_KEY: ${{ vars.SEAL_RELEASE_PUBLIC_KEY }}
       RELEASE_SOURCE_SHA: ${{ needs.select.outputs.source-sha }}
       RELEASE_ARTIFACT_ID: ${{ needs.select.outputs.artifact-id }}
       RELEASE_ARTIFACT_DIGEST: ${{ needs.select.outputs.artifact-digest }}
@@ -110,33 +109,8 @@ jobs:
         run: node scripts/release/cli.mjs prepare-release
         env:
           RELEASE_RESUMED: ${{ steps.bundle.outputs.resumed }}
-      - name: Materialise the dedicated release identity
-        if: steps.bundle.outputs.resumed != 'true'
-        id: identity
-        run: node scripts/release/cli.mjs release-identity
-        env:
-          SEAL_RELEASE_IDENTITY_B64: ${{ secrets.SEAL_RELEASE_IDENTITY_B64 }}
-      - name: Seal the final release bundle
-        if: steps.bundle.outputs.resumed != 'true'
-        uses: samternent/seal-action@d07a683a9195a1190c3e15b6e4374a1d59592b57
-        with:
-          assets-directory: artifacts/release
-          manifest-name: release-manifest.json
-          proof-name: release-proof.json
-          public-key-name: release-public-key.json
-          cli-command: '"${{ steps.bundle.outputs.node }}" "${{ github.workspace }}/packages/seal/bin/seal"'
-        env:
-          SEAL_IDENTITY_FILE: ${{ steps.identity.outputs.identity-file }}
-      - name: Verify the externally trusted release signature
-        run: node scripts/release/cli.mjs verify-seal
       - name: Publish retained bytes, verify fresh consumers and promote the planned channel
         run: pnpm release:publish
-      - name: Remove the temporary signing identity
-        if: always()
-        env:
-          SEAL_IDENTITY_FILE: ${{ steps.identity.outputs.identity-file }}
-        run: |
-          if [ -n "$SEAL_IDENTITY_FILE" ]; then rm -f -- "$SEAL_IDENTITY_FILE"; fi
       - name: Collect complete or incomplete release evidence
         if: always() && steps.bundle.outcome == 'success'
         run: node scripts/release/flow.mjs collect

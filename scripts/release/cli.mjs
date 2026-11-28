@@ -1,22 +1,17 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { createSealIdentity } from "../../packages/seal/dist/crypto.js";
-import { createSealPublicKeyArtifact } from "../../packages/seal/dist/proof.js";
 import { workspacePackages, readManifest } from "../verify/workspace.mjs";
 import { createPlan, validatePlan } from "./plan.mjs";
 import { publishRelease } from "./publish.mjs";
 import { createNpmRegistryAdapter } from "./npm.mjs";
 import { ReleaseError, sha256 } from "./shared.mjs";
-import { verifyReleaseSeal } from "./seal.mjs";
 
 const [command, argument, ...extra] = process.argv.slice(2);
 assert(extra.length === 0, "Unexpected release arguments");
 const root = process.cwd();
 const directory = resolve(argument ?? "artifacts/release");
-const expectedPublicKey = (process.env.SEAL_RELEASE_PUBLIC_KEY ?? "").trim();
 
 /** @param {string} sha */
 function committedIntent(sha) {
@@ -65,7 +60,6 @@ function authorize() {
     "RELEASE_WORKFLOW_INVALID",
   );
   assert.equal(process.env.CORE_RELEASE_ENABLED, "true", "RELEASE_NOT_ENABLED");
-  assert(expectedPublicKey, "SEAL_TRUST_MISSING");
   assert(
     !process.env.NPM_TOKEN && !process.env.NODE_AUTH_TOKEN,
     "OIDC_ONLY: remove token fallback",
@@ -111,34 +105,16 @@ try {
         sourceSha: result.plan.sourceSha,
       }),
     );
-  } else if (command === "test-identity") {
-    assert(!argument, "test-identity takes no directory argument");
-    const identity = await createSealIdentity();
-    const file = join(process.env.RUNNER_TEMP ?? tmpdir(), `ternent-seal-ci-${process.pid}.json`);
-    writeFileSync(file, JSON.stringify(identity), { mode: 0o600, flag: "wx" });
-    const key = await createSealPublicKeyArtifact({ identity });
-    assert(process.env.GITHUB_OUTPUT, "GITHUB_OUTPUT_REQUIRED");
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `identity-file=${file}\npublic-key=${key.publicKey}\nnode=${process.execPath}\n`,
-    );
   } else if (command === "prepare-release") {
     authorize();
     const { plan, origin } = releaseSource();
     if (process.env.RELEASE_RESUMED === "true") {
-      await verifyReleaseSeal({ directory, expectedPublicKey });
       assert.deepEqual(
         JSON.parse(readFileSync(join(directory, "release-origin.json"), "utf8")),
         origin,
         "ORIGIN_INVALID",
       );
     } else {
-      // GitHub archive provenance authenticates the producer. Its disposable proof
-      // establishes consistency here, not trust in a production release signer.
-      const testKey = JSON.parse(readFileSync(join(directory, "release-public-key.json"), "utf8"));
-      await verifyReleaseSeal({ directory, expectedPublicKey: testKey.publicKey });
-      for (const file of ["release-manifest.json", "release-proof.json", "release-public-key.json"])
-        rmSync(join(directory, file));
       writeFileSync(join(directory, "release-origin.json"), `${JSON.stringify(origin)}\n`);
     }
     validatePlan(plan, { directory, expectedSourceSha: origin.sourceSha });
@@ -150,37 +126,6 @@ try {
         resumed: process.env.RELEASE_RESUMED === "true",
       }),
     );
-  } else if (command === "release-identity") {
-    authorize();
-    assert(process.env.GITHUB_OUTPUT && process.env.RUNNER_TEMP, "RUNNER_CONFIGURATION_REQUIRED");
-    const encoded = process.env.SEAL_RELEASE_IDENTITY_B64;
-    assert(encoded, "RELEASE_IDENTITY_MISSING");
-    let identity;
-    try {
-      identity = JSON.parse(Buffer.from(encoded, "base64").toString("utf8"));
-    } catch {
-      throw new Error("RELEASE_IDENTITY_INVALID");
-    }
-    assert(
-      typeof identity?.material?.seed === "string" &&
-        /^[A-Za-z0-9_-]{43}$/.test(identity.material.seed),
-      "RELEASE_IDENTITY_INVALID",
-    );
-    console.log(`::add-mask::${identity.material.seed}`);
-    console.log(`::add-mask::${JSON.stringify(identity)}`);
-    let key;
-    try {
-      key = await createSealPublicKeyArtifact({ identity });
-    } catch {
-      throw new Error("RELEASE_IDENTITY_INVALID");
-    }
-    assert.equal(key.publicKey, expectedPublicKey, "RELEASE_IDENTITY_KEY_MISMATCH");
-    const file = join(process.env.RUNNER_TEMP, `ternent-seal-release-${process.pid}.json`);
-    writeFileSync(file, JSON.stringify(identity), { mode: 0o600, flag: "wx" });
-    appendFileSync(process.env.GITHUB_OUTPUT, `identity-file=${file}\n`);
-  } else if (command === "verify-seal") {
-    await verifyReleaseSeal({ directory, expectedPublicKey });
-    console.log("Seal release bundle verified");
   } else if (command === "publish") {
     authorize();
     const { plan, origin } = releaseSource();
@@ -197,7 +142,6 @@ try {
         sourceSha: plan.sourceSha,
         channel: plan.channel,
       }),
-      verifySeal: () => verifyReleaseSeal({ directory, expectedPublicKey }),
       verifyConsumers: async () => {
         execFileSync("pnpm", ["run", "check:artifact"], {
           cwd: root,
@@ -216,7 +160,7 @@ try {
     console.log(JSON.stringify(receipt));
   } else
     throw new Error(
-      "Usage: release CLI plan|verification-plan|test-identity|prepare-release|release-identity|verify-seal|publish [bundle directory]",
+      "Usage: release CLI plan|verification-plan|prepare-release|publish [bundle directory]",
     );
 } catch (error) {
   const details =

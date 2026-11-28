@@ -21,7 +21,6 @@ function setup(t, config) {
     now,
     journalPath,
     wait: async () => {},
-    verifySeal: async () => {},
     verifyConsumers: async () => {
       assert(
         plan.packages.every(
@@ -36,21 +35,11 @@ function setup(t, config) {
 const error = (code) => (e) => e.code === code;
 const writes = new Set(["publish", "setTag", "removeTag"]);
 
-await test("no-op never contacts npm; absent verification hooks and invalid Seal block all activity", async (t) => {
+await test("no-op never contacts npm; an absent consumer hook blocks all activity", async (t) => {
   const noop = setup(t, { intent: false });
   assert.equal((await publishRelease(noop.options)).status, "noop");
   assert.deepEqual(noop.calls, []);
   const f = setup(t);
-  await assert.rejects(
-    publishRelease({
-      ...f.options,
-      verifySeal: async () => {
-        throw Error("private cause");
-      },
-    }),
-    error("SEAL_INVALID"),
-  );
-  assert.deepEqual(f.calls, []);
   await assert.rejects(
     publishRelease({ ...f.options, verifyConsumers: /** @type {any} */ (undefined) }),
     error("HOST_CONFIGURATION"),
@@ -239,41 +228,6 @@ await test("published-consumer hook is mandatory and runs before channel promoti
   assert(!f.calls.some((call) => call[0] === "setTag"));
 });
 
-await test("proof corruption during consumers blocks promotion while retaining candidate publications", async (t) => {
-  const f = setup(t);
-  const proof = join(f.directory, "release-proof.json");
-  writeFileSync(proof, "verified proof");
-  let sealChecks = 0;
-  await assert.rejects(
-    publishRelease({
-      ...f.options,
-      verifySeal: async () => {
-        sealChecks++;
-        assert.equal(readFileSync(proof, "utf8"), "verified proof");
-      },
-      verifyConsumers: async () => {
-        await f.options.verifyConsumers();
-        writeFileSync(proof, "corrupted proof");
-      },
-    }),
-    error("SEAL_INVALID"),
-  );
-  assert.equal(sealChecks, 2);
-  assert.equal(f.versions.size, 5);
-  assert.equal(f.calls.filter((call) => call[0] === "publish").length, 5);
-  assert(
-    f.calls
-      .filter((call) => call[0] === "publish")
-      .every((call) => call[3] === `candidate-${f.plan.releaseId}`),
-  );
-  assert(!f.calls.some((call) => call[0] === "setTag" || call[0] === "removeTag"));
-  assert([...f.tags.values()].every((tag) => tag === "0.9.0"));
-  const journal = readJson(f.journalPath);
-  assert.equal(journal.status, "incomplete");
-  assert.equal(journal.error.code, "SEAL_INVALID");
-  assert(Object.values(journal.packages).every((state) => state.state === "published"));
-});
-
 await test("promotion interruption restores prior channels and retry completes without new publish", async (t) => {
   const f = setup(t);
   const setTag = f.registry.setTag;
@@ -325,16 +279,10 @@ await test("failed restoration is reported incomplete and does not claim release
   assert.notEqual(journal.phase, "complete");
 });
 
-await test("tampering before publish and after Seal is rejected without registry mutations", async (t) => {
+await test("tampering before publish is rejected without registry mutations", async (t) => {
   const f = setup(t);
-  await assert.rejects(
-    publishRelease({
-      ...f.options,
-      verifySeal: async () =>
-        writeFileSync(join(f.directory, f.plan.packages[0].tarball), "changed"),
-    }),
-    error("DIGEST_MISMATCH"),
-  );
+  writeFileSync(join(f.directory, f.plan.packages[0].tarball), "changed");
+  await assert.rejects(publishRelease(f.options), error("DIGEST_MISMATCH"));
   assert.deepEqual(f.calls, []);
 });
 

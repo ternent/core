@@ -1,7 +1,7 @@
 {
   "name": "@ternent/armour",
   "version": "0.3.0",
-  "description": "Identity-aware age encryption with text, binary and passphrase helpers",
+  "description": "Encrypt and decrypt bytes with age for Ternent identities, groups and passphrases",
   "license": "ISC",
   "repository": {
     "type": "git",
@@ -37,6 +37,8 @@
     "check": "pnpm --filter @ternent/armour... run build && pnpm run fmt:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:artifact"
   },
   "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@scure/base": "2.4.0",
     "@ternent/identity": "workspace:^",
     "age-encryption": "0.3.1"
   },

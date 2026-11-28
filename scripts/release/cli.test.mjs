@@ -1,23 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
-import { createSealIdentity } from "../../packages/seal/dist/crypto.js";
-import { createSealPublicKeyArtifact } from "../../packages/seal/dist/proof.js";
 import { fixture } from "./fixtures.mjs";
 import { createPlan } from "./plan.mjs";
-import { captureTools } from "./flow.mjs";
 import { sha256, writeJson } from "./shared.mjs";
 
 await test("release entrypoint rejects uncommitted intent and local publication", (t) => {
@@ -60,11 +48,10 @@ await test("release entrypoint rejects uncommitted intent and local publication"
   assert.match(published.stderr, /RELEASE_WORKFLOW_REQUIRED/);
 });
 
-await test("production entrypoint preserves verified candidates through signing and resume", async (t) => {
+await test("production entrypoint records the origin and preserves candidates through resume", async (t) => {
   const f = fixture();
   t.after(() => rmSync(f.root, { recursive: true, force: true }));
   const cli = resolve("scripts/release/cli.mjs");
-  const seal = resolve("packages/seal/bin/seal");
   /** @param {string[]} args */
   const git = (args) =>
     execFileSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", ...args], {
@@ -90,11 +77,7 @@ await test("production entrypoint preserves verified candidates through signing 
   }
   const directory = join(f.root, "artifacts/release");
   const { plan } = createPlan({ ...f.planOptions, sourceSha, directory, now: new Date() });
-  captureTools(process.cwd(), directory);
   const before = plan.packages.map((pkg) => sha256(readFileSync(join(directory, pkg.tarball))));
-  const signer = await createSealIdentity();
-  const trusted = await createSealPublicKeyArtifact({ identity: signer });
-  const producer = await createSealIdentity();
   const bin = join(f.root, "bin");
   mkdirSync(bin);
   writeFileSync(
@@ -125,7 +108,6 @@ await test("production entrypoint preserves verified candidates through signing 
     RELEASE_RUN_ID: "123",
     RELEASE_ARTIFACT_ID: "456",
     RELEASE_ARTIFACT_DIGEST: origin.artifactDigest,
-    SEAL_RELEASE_PUBLIC_KEY: trusted.publicKey,
     RUNNER_TEMP: f.root,
     GITHUB_OUTPUT: output,
     NPM_TOKEN: "",
@@ -134,8 +116,6 @@ await test("production entrypoint preserves verified candidates through signing 
     GITHUB_TOKEN: "",
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: "",
     ACTIONS_ID_TOKEN_REQUEST_URL: "",
-    SEAL_IDENTITY: "",
-    SEAL_IDENTITY_FILE: "",
     RELEASE_RESUMED: "false",
   };
   /** @param {string} command @param {NodeJS.ProcessEnv} [overrides] */
@@ -146,66 +126,26 @@ await test("production entrypoint preserves verified candidates through signing 
       encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr);
-    // stdout may contain GitHub mask commands for a synthetic secret; never log it.
   }
-  /** @param {NodeJS.ProcessEnv} credentials */
-  function sign(credentials) {
-    /** @param {string[]} args */
-    const run = (args) =>
-      execFileSync(process.execPath, [seal, ...args], {
-        cwd: f.root,
-        env: { ...env, ...credentials },
-        encoding: "utf8",
-      });
-    run([
-      "manifest",
-      "create",
-      "--input",
-      directory,
-      "--out",
-      join(directory, "release-manifest.json"),
-      "--quiet",
-    ]);
-    run([
-      "sign",
-      "--input",
-      join(directory, "release-manifest.json"),
-      "--out",
-      join(directory, "release-proof.json"),
-      "--quiet",
-    ]);
-    writeFileSync(join(directory, "release-public-key.json"), run(["public-key", "--json"]));
-  }
-  sign({ SEAL_IDENTITY: JSON.stringify(producer) });
   entry("prepare-release");
-  assert(!existsSync(join(directory, "release-proof.json")));
   assert.deepEqual(
     JSON.parse(readFileSync(join(directory, "release-origin.json"), "utf8")),
     origin,
   );
-  entry("release-identity", {
-    SEAL_RELEASE_IDENTITY_B64: Buffer.from(JSON.stringify(signer)).toString("base64"),
-  });
-  const identityFile = readFileSync(output, "utf8").trim().slice("identity-file=".length);
-  assert.equal(statSync(identityFile).mode & 0o777, 0o600);
-  assert(!identityFile.startsWith(`${directory}/`));
-  sign({ SEAL_IDENTITY_FILE: identityFile });
-  entry("verify-seal");
-  const proof = readFileSync(join(directory, "release-proof.json"));
   const receipt = '{"state":"partial","attempt":1}\n';
   writeFileSync(join(f.root, "artifacts/release-receipt.json"), receipt);
   entry("prepare-release", { RELEASE_RESUMED: "true" });
-  assert.deepEqual(readFileSync(join(directory, "release-proof.json")), proof);
   assert.equal(readFileSync(join(f.root, "artifacts/release-receipt.json"), "utf8"), receipt);
   assert.deepEqual(
     plan.packages.map((pkg) => sha256(readFileSync(join(directory, pkg.tarball)))),
     before,
   );
+  writeJson(join(directory, "release-origin.json"), { ...origin, runId: 999 });
   const rejected = spawnSync(process.execPath, [cli, "prepare-release"], {
     cwd: f.root,
-    env: { ...env, RELEASE_RESUMED: "true", SEAL_RELEASE_PUBLIC_KEY: "wrong" },
+    env: { ...env, RELEASE_RESUMED: "true" },
     encoding: "utf8",
   });
   assert.equal(rejected.status, 1);
-  assert.match(rejected.stderr, /SEAL_SIGNER_UNTRUSTED/);
+  assert.match(rejected.stderr, /ORIGIN_INVALID/);
 });

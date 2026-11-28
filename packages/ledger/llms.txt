@@ -1,67 +1,33 @@
 # @ternent/ledger
 
-> Standalone signed append-only history. Staging and committed history are distinct.
+> A signed, append-only history of JSON entries, verified on open.
 
-Stable interface: `npm install @ternent/ledger@0.2.0 @ternent/identity@0.6.0`.
-[Public README](https://github.com/ternent/core/blob/main/packages/ledger/README.md).
-Declarations: `dist/index.d.ts`, `dist/protocol/index.d.ts` and referenced types.
-
-## Create, stage, commit and reopen
+Three exports from the package root: `createLedger`, `openLedger`, `createWriter`.
+Types: `History`, `Writer`, `Commit`, `Entry`, `EntryInput`, `Json`, `JsonObject`,
+`Signer`, `Relationship`. Declarations: `dist/index.d.ts`.
 
 ```ts
-import { generateSigner } from "@ternent/identity";
-import { createLedger, encodeJson, verifyLedger } from "@ternent/ledger";
-const created = await generateSigner();
-if (!created.ok) throw new Error(created.error.code);
-const log = await createLedger({ signer: created.value });
-await log.create();
-await log.append({ kind: "reading", payload: { value: 21 } });
-const preview = await log.replay();
-await log.commit();
-const snapshot = await log.export();
-const bytes = encodeJson(snapshot);
-const report = await verifyLedger(bytes);
-if (report.integrity !== "valid") throw new Error("Invalid history");
-const reader = await createLedger();
-await reader.import(bytes);
-const committed = await reader.replay({ includeStaged: false });
+import { createIdentity } from "@ternent/identity";
+import { createLedger, createWriter, openLedger } from "@ternent/ledger";
+
+const alice = await createIdentity();
+let history = await createLedger({ signer: alice });
+const writer = createWriter(history, alice);
+writer.append({ kind: "note.added", payload: { text: "hello" } });
+history = await writer.commit();
+
+const reopened = await openLedger(history.export());
+const entries = reopened.commits.flatMap((commit) => commit.entries);
 ```
 
-`create()` immediately signs genesis. `append`/`appendMany` stage entries; `commit`
-signs them together. `export()` returns a committed snapshot object, not bytes;
-`encodeJson` converts it to portable bytes. `load(snapshot)` accepts an object;
-`import(bytes)` accepts the encoded container. Failed operations preserve history
-and staged work. Loading while staged rejects DRAFT_PENDING. `clearStaged()` drops
-staging. Staging is volatile and never exported.
-
-Replay includes staged entries by default; each item marks committed and commitId.
-Use includeStaged false for committed reconstruction. Optional `initialProjection`
-and synchronous pure `projector(projection, entry)` derive application data.
-`getState()` is detached/frozen; `subscribe()` observes successful changes;
-`destroy()` closes the handle. Callbacks must not reenter the mutation queue.
-Validation/signing failures reject Fault with a structured finding; projector errors
-propagate. This differs from Concord's structured mutation results.
-
-## Trust and composition
-
-Root exports lifecycle, payload helpers and protocol helpers. `/protocol` exposes
-canonicalize, encodeJson, parseJson, inspectLedger, verifyLedger, compareLedgers,
-hashLedgerEntry, hashLedgerCommit and ledgerSignatureMessage without the lifecycle.
-Verify original imported bytes; do not parse/reserialize with JSON.parse first.
-Ledger verifies the full signed linear history and signer/author binding. It has no
-membership policy: a supplied signer can append to a valid log. Use Concord for
-application authority, encrypted groups and command semantics.
-
-Portable JSON uses safe integers (no fractions, unsafe integers or negative zero),
-valid Unicode, dense arrays and plain objects; closed record schemas apply. Use
-these APIs for canonical bytes, IDs and signatures rather than recreating them.
-compareLedgers reports equal/ahead/behind/diverged/unrelated, without merging or
-selecting a head. A valid signature does not establish freshness.
-
-## Optional encryption
-
-`encodePayload(data, codec)` and `decodePayload(data, codec?)` compose explicit
-byte codecs such as Armour's createAgeCodec. Decode yields plain, decoded or locked.
-Raw replay still returns the stored envelope at entry.payload.data. Missing codecs
-never invent plaintext. Ledger neither distributes keys nor automatically decrypts.
-Keep secrets, storage, synchronization and draft recovery with the host.
+- Histories are immutable and only come from Ledger. Don't build or spread one.
+- Read entries from `history.commits[i].entries`. The signer is `commit.proof.signer`;
+  the claimed time is `commit.proof.createdAt`. Put event time in your payload if needed.
+- Ledger keeps no derived state. Reduce entries into your own state.
+- `writer.commit()` rejects if nothing is staged, and on failure keeps the staged entries.
+  Don't call `append`, `discard` or `commit` while a commit is pending; they throw.
+- Decide in your app whether a signer may write. Ledger only proves who signed.
+- `openLedger` accepts only canonical bytes from `export()`. Store and send those bytes as-is.
+- One limit: `maxBytes` (default 16 MiB) on `createLedger` and `openLedger`.
+- Values must be JSON with safe integers only: no floats, `undefined`, `Date` or class instances.
+- Errors are ordinary `Error`/`TypeError`/`RangeError` with a message; there are no codes.

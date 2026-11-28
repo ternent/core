@@ -63,7 +63,6 @@ console.log(
     {
       scope: "active-workspace",
       packages: [...names],
-      excluded: ["packages/workspace", "packages/ui", "scripts/vite"],
       findings,
     },
     null,

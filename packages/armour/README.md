@@ -1,75 +1,38 @@
 # @ternent/armour
 
-[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
+[Agent interface guide](llms.txt): public imports, examples and contracts.
 
-Identity-aware age encryption, backed by the pinned pure TypeScript `age-encryption`
-engine. No runtime WASM initialization or command-line process is required.
-
-```ts
-import { generateIdentity, encryptAge } from "@ternent/armour";
-const created = await generateIdentity();
-if (!created.ok) throw new Error(created.error.code);
-const identity = created.value; // public identity, exact-byte sign, decryptAge
-```
-
-`identityFromSeed(seed)` copies the private root through Identity's signer factory.
-`withAgeDecryption(base)` synchronously composes an existing base signer without
-moving private identity ownership into Armour. `identityFromSeed` and
-`generateIdentity` return structured primitive results; `withAgeDecryption` returns
-the composed capability directly.
-`encryptAge({ recipients, plaintext })` accepts X25519 recipients and returns binary age.
-`decryptAgeWithSecret({ secret, ciphertext })` accepts a raw 32-byte X25519 scalar.
-These operations have no init step and support an empty plaintext.
-
-All operations work immediately after import. There is no `initArmour` API or
-global initialization state. Text, recipient, passphrase and binary conveniences
-use the same TypeScript engine as the capability interface.
-
-| Input/output need                                     | Public helpers                                                                                                          |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Serialized identities or age recipients, byte payload | `encryptForIdentities`, `encryptForRecipients`, `decryptWithIdentity`, `decryptWithSecretKey`                           |
-| Passphrase, byte payload                              | `encryptWithPassphrase`, `decryptWithPassphrase`                                                                        |
-| UTF-8 text                                            | `encryptTextForIdentities`, `decryptTextWithIdentity`, `encryptTextWithPassphrase`, `decryptTextWithPassphrase`         |
-| Blob/File/ArrayBuffer/Uint8Array                      | `encryptBinaryForIdentities`, `decryptBinaryWithIdentity`, `encryptBinaryWithPassphrase`, `decryptBinaryWithPassphrase` |
-| Host identity resolution and recipient derivation     | `resolveIdentity`, `recipientFromIdentity`, `secretKeyFromIdentity`, `recipientsFromIdentities`                         |
-
-Convenience encryption defaults to ASCII armor; byte/binary helpers accept
-`output: "binary"` explicitly. Decryption accepts the supported binary/armor form
-and returns bytes, except text helpers return UTF-8 strings. Convenience helpers
-reject with `ArmourValidationError`, `ArmourIdentityError`, `ArmourEncryptionError`
-or `ArmourDecryptionError`, all derived from `ArmourError` with a structured code.
-They require nonempty payloads, with a 64 MiB engine limit; the low-level
-`encryptAge` interface supports empty plaintext and returns `PrimitiveResult`.
+Encrypt and decrypt bytes with [age](https://age-encryption.org). Identity supplies
+personal keys; groups use native age keys; backups use a passphrase.
 
 ```ts
-import { createIdentity } from "@ternent/identity";
-import { encryptTextForIdentities, decryptTextWithIdentity } from "@ternent/armour";
-const identity = await createIdentity();
-const encrypted = await encryptTextForIdentities({ identities: [identity], text: "hello" });
-const text = await decryptTextWithIdentity({ identity, data: encrypted });
+import { encrypt, decrypt } from "@ternent/armour";
+
+const ciphertext = await encrypt(bytes, [alice.publicIdentity, bob.publicIdentity]);
+const plaintext = await decrypt(ciphertext, bob);
 ```
 
-Historical implementations are available in Git.
+| Use             | Encrypt with                         | Decrypt with                           |
+| --------------- | ------------------------------------ | -------------------------------------- |
+| People          | Their `PublicIdentity` records       | The recipient's `Identity`             |
+| A group         | The group's `age1…` X25519 recipient | The group's `AGE-SECRET-KEY-1…` string |
+| Identity backup | `{ passphrase }`                     | `{ passphrase }`                       |
 
-## Optional payload integration
+Identities and group recipients can share one recipient array. Every call uses fresh
+randomness. Output is binary age, readable by the `age` CLI and any age library.
+Empty plaintext is valid.
 
-`createAgeCodec({ recipients?, reader? })` supplies an `id: "age"` byte codec for
-composing Armour with Ledger's `encodePayload`/`decodePayload` helpers. Armour does
-not import Ledger. Supplying recipients enables encoding; supplying a `decryptAge`
-reader capability enables decoding. Recipients are copied when the codec is created.
-An absent operation remains absent; it never falls back to plaintext.
-The factory preserves these capabilities in its return type: recipients guarantee
-`encode`, a reader guarantees `decode`, and supplying both guarantees both methods.
-No non-null assertions are needed. Dynamically optional configuration returns the
-general codec type and does not promise either operation.
+Invalid input, a wrong key or passphrase, and tampered ciphertext all reject with an
+ordinary `Error`. Plaintext is returned only after age authenticates it. Inputs are
+copied when the call starts.
 
-The codec uses the existing binary age operations. Its decoder returns `null` when
-the reader reports an authentication/decryption failure, covering both wrong keys
-and malformed ciphertext. Other reader failures reject; implementation exceptions propagate. The caller
-owns entry creation, signed history and interpretation of readable/locked results.
-See the [Ledger composition example](../ledger/README.md#optional-payload-codecs).
+Armour works in memory: bound the size of incoming ciphertext before decrypting.
+Passphrase files use scrypt; age rejects a work factor above 2^20 (about 1 GiB of
+memory) before deriving a key. Scrypt runs synchronously, so unlock a backup off the
+browser's main thread.
 
-Armour owns neither signing semantics, document envelopes, authorization nor storage.
-Identity owns key derivation. Ledger owns signed history; Concord composes it with
-its private system profile.
-Native age interop and the fixed independent ciphertexts are required tests.
+Text transport, file reads and storage belong to the caller. For ASCII armor, use
+`armor.encode` and `armor.decode` from `age-encryption`. To sign ciphertext, seal its
+exact bytes with `@ternent/seal`.
+
+License: ISC.

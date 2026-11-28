@@ -29,7 +29,7 @@ export function fixture(options = {}) {
       "@ternent/armour": "^1.0.0-alpha.0",
       "@ternent/ledger": "^1.0.0-alpha.0",
     },
-    "@ternent/seal": { "@ternent/identity": "^1.0.0-alpha.0", "@ternent/armour": "^1.0.0-alpha.0" },
+    "@ternent/seal": { "@ternent/identity": "^1.0.0-alpha.0" },
   };
   /** @type {{name:string,path:string}[]} */ const inventory = [];
   /** @type {Record<string,any>} */ const candidates = {};

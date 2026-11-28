@@ -1,0 +1,26 @@
+{
+  "owner": {
+    "format": "ternent-identity",
+    "version": "2",
+    "algorithm": "Ed25519",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "publicKey": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
+    "keyId": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+    "material": {
+      "kind": "seed",
+      "seed": "nWGxne_9WmC6hEr0kuwsxERJxWl7MmkZcDusAxyuf2A"
+    }
+  },
+  "group": {
+    "recipient": "age13aqvttdk3ujkyjh9kg2w5an6dmy5mq5a84a4uxk3hfhnugfc9p0sy5p2wh",
+    "secretKey": "AGE-SECRET-KEY-1QQQSYQCYQ5RQWZQFPG9SCRGWPUGPZYSNZS23V9CCRYDPK8QARE0SVPD6HS"
+  },
+  "toOwner": {
+    "ciphertext": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0-IFgyNTUxOSBxbmxVekN5c2Y5bDRDVkphd3hKTk1VMFNTL0E3SzJieTc3ejBZenpCc0RrCmtaNkFCMStIRUVpTVBlcWo2NkJEYU1KZnArRTZLR2xBdWIzUmVScFNDNXcKLS0tIFB5Ri9jcHN1VEtkMmRkM1FPOTk3SWNNYnRoTG5sNGU0QVpQWmgrdDhNcDAKgXq1gkuX619OwyMlTXlenSdi2fTdyr_5TNA0C1bHgFZIiYLHOToGaNqFn4o79YpVM46h5qJ7KFPsXyvFmd1pQRfM_63OZKH1T5VSgnW1xm9Vd6SxeYwIhlm9MXvn3be47NcVnsgtiOmbDw8Ns8rX3RyuQ6WGawXHTSxLGMaPc3d0hgRAWPWtUjVh-jEmM2Bab7OHXgffcxnsOIorvwEWYFB9p4bJCY_UrXUSV59v-WvHd0OIEitfA1BMK6abezN2HevfKol19100TMBWzpTLBh8JjVMy_Kp6ruFP8oF_IE_JAgYcgTA3mHo4WCHCd4oJwC_5SncJqa51cltvC0nH7VkMdwOXL-zmE1UPmIOuqBl_zxc8lZeMpya5BiOM5HxNmsBHe_aPH2dhGDGv4_ZdoiYc_LAYFswL86VkG-Nmc9Sa2ZTan6PeLEzTSA8ZesM1b2ob1qkhN8119vq5_Sp71CjXd87ugaopawnU2QQ7E9Q",
+    "plaintext": "{\"context\":\"concord.audience-key/1\",\"parent\":null,\"nonce\":\"AQEBAQEBAQEBAQEBAQEBAQ\",\"audience\":\"document\",\"epoch\":0,\"identityId\":\"identity:21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9\",\"recipient\":\"age13aqvttdk3ujkyjh9kg2w5an6dmy5mq5a84a4uxk3hfhnugfc9p0sy5p2wh\",\"secret\":\"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHl8\"}"
+  },
+  "toGroup": {
+    "ciphertext": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0-IFgyNTUxOSA4dWY3emwyTjRBNGNRTDdEZ0VNRlRWUDI2ZU1vdkc5em95dUFYQVQ0cERZCm1SUG12dkYwb0x5Q29CdGN2eHNHTVdnZ2xhK29LZ2FQZ1RqLzM3azVhMUkKLS0tIGhiM1A0TzN5RTVSa3ZGV0pPK3RkQmowTklHSG9LcDl0a1pYWWkrcFdweWMKBtQhYXvGVT49bAT_6v18BZ_l_3V4ruTZX8JP_rziAqE8HBblmGdydubASHHcPNZ3yrHeFAAFW_Ar3-bldPoB8SDKBoWDhq6f80qQSxdCGgj9O6OT0yWrHs45xZOr-pojDGx4WKYVbdb4VsfwcpnQh52dINB1M_kh75OguP62_lZX2ZJ1bmaB0Wwg-xBV6y1NW8nSP13uaIBaSWCD9-vQgAx_an0Jt1vE-51QRIKAQLwIHg6cVDhhuuX_Bc-2cHRHMW79e3KXlO5OLC81cZODs-erFu1Y76pTRTtbdP8bitTUOf39S8JS-FKYWQmrYlTvSWv2DdnBvi8TOuXJAwK2MAx-7UjPNHBAqYEGu589JHqzrfXJTaPCPK5Zkutg955I5JPfZIMA45JTnIxOEgagN_TbhRr4WWLHRUWI880ax9K2bv0MbNJfH2YA4UtmfWFJW1UW3SV5Vw",
+    "plaintext": "{\"context\":\"concord.application/1\",\"parent\":\"commit:671c5e18f1ace673aa9a68b22a1a4137f67d1068ab82ae34840627afc6ffc2f8\",\"nonce\":\"AwMDAwMDAwMDAwMDAwMDAw\",\"model\":{\"id\":\"concord.example.register\",\"version\":1},\"audience\":\"document\",\"epoch\":0,\"event\":{\"type\":\"value.set\",\"version\":1,\"data\":{\"value\":\"hello Concord\"}}}"
+  }
+}

@@ -1,7 +1,7 @@
 {
   "name": "@ternent/ledger",
   "version": "0.2.0",
-  "description": "Standalone signed append-only logs with staging, commits, verification and replay",
+  "description": "A signed, append-only history of JSON entries",
   "license": "ISC",
   "repository": {
     "type": "git",
@@ -22,10 +22,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./protocol": {
-      "types": "./dist/protocol/index.d.ts",
-      "import": "./dist/protocol/index.js"
     }
   },
   "publishConfig": {
@@ -42,7 +38,9 @@
   },
   "dependencies": {
     "@noble/hashes": "2.4.0",
-    "@ternent/identity": "workspace:^"
+    "@scure/base": "2.4.0",
+    "@ternent/identity": "workspace:^",
+    "@ternent/seal": "workspace:^"
   },
   "devDependencies": {
     "typescript": "npm:@typescript/typescript6@6.0.2",

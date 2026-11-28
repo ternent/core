@@ -1,7 +1,7 @@
 # Library version intent
 
-Use `pnpm exec changeset add` for changes to the five public libraries. UI and
-Workspace are outside this release; private packages are not versioned or tagged.
+Use `pnpm exec changeset add` for changes to the five public libraries. Private
+packages are not versioned or tagged.
 
 The enabled version workflow opens a draft PR for unconsumed public changesets or
 an exit from prerelease mode. `pnpm release:version` checks npm history, validates
@@ -19,4 +19,3 @@ described in the release contract.
 
 The release planner requires matching committed intent for new package versions.
 It freezes the existing tested tarballs, and the publisher never repacks them.
-See the [release contract](../docs/engineering/release-and-deployment.md).

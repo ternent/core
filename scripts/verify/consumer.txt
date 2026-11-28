@@ -1,0 +1,74 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createIdentity, recoverIdentity, restoreIdentity, verify } from "@ternent/identity";
+import { createSealHash, createSealProof, verifySealProof } from "@ternent/seal";
+import { decrypt, encrypt } from "@ternent/armour";
+import { createLedger, createWriter, openLedger } from "@ternent/ledger";
+import { createDocument, defineModel, openDocument } from "@ternent/concord";
+
+const bytes = (text) => new TextEncoder().encode(text);
+
+// Identity: create, back up, restore, recover, sign and verify.
+const alice = await createIdentity();
+const restored = await restoreIdentity(alice.export());
+assert.deepEqual(restored.publicIdentity, alice.publicIdentity);
+const signature = await alice.sign(bytes("signed"));
+assert.equal(await verify(alice.publicIdentity, bytes("signed"), signature), true);
+assert.equal(await verify(alice.publicIdentity, bytes("changed"), signature), false);
+const words = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+assert.equal((await recoverIdentity(words, "TREZOR")).publicIdentity.publicKey, "6IBjlSqvqPfmXohZXC-oqbjX71wHutV9vvrRtw5VrUE");
+
+// Seal: a detached proof checks signature and hash separately.
+const proof = await createSealProof({ signer: alice, subject: { hash: await createSealHash(bytes("artifact")) } });
+assert.deepEqual(await verifySealProof(proof, bytes("artifact")), { valid: true, signatureValid: true, hashMatch: true });
+assert.equal((await verifySealProof(proof, bytes("other"))).hashMatch, false);
+
+// Armour: identities, a native group key and a passphrase.
+const bob = await createIdentity();
+const ciphertext = await encrypt(bytes("shared"), [alice.publicIdentity, bob.publicIdentity]);
+assert.deepEqual(await decrypt(ciphertext, bob), bytes("shared"));
+const locked = await encrypt(bytes(alice.export()), { passphrase: "correct horse" });
+assert.equal(new TextDecoder().decode(await decrypt(locked, { passphrase: "correct horse" })), alice.export());
+await assert.rejects(decrypt(ciphertext, await createIdentity()));
+
+// Ledger: the saved v2 vector opens with its IDs, and a written history round-trips.
+const ledgerVector = JSON.parse(readFileSync("ledger-vector.json", "utf8"));
+const canonical = (value) =>
+  Array.isArray(value)
+    ? `[${value.map(canonical).join(",")}]`
+    : value && typeof value === "object"
+      ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`
+      : JSON.stringify(value);
+const opened = await openLedger(bytes(canonical(ledgerVector.document)));
+assert.equal(opened.head, ledgerVector.expected.head);
+const writer = createWriter(await createLedger({ signer: alice }), alice);
+writer.append({ kind: "note", payload: { text: "hello" } });
+const history = await writer.commit();
+assert.equal((await openLedger(history.export())).compare(history), "equal");
+
+// Concord: the saved vector opens for each identity, and a new document with a group works.
+const notes = defineModel({
+  id: "notes",
+  version: 1,
+  initial: () => ({ notes: {} }),
+  reduce(state, event) {
+    if (event.type === "note.put") return { notes: { ...state.notes, [event.data.id]: event.data.title } };
+    throw new Error(`Unknown event ${event.type}`);
+  },
+});
+const concordVector = JSON.parse(readFileSync("concord-vector.json", "utf8"));
+for (const [name, backup] of Object.entries(concordVector.identities)) {
+  const doc = await openDocument(bytes(concordVector.document), { model: notes, identity: await restoreIdentity(backup) });
+  const groups = Object.fromEntries(doc.groups.map((g) => [g.default ? "default" : "team", doc.state(g.id)]));
+  assert.deepEqual({ groups, unreadable: doc.unreadable, rejected: doc.rejected.length }, concordVector.expected[name]);
+}
+const doc = await createDocument({ model: notes, identity: alice });
+const team = await doc.createGroup();
+await doc.setMember(bob.publicIdentity, { group: team, role: "member" });
+doc.stage({ type: "note.put", data: { id: "1", title: "private" } }, { group: team });
+await doc.commit();
+const bobs = await openDocument(doc.export(), { model: notes, identity: bob });
+assert.deepEqual(bobs.state(team), { notes: { 1: "private" } });
+assert.throws(() => bobs.state());
+
+console.log(`All five installed libraries and their saved vectors pass on ${process.version}`);

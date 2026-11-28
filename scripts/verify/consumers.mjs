@@ -231,7 +231,7 @@ try {
       type: "module",
       dependencies: { "@ternent/identity": "999999.0.0-b13" },
     });
-    put("probes/range-package/index.js", 'export { generateSigner } from "@ternent/identity";\n');
+    put("probes/range-package/index.js", 'export { createIdentity } from "@ternent/identity";\n');
     const probePack = JSON.parse(
       pnpm(
         ["pack", "--json", "--pack-destination", join(consumer, "probes")],
@@ -271,7 +271,7 @@ try {
   const dependencies = Object.fromEntries(
     Object.entries(candidates).map(([name, data]) => [name, data.version]),
   );
-  for (const name of ["vite-plus", "typescript", "vue", "@types/node"]) {
+  for (const name of ["vite-plus", "typescript", "@types/node"]) {
     assert(rootManifest.devDependencies[name], `Missing consumer tool: ${name}`);
     dependencies[name] = rootManifest.devDependencies[name];
   }
@@ -351,37 +351,10 @@ try {
   checks.push(
     `${publishedBundle ? "fresh public-registry" : "temporary-registry"} names/versions resolve without sibling overrides; registry tarball digests, locked SRI and every resolved candidate copy match the packed bytes`,
   );
-  for (const name of [
-    "owner.document.json",
-    "owner.expected.json",
-    "groups.removed.document.json",
-    "groups.readmitted.document.json",
-    "groups.expected.json",
-  ])
-    cpSync(resolve(root, "docs/concord/vectors", name), join(consumer, name));
-  cpSync(resolve(root, "docs/seal/vectors/proof.v2.json"), join(consumer, "seal-proof.v2.json"));
-  cpSync(
-    resolve(root, "packages/ledger/test/vectors/signed-log.json"),
-    join(consumer, "ledger-signed-log.json"),
-  );
-  put("ledger.mjs", readFileSync(resolve(root, "scripts/verify/ledger-consumer.txt"), "utf8"));
-  put("payload.mjs", readFileSync(resolve(root, "scripts/verify/payload-consumer.txt"), "utf8"));
-  put("seal.mjs", readFileSync(resolve(root, "scripts/verify/seal-consumer.txt"), "utf8"));
-  put(
-    "seal-isolation.mjs",
-    readFileSync(resolve(root, "scripts/verify/seal-isolation.txt"), "utf8"),
-  );
-  put("storage.mjs", readFileSync(resolve(root, "scripts/verify/storage-consumer.txt"), "utf8"));
-  put("groups.mjs", readFileSync(resolve(root, "scripts/verify/groups-consumer.txt"), "utf8"));
-  put("concord.mjs", readFileSync(resolve(root, "scripts/verify/concord-consumer.txt"), "utf8"));
-  put(
-    "primitives.mjs",
-    readFileSync(resolve(root, "scripts/verify/primitives-consumer.txt"), "utf8"),
-  );
-  put(
-    "protocol-isolation.mjs",
-    readFileSync(resolve(root, "scripts/verify/protocol-isolation.txt"), "utf8"),
-  );
+  cpSync(resolve(root, "packages/ledger/test/vectors.json"), join(consumer, "ledger-vector.json"));
+  cpSync(resolve(root, "packages/concord/test/vector.json"), join(consumer, "concord-vector.json"));
+  put("consumer.mjs", readFileSync(resolve(root, "scripts/verify/consumer.txt"), "utf8"));
+  put("isolation.mjs", readFileSync(resolve(root, "scripts/verify/isolation.txt"), "utf8"));
   const runtimes = [process.execPath];
   for (const major of [22, 24]) {
     const executable = process.env[`CONCORD_NODE${major}`];
@@ -402,40 +375,14 @@ try {
     .map((executable) => execFileSync(executable, ["--version"], { encoding: "utf8" }).trim())
     .join(", ");
   for (const executable of runtimes) {
-    console.log(execFileSync(executable, ["ledger.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["payload.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["primitives.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["concord.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["groups.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["storage.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["seal.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(
-      execFileSync(executable, ["seal-isolation.mjs"], { cwd: consumer, encoding: "utf8" }),
-    );
-    console.log(
-      execFileSync(executable, ["protocol-isolation.mjs"], { cwd: consumer, encoding: "utf8" }),
-    );
+    console.log(execFileSync(executable, ["consumer.mjs"], { cwd: consumer, encoding: "utf8" }));
+    for (const name of Object.keys(candidates))
+      console.log(
+        execFileSync(executable, ["isolation.mjs", name], { cwd: consumer, encoding: "utf8" }),
+      );
   }
   checks.push(
-    `Identity, Armour and all Concord subpaths: lifecycle, draft batching, signed metadata and fixed vectors on ${versions}; protocol import isolation`,
-  );
-  checks.push(
-    `Independent group saved vectors, readable coverage, scoped authoring and retryable cross-group draft commits on ${versions}`,
-  );
-  checks.push(
-    `Identity mnemonic/serialization/signing and init-free Armour helper contracts on ${versions}`,
-  );
-  checks.push(
-    `External artifact storage, expected-head conflicts, retained forks and committed-only draft publication on ${versions}`,
-  );
-  checks.push(
-    `Seal installed public paths, fixed signature, artifact encryption, CLI/Action sequence, exits and Node-free library import graph on ${versions}`,
-  );
-  checks.push(
-    `Standalone Ledger lifecycle, fixed vectors, declarations and import isolation on ${versions}`,
-  );
-  checks.push(
-    `Optional Armour payload codec, keyless Ledger verification and locked/readable decoding on ${versions}`,
+    `Identity, Seal, Armour, Ledger and Concord behaviour, saved Ledger and Concord vectors, and import isolation on ${versions}`,
   );
   put("tsconfig.json", {
     compilerOptions: {
@@ -451,30 +398,9 @@ try {
       lib: ["ES2022", "DOM"],
       types: ["node", "vite-plus/client"],
     },
-    include: [
-      "concord-types.ts",
-      "primitives-types.ts",
-      "groups-types.ts",
-      "storage-types.ts",
-      "seal-types.ts",
-      "ledger-types.ts",
-      "src/**/*.ts",
-      "vite.config.ts",
-      "feedback.ts",
-    ],
+    include: ["types.ts", "src/**/*.ts", "vite.config.ts"],
   });
-  put("ledger-types.ts", readFileSync(resolve(root, "scripts/verify/ledger-types.txt"), "utf8"));
-  put("seal-types.ts", readFileSync(resolve(root, "scripts/verify/seal-types.txt"), "utf8"));
-  put("groups-types.ts", readFileSync(resolve(root, "scripts/verify/groups-types.txt"), "utf8"));
-  put("storage-types.ts", readFileSync(resolve(root, "scripts/verify/storage-types.txt"), "utf8"));
-  put(
-    "primitives-types.ts",
-    readFileSync(resolve(root, "scripts/verify/primitives-types.txt"), "utf8"),
-  );
-  put(
-    "concord-types.ts",
-    'import {createDocument,openDocument} from "@ternent/concord";\nimport {createStandardSystemProfile} from "@ternent/concord/system";\nimport {registerModel} from "@ternent/concord/testing";\nimport {generateIdentity} from "@ternent/armour";\nconst identity=await generateIdentity();if(!identity.ok)throw new Error();\nconst created=await createDocument({model:registerModel,system:createStandardSystemProfile(),identity:identity.value});if(!created.ok)throw new Error();\nawait created.value.dispatch("set",{value:"typed"});\n// @ts-expect-error unknown command names are rejected.\nawait created.value.dispatch("missing",{});\n// @ts-expect-error command payload types survive publishing.\nawait created.value.dispatch("set",{value:42});\nconst opened=await openDocument({bytes:created.value.export(),model:registerModel,system:createStandardSystemProfile(),signer:identity.value});\nawait opened.dispatch("set",{value:"typed"});\n// @ts-expect-error open retains model command types.\nawait opened.dispatch("set",{value:42});\n',
-  );
+  put("types.ts", readFileSync(resolve(root, "scripts/verify/types.txt"), "utf8"));
   put(
     "index.html",
     '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Library consumer verification</title></head><body><main id="app"></main><script type="module" src="/src/main.ts"></script></body></html>',
@@ -483,41 +409,21 @@ try {
     "vite.config.ts",
     `import { defineConfig } from "vite-plus";
 export default defineConfig({
-  define: {
-    __VUE_OPTIONS_API__: true,
-    __VUE_PROD_DEVTOOLS__: false,
-    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
-  },
   build: { target: "es2022", sourcemap: true },
-  lint: {
-    options: { typeAware: true, typeCheck: false },
-    rules: { "typescript/no-floating-promises": "error" },
-  },
-  test: { include: ["test/**/*.test.ts"], passWithNoTests: false },
 });
 `,
-  );
-  put(
-    "public/seal-proof.v2.json",
-    readFileSync(resolve(root, "docs/seal/vectors/proof.v2.json"), "utf8"),
   );
   put(
     "src/concord-proof.ts",
     readFileSync(resolve(root, "scripts/verify/concord-browser.txt"), "utf8"),
   );
   put("src/main.ts", readFileSync(resolve(root, "scripts/verify/browser-main.txt"), "utf8"));
-  put(
-    "src/style.css",
-    ".consumer-counter { color: #13529b; font: inherit; padding: 0.5rem 1rem; }\n",
-  );
   console.log(pnpm(["exec", "tsc6", "--noEmit", "-p", "tsconfig.json"]));
   checks.push(
     "five-library published declarations, browser consumer types and expected TypeScript failures",
   );
   console.log(pnpm(["exec", "vp", "build"]));
-  checks.push(
-    "plain Vite+ production build of a temporary Vue render consumer using installed candidates",
-  );
+  checks.push("plain Vite+ production build of a browser consumer using installed candidates");
   const browser = await chromium.launch({ headless: true });
   try {
     const app = await serve(join(consumer, "dist"));
@@ -528,65 +434,17 @@ export default defineConfig({
       /** @type {string[]} */ const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(app.url);
-      const button = page.getByRole("button", { name: "Library consumer: 0" });
-      await button.waitFor();
       await page.locator("#concord-proof").filter({ hasText: "Concord: hello browser" }).waitFor();
-      assert.equal(
-        await button.evaluate((element) => getComputedStyle(element).color),
-        "rgb(19, 82, 155)",
-      );
-      await button.click();
-      await page.getByRole("button", { name: "Library consumer: 1" }).waitFor();
-      assert.equal((await page.request.get(`${app.url}/missing.js`)).status(), 404);
       assert.deepEqual(errors, []);
       await page.screenshot({ path: resolve(root, "artifacts/browser.png") });
       await page.close();
-      checks.push(
-        "Chromium: standalone Ledger, Armour codecs, fixed Seal proof/artifact, encrypted Concord and independent groups, storage, drafts, production CSS and Vue render interaction",
-      );
+      checks.push("Chromium: Identity, Seal, Armour, Ledger and an encrypted Concord group");
     } finally {
       await app.close();
     }
   } finally {
     await browser.close();
   }
-  put("feedback.ts", "Promise.resolve(1);\n");
-  const lintFailure = spawnSync("pnpm", ["exec", "vp", "lint", "--type-aware", "feedback.ts"], {
-    cwd: consumer,
-    encoding: "utf8",
-    env: { ...process.env, CI: "true" },
-  });
-  assert.notEqual(
-    lintFailure.status,
-    0,
-    "A floating promise must fail the explicit typed lint rule",
-  );
-  assert.match(`${lintFailure.stdout}${lintFailure.stderr}`, /no-floating-promises/);
-  put("bad-format.ts", "export const messy={a:1,b:2}");
-  const formatFailure = spawnSync("pnpm", ["exec", "vp", "fmt", "--check", "bad-format.ts"], {
-    cwd: consumer,
-    encoding: "utf8",
-    env: { ...process.env, CI: "true" },
-  });
-  assert.notEqual(formatFailure.status, 0, "Unformatted input must fail without modifying it");
-  assert.equal(
-    readFileSync(join(consumer, "bad-format.ts"), "utf8"),
-    "export const messy={a:1,b:2}",
-  );
-  assert.match(`${formatFailure.stdout}${formatFailure.stderr}`, /bad-format.ts/);
-  checks.push("explicit typed lint and read-only formatting propagate useful failures");
-  put(
-    "test/failure.test.ts",
-    'import { expect, test } from "vite-plus/test";\ntest("intentional failure", () => expect(1).toBe(2));\n',
-  );
-  const failing = spawnSync("pnpm", ["exec", "vp", "test", "run"], {
-    cwd: consumer,
-    encoding: "utf8",
-    env: { ...process.env, CI: "true" },
-  });
-  assert.notEqual(failing.status, 0, "A failing behavior test must exit nonzero");
-  assert.match(`${failing.stdout}${failing.stderr}`, /intentional failure/);
-  checks.push("an actual failing test propagates a failure exit status");
   for (const { file, sha256 } of Object.values(candidates))
     assert.equal(
       createHash("sha256").update(readFileSync(file)).digest("hex"),

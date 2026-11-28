@@ -26,7 +26,7 @@ tests also need `age` 1.3.1; CI installs its checksum-verified official binary.
 | `pnpm --filter @ternent/concord check` | Build that package and its dependencies, then run its checks |
 | `pnpm check:artifact`                  | Exact packed consumers; requires built outputs and Chromium  |
 | `pnpm check`                           | Complete acceptance gate                                     |
-| `pnpm test:release`                    | Release plan, retry, integrity and Seal trust tests          |
+| `pnpm test:release`                    | Release plan, retry and integrity tests                      |
 | `pnpm release:version`                 | Review registry history, apply Changesets and record intent  |
 | `pnpm release:plan`                    | Freeze accepted tarballs and reports from committed source   |
 
@@ -48,13 +48,11 @@ and `tsconfig.base.json` hold ordinary shared defaults; package configs own publ
 entries, environment differences and output paths. pnpm owns dependency ordering.
 The `typescript` dependency aliases `@typescript/typescript6` for declaration and
 compiler API compatibility; use its `tsc6` CLI for explicit type checking.
-There is no Vue SFC, Volar or portable tooling-profile contract in this workspace.
 
 Keep signed vectors and observable failure cases when refactoring. Public imports,
-declarations, CLI behavior, import isolation and exact tarballs need their own
-checks. The temporary Vue render consumer proves production CSS, interaction and
-browser cryptography; it does not certify a component library or documentation
-site. Formatting, types, behavior and installed consumers establish different
+declarations, import isolation and exact tarballs need their own checks. The
+browser consumer proves each library works in a production browser build.
+Formatting, types, behavior and installed consumers establish different
 properties. Report unavailable checks honestly and preserve failing exit statuses.
 Current run reports, candidate digests and the browser screenshot are written to
 ignored `artifacts/`.
@@ -62,15 +60,11 @@ ignored `artifacts/`.
 `pnpm-workspace.yaml` selects exactly Identity, Armour, Ledger, Concord and Seal.
 Keep runtime dependencies with their owning library and use declared public
 exports between packages. Preserve unrelated edits. Retire unused source instead
-of creating legacy archives; Git keeps history. UI and Workspace remain excluded.
-See the [repository guide](docs/engineering/repository-hygiene.md) for ownership
-and check boundaries.
+of creating legacy archives; Git keeps history.
 
-The read-only CI workflow verifies candidates and exercises the pinned Seal Action
-on a retained release bundle with a disposable test identity. Separate version-PR
+The read-only CI workflow verifies candidates and retains a release bundle. Separate version-PR
 and production release workflows require explicit account setup and enablement.
-Review their [release contract and setup](docs/engineering/release-and-deployment.md)
-before enabling them. Public-registry acceptance remains outstanding; no workflow
+Review the workflow files before enabling them. Public-registry acceptance remains outstanding; no workflow
 deploys applications.
 `renovate.json` configures dependency updates; the owner must enable Renovate for
 it to open PRs.

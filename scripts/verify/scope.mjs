@@ -22,7 +22,6 @@ if (command === "fmt")
     "README.md",
     "CONTRIBUTING.md",
     "renovate.json",
-    "docs/engineering/repository-hygiene.md",
   );
 const result = spawnSync("vp", [command, ...options, ...paths], { stdio: "inherit" });
 if (result.error) throw result.error;

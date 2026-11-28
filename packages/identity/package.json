@@ -1,7 +1,7 @@
 {
   "name": "@ternent/identity",
   "version": "0.6.0",
-  "description": "Seed-based Ed25519 identity primitives with X25519 bridge helpers",
+  "description": "One Ed25519 identity for the Ternent libraries",
   "license": "ISC",
   "repository": {
     "type": "git",

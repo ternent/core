@@ -1,21 +1,16 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "vite-plus/test";
-import { ed25519 } from "@noble/curves/ed25519.js";
+import { ed25519, x25519 } from "@noble/curves/ed25519.js";
 import { sha256 } from "@noble/hashes/sha2.js";
-import { hex } from "@scure/base";
+import { base64urlnopad, bech32, hex } from "@scure/base";
 import {
-  signerFromSeed,
+  restoreIdentity,
   validatePublicIdentity,
-  verifySignature,
-  ageRecipientFromSecret,
-  ageSecretKey,
-  encodeBase64Url,
-  type PrimitiveResult,
+  verify,
   type PublicIdentity,
 } from "../src/index.js";
-const vector = JSON.parse(
-  readFileSync(new URL("../../../docs/concord/vectors/primitives.json", import.meta.url), "utf8"),
-).identity as {
+
+const vector = JSON.parse(readFileSync(new URL("vectors.json", import.meta.url), "utf8")).seed as {
   seedHex: string;
   public: PublicIdentity;
   x25519SecretHex: string;
@@ -23,39 +18,38 @@ const vector = JSON.parse(
   ageSecretKey: string;
   rfc8032EmptyMessageSignatureHex: string;
 };
-function value<T>(result: PrimitiveResult<T>): T {
-  if (!result.ok) throw new Error(result.error.code);
-  return result.value;
-}
-test("P05: retained derivation primitives match the independent raw signature and age vector", async () => {
-  const seed = hex.decode(vector.seedHex);
-  const signer = value(await signerFromSeed(seed));
-  seed.fill(0);
-  expect(signer.publicIdentity).toEqual(vector.public);
-  const signature = value(await signer.sign(new Uint8Array()));
-  expect(hex.encode(signature)).toBe(vector.rfc8032EmptyMessageSignatureHex);
-  expect(value(await verifySignature(vector.public, new Uint8Array(), signature))).toBe(true);
-  let borrowed: Uint8Array | undefined;
-  await signer.withX25519Secret(async (secret) => {
-    borrowed = secret;
-    await Promise.resolve();
-    expect(hex.encode(secret)).toBe(vector.x25519SecretHex);
-    expect(ageRecipientFromSecret(secret)).toBe(vector.ageRecipient);
-    expect(ageSecretKey(secret)).toBe(vector.ageSecretKey);
-  });
-  expect(borrowed?.every((byte) => byte === 0)).toBe(true);
-  await expect(
-    signer.withX25519Secret((secret) => {
-      borrowed = secret;
-      throw new Error("callback");
-    }),
-  ).rejects.toThrow("callback");
-  expect(borrowed?.every((byte) => byte === 0)).toBe(true);
+
+const backup = JSON.stringify({
+  format: "ternent-identity",
+  version: "2",
+  algorithm: "Ed25519",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  publicKey: vector.public.publicKey,
+  keyId: vector.public.id.slice("identity:".length),
+  material: { kind: "seed", seed: base64urlnopad.encode(hex.decode(vector.seedHex)) },
 });
-test("P06/P07: identity binding, noncanonical, small and mixed-order points fail strict validation", () => {
-  expect(
+
+test("a restored seed matches the independent signature and age vectors", async () => {
+  const identity = await restoreIdentity(backup);
+  expect(identity.publicIdentity).toEqual(vector.public);
+  const signature = await identity.sign(new Uint8Array());
+  expect(hex.encode(signature)).toBe(vector.rfc8032EmptyMessageSignatureHex);
+  expect(await verify(vector.public, new Uint8Array(), signature)).toBe(true);
+  await identity.withX25519Secret((secret) => {
+    expect(hex.encode(secret)).toBe(vector.x25519SecretHex);
+    expect(bech32.encode("age", bech32.toWords(x25519.getPublicKey(secret)))).toBe(
+      vector.ageRecipient,
+    );
+    expect(bech32.encode("age-secret-key-", bech32.toWords(secret)).toUpperCase()).toBe(
+      vector.ageSecretKey,
+    );
+  });
+});
+
+test("identity binding, non-canonical, small-order and mixed-order keys fail validation", async () => {
+  expect(() =>
     validatePublicIdentity({ ...vector.public, id: `identity:${"0".repeat(64)}` }),
-  ).toMatchObject({ ok: false });
+  ).toThrow();
   const mixed = ed25519.Point.BASE.add(
     ed25519.Point.fromBytes(hex.decode(`ec${"ff".repeat(30)}7f`), false),
   ).toBytes();
@@ -65,25 +59,24 @@ test("P06/P07: identity binding, noncanonical, small and mixed-order points fail
     hex.decode(`ed${"ff".repeat(30)}7f`),
     mixed,
   ]) {
-    expect(
-      validatePublicIdentity({
-        ...vector.public,
-        publicKey: encodeBase64Url(bytes),
-        id: `identity:${hex.encode(sha256(bytes))}`,
-      }),
-    ).toMatchObject({ ok: false });
+    const publicIdentity = {
+      ...vector.public,
+      publicKey: base64urlnopad.encode(bytes),
+      id: `identity:${hex.encode(sha256(bytes))}`,
+    };
+    expect(() => validatePublicIdentity(publicIdentity)).toThrow();
+    expect(await verify(publicIdentity, new Uint8Array(), new Uint8Array(64))).toBe(false);
   }
 });
-test("P07: signature R and S are strictly validated", async () => {
+
+test("signature R and S are strictly validated", async () => {
   const signature = hex.decode(vector.rfc8032EmptyMessageSignatureHex);
   const smallR = signature.slice();
   smallR.fill(0, 0, 32);
   smallR[0] = 1;
   const badS = signature.slice();
   badS.fill(255, 32);
-  for (const invalid of [smallR, badS])
-    expect(await verifySignature(vector.public, new Uint8Array(), invalid)).toMatchObject({
-      ok: false,
-      error: { code: "SIGNATURE_INVALID" },
-    });
+  for (const invalid of [smallR, badS]) {
+    expect(await verify(vector.public, new Uint8Array(), invalid)).toBe(false);
+  }
 });

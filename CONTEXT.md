@@ -1,125 +1,54 @@
-# Concord
+# Ternent vocabulary
 
-Concord is the domain of portable, signed application documents whose trusted state is
-rebuilt from their history. This glossary defines the language used across the runtime,
-protocol, documentation, and examples.
+The words used across the libraries, their READMEs and examples. Ternent documents are
+portable, signed histories whose application state is rebuilt by replaying them.
 
-## Document and history
+## History
 
-**Concord document**:
-A portable, single-head snapshot holding a signed commit history and the declarations
-needed to interpret it.
-_Avoid_: Ledger, database, workspace
+**Identity**: one Ed25519 key pair, created or restored by `@ternent/identity`. Its
+`publicIdentity` is safe to share; the private seed leaves only through `export()`.
 
-**Entry**:
-An immutable unit of recorded system or application meaning contained in a commit.
-_Avoid_: Row, mutation, action
+**Proof**: a Seal signature over a content hash, naming its signer and claimed time.
 
-**Commit**:
-A signed boundary containing one or more ordered entries and a link to its parent.
-_Avoid_: Save, transaction
+**History**: an immutable Ledger history of commits, verified when opened.
+_Avoid_: database, log file
 
-**Head**:
-The commit selected as the tip of a Concord document snapshot.
-_Avoid_: Latest version, current state
+**Commit**: a signed step in a history, naming its parent and holding ordered entries.
+The first commit is **genesis**; its ID is the **document ID**. The last is the **head**.
 
-**Document ID**:
-The genesis commit identifier shared by every snapshot in one document lineage.
-_Avoid_: Head, storage key
+**Entry**: one stored item in a commit. In a Concord document every entry is one age
+ciphertext.
 
-**Divergence**:
-The relationship between two valid snapshots whose heads share history but neither head
-is an ancestor of the other.
-_Avoid_: Invalid document, automatic merge
+**Diverged**: two copies that share a commit but each moved on from it. Ledger reports
+copies as equal, ahead, behind, diverged or unrelated, and never merges them.
 
-**Replay**:
-Deterministic reconstruction from the ordered entries in a Concord document.
-_Avoid_: Loading, event handling
+**Rebase**: reapplying your own unpublished commits on top of another copy.
+_Avoid_: merge, sync
 
-**Projection**:
-Derived state produced by replay and never treated as the authoritative record.
-_Avoid_: Document state, source of truth
+## Concord documents
 
-**Draft**:
-An unpublished local group of intended entries awaiting one explicit commit. Its preview
-is provisional and does not change the selected committed head.
-_Avoid_: Unsigned history, saved document
+**Document**: a history read through a model by one identity.
 
-## Identity and authority
+**Model**: an application's `id`, `version`, `initial()` state and `reduce` function.
 
-**Public identity**:
-A versioned Ed25519 public key and its derived identifier, safe to record and share.
-_Avoid_: User, account, profile
+**Event**: `{ type, data }`, a fact an application records. Events are staged into a
+**draft** and signed together by `commit`.
+_Avoid_: command, action
 
-**Identity capability**:
-Private identity material and the operations it authorizes, held by the host outside a
-Concord document.
-_Avoid_: Private identity record, document identity
+**State**: what a group's accepted events reduce to. It is derived, never stored.
+_Avoid_: projection, snapshot
 
-**Capability**:
-An authority such as read, write, grant, or administer that a system extension assigns
-to a public identity.
-_Avoid_: Role, permission flag
+**Group**: a set of members sharing a key, with its own events and state. Every document
+has a **default group** created at genesis.
+_Avoid_: audience, channel, room
 
-**Audience**:
-The identities allowed to decrypt a protected entry.
-_Avoid_: Role, access level
+**Member** and **admin**: the two roles in a group. Members read and write; admins also
+manage membership.
+_Avoid_: capability, permission
 
-**Privacy group**:
-A managed audience with shared encryption material and membership history. Membership,
-past key possession, and authority to write are separate facts.
-_Avoid_: Role, team
+**Epoch**: one key for a group. Removing a member starts a new epoch.
 
-**Audience epoch**:
-A generation of a privacy group's encryption material. A later epoch protects future
-entries without retracting knowledge of earlier entries.
-_Avoid_: Identity rotation, erased access
+**Rejected**: a signed commit that broke its group's rules. It stays as evidence and
+changes nothing.
 
-## Runtime
-
-**Host**:
-The trusted application environment that supplies identity capabilities, storage, and
-approved extension implementations to Concord.
-_Avoid_: Server, owner
-
-**System profile**:
-The declared set of system semantics required to interpret a document, including
-identity, authority, and privacy behavior.
-_Avoid_: Core plugin bundle, user system
-
-**System extension**:
-A host-trusted implementation of system semantics that runs before application replay
-and owns identities, capabilities, and encryption.
-_Avoid_: First-class plugin, application plugin
-
-**Application model**:
-The single, versioned domain contract selected when a document is created, expressed
-through commands, events, validation, and reducers.
-_Avoid_: App type, replay plugin
-
-**Application projection**:
-Application state rebuilt from the authorized and decrypted events exposed by the
-system profile.
-_Avoid_: Database, document contents
-
-**Inspection handle**:
-A read-only view of a document that exposes history and diagnostics when a trusted
-application projection cannot be produced.
-_Avoid_: Broken runtime, partial app
-
-**Freshness anchor**:
-A head or checkpoint remembered outside a document and used to detect an older or
-divergent snapshot served later.
-_Avoid_: Signature, timestamp
-
-## Boundaries
-
-**Storage adapter**:
-A replaceable integration that reads and writes complete Concord documents. Richer
-synchronization behavior belongs to the adapter rather than the Concord runtime.
-_Avoid_: Concord backend, sync engine
-
-**Identity directory**:
-An optional service or application facility that maps public identities to profiles,
-presence, discovery, or peer connections.
-_Avoid_: Concord user system, profile plugin
+**Unreadable**: an entry none of your keys open. You can tell it exists, nothing more.

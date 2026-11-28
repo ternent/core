@@ -1,0 +1,36 @@
+import { createIdentity, type PublicIdentity } from "@ternent/identity";
+import { createSealHash, createSealProof, type SealProof } from "@ternent/seal";
+import { encrypt } from "@ternent/armour";
+import { createLedger, type History } from "@ternent/ledger";
+import { createDocument, defineModel, type GroupId } from "@ternent/concord";
+
+const alice = await createIdentity();
+const publicIdentity: PublicIdentity = alice.publicIdentity;
+const proof: SealProof = await createSealProof({
+  signer: alice,
+  subject: { hash: await createSealHash(new Uint8Array()) },
+});
+// @ts-expect-error a subject hash has the sha256: prefix.
+await createSealProof({ signer: alice, subject: { hash: "abc" } });
+await encrypt(new Uint8Array(), [publicIdentity, "age1..."]);
+// @ts-expect-error Armour takes bytes, not text.
+await encrypt("text", [publicIdentity]);
+const history: History = await createLedger({ signer: alice });
+
+type Counter = { count: number };
+const counter = defineModel<Counter>({
+  id: "counter",
+  version: 1,
+  initial: () => ({ count: 0 }),
+  reduce: (state) => ({ count: state.count + 1 }),
+});
+const doc = await createDocument({ model: counter, identity: alice });
+const count: number = doc.state().count;
+const group: GroupId = await doc.createGroup();
+doc.stage({ type: "increment", data: null }, { group });
+// @ts-expect-error state keeps the model's type.
+const wrong: string = doc.state().count;
+// @ts-expect-error roles are member or admin.
+await doc.setMember(publicIdentity, { group, role: "owner" });
+
+export { count, history, proof, wrong };

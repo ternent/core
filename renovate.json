@@ -2,12 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", ":pinAllExceptPeerDependencies"],
   "enabledManagers": ["npm", "nvm", "nodenv", "github-actions"],
-  "ignorePaths": [
-    "packages/ledger/**",
-    "packages/utils/**",
-    "packages/workspace/**",
-    "packages/ui/**"
-  ],
   "minimumReleaseAge": "3 days",
   "packageRules": [
     {
@@ -16,12 +10,10 @@
         "@voidzero-dev/vite-plus-core",
         "@typescript/typescript6",
         "@volar/**",
-        "@vitejs/plugin-vue",
-        "unplugin-vue",
         "vue",
         "vue-tsc"
       ],
-      "groupName": "Vue and Vite toolchain"
+      "groupName": "Vite+ toolchain"
     }
   ]
 }

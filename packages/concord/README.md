@@ -1,116 +1,113 @@
 # @ternent/concord
 
-[Agent interface guide](llms.txt): public imports, examples and lifecycle contracts.
+[Agent interface guide](llms.txt): public imports, examples and contracts.
 
-A framework composing Ledger, Identity and Armour into portable signed documents
-with independent encrypted groups and explicit application replay coverage.
-The runtime implements
-create → dispatch/commit → export → open → verify → replay → inspect.
-
-Concord stores its framework records inside the common `ledger` v1 container.
-Ledger owns entry staging, commit construction, signatures, verification and ordered
-history. The signed genesis commit's `metadata.concord` declares the system and model.
-A raw Ledger entry keeps its `system` or `application` kind, with the framework
-envelope in `subject.payload.data`. Encrypted application values remain ciphertext;
-Ledger's JSON envelope does not make them plaintext.
-
-Concord retains command-intent drafts and model previews. When committing, it creates
-a private Ledger candidate, prepares/encrypts and appends the entries, commits through
-Ledger, and validates full system and application replay before adopting the candidate.
-Failures retain the active signed history and command draft. Storage publication is
-still separate. A standalone Ledger reader can verify/export the same container
-without a Concord model, decryptor or permission system.
-
-This alpha breaks the former Concord-only signed container; no legacy import or
-conversion adapter is included. See [the current profile](../../docs/concord/alpha-protocol.md)
-and [ADR 0018](../../docs/adr/0018-use-one-ledger-container-for-concord.md).
+Shared, signed, partly private documents built from your application's events. You
+define a model; Concord gives you a document that several people can write to, with
+private groups inside it, that anyone holding the file can verify.
 
 ```ts
-import { createDocument, openDocument } from "@ternent/concord";
-import { createStandardSystemProfile } from "@ternent/concord/system";
-import { registerModel } from "@ternent/concord/testing";
-import { generateIdentity } from "@ternent/armour";
-const generated = await generateIdentity();
-if (!generated.ok) throw new Error(generated.error.code);
-const system = createStandardSystemProfile();
-const created = await createDocument({ model: registerModel, system, identity: generated.value });
-if (!created.ok) throw new Error(created.error.code);
-const committed = await created.value.dispatch("set", { value: "hello Concord" });
-if (!committed.ok) throw new Error(committed.error.code);
-const reopened = await openDocument({
-  bytes: created.value.export(),
-  model: registerModel,
-  system,
-  signer: generated.value,
+import { createIdentity } from "@ternent/identity";
+import { createDocument, defineModel, openDocument } from "@ternent/concord";
+
+const notes = defineModel({
+  id: "notes",
+  version: 1,
+  initial: () => ({ notes: {} }),
+  reduce(state, event, { author, version }) {
+    if (event.type === "note.put")
+      return { notes: { ...state.notes, [event.data.id]: event.data.title } };
+    throw new Error(`Unknown event ${event.type}`);
+  },
 });
-const report = await reopened.verify();
-const replayed = await reopened.replay();
+
+const [alice, bob] = [await createIdentity(), await createIdentity()];
+const doc = await createDocument({ model: notes, identity: alice });
+doc.stage({ type: "note.put", data: { id: "1", title: "Hello" } });
+await doc.commit();
+
+const team = await doc.createGroup();
+await doc.setMember(bob.publicIdentity, { group: team, role: "member" });
+const bobs = await openDocument(doc.export(), { model: notes, identity: bob });
+bobs.state(team);
 ```
 
-Root exports the lifecycle, model definition helper, and their public types.
-`/protocol` verifies bytes without a model, runtime, decryption or age import.
-`/system` supplies the standard private profile, `setMember`, `removeMember`, and
-`createGroup` and specialist types. `document` is the default group. A default-group
-writer may create an independently administered group; the document owner gets no
-automatic access. Pass `{ audience, identity, capabilities }` to `setMember` and
-`{ audience, identityId }` to `removeMember`; omitting audience selects `document`.
-Admission/re-admission grants that group's full history. Removal rotates only that
-group's future key; retained historical access remains readable.
-`/testing` supplies the exact register model, literal model-conformance checks, and
-copied-buffer artifact storage. `createMemoryExpectedHeadStore()` additionally offers
-`expectedHead: true` and atomic `writeExpected(bytes, expectedHead)` for writers sharing
-that reference instance. Null means create-only; a conflict returns `HEAD_CONFLICT`
-with copied `error.remote` bytes. No test runner is a production dependency.
+## Model
 
-Storage publication is explicitly separate from dispatch/commit. Failed I/O or head
-conflict preserves local history and drafts. Retain both local and remote snapshots;
-compare them with `/protocol` and select explicitly. Expected-head comparison does
-not provide ancestry policy, model validity or read freshness; use a remembered anchor
-when opening. These are in-memory reference helpers, with no cross-process/provider
-atomicity claim. See [the storage contract](../../docs/concord/storage-boundary.md).
+A model is an `id`, a `version`, `initial()` and `reduce(state, event, { author, version })`.
+`reduce` is synchronous and pure. It receives frozen state and returns the next state;
+throwing rejects the event. An event is `{ type, data }` with JSON `data`.
 
-Immediate commits are the default. Pass `mode: "draft"` to create/open to stage
-application commands in memory. `draft()` returns `{ baseHead, entryCount, preview }`;
-subsequent commands decide against that preview. `state()`, `inspect()`, `export()`,
-`verify()` and `replay()` continue to describe committed history.
+An optional `squash(events)` may shorten a draft before it is signed. Concord replays both
+versions and fails the commit if the result differs, so squash never changes meaning.
 
-Call `commit({ message: "Group edits" })` to encrypt the staged events and create one
-signed commit, or `discardDraft()` to drop the preview. Genesis always commits
-immediately. Drafts are volatile and never included in exports. Failed dispatch or
-commit retains the previous committed state and any successful staged work for retry.
-Pending command intents stay in memory. Consumers choose immediate or draft authoring
-and own any autosave or recovery of unfinished work. Export and external storage
-contain committed history only; Concord has no draft persistence adapter or recovery
-format. See [the persistence decision](../../docs/adr/0019-keep-draft-persistence-with-consumers.md).
-A draft can batch several commands targeting different groups; each command still
-selects exactly one audience. Commit metadata is public and signed.
+Each group pins the model ID that created it, and each commit records the model version.
+A newer model must replay older events exactly; `version` lets `reduce` branch. `state`
+throws for a group with a different model or a newer version than yours.
 
-All mutation is serialized per handle, with complete candidate verification/replay
-before atomic publication. Read-only and inspection handles reject writes. Empty or
-immediate-mode `commit()` returns `NO_DRAFT`. Group/membership operations require an
-immediate-mode handle: on a draft handle they return `DRAFT_PENDING` when work is
-staged, otherwise `HOST_CONFIGURATION`. There is no implicit mode switch.
-The standard profile rejects unknown system events with `UNSUPPORTED_SYSTEM_EVENT`.
-Inspection marks other recipients' decryptability as `unverified`.
+## Document
 
-A command's optional `audience(input)` selects one group (default `document`) before
-its decision receives scoped facts. The model's `audience(event)` must return the
-same group for every emitted event and match signed envelopes during replay.
-A command cannot span audiences.
+| Member                                 | Meaning                                                                |
+| -------------------------------------- | ---------------------------------------------------------------------- |
+| `stage(event, { group? })`             | Adds an event to the draft after checking it with `reduce`             |
+| `commit()` / `discard()`               | Signs the draft as one commit / drops it                               |
+| `draft`                                | `{ group, events, state }` or `null`                                   |
+| `state(group?)`                        | A readable group's state; the default group when omitted               |
+| `groups`                               | Readable groups with their members and roles                           |
+| `rejected`                             | Commits with no effect, with `reason` `"authority"` or `"application"` |
+| `unreadable`                           | How many entries none of your keys open                                |
+| `head`, `export()`                     | The head commit ID and the document bytes                              |
+| `createGroup()`                        | A new group with you as its admin                                      |
+| `setMember(identity, { group, role })` | Adds a member or changes a role; admins only                           |
+| `removeMember(identity, { group })`    | Removes a member and rotates the group key; admins only                |
+| `rebase(remote, { published })`        | Reapplies your unpublished commits onto another copy                   |
 
-Models requiring all events remain locked when any event is unavailable. Opt into
-readable views with `reduceLocked(state, { audience, epoch }, facts)`. Ready states
-and `replay()` results both carry `coverage: "complete" | "readable"` and
-`lockedEntries`; `replay()` returns `{ projection, coverage, lockedEntries }`.
-Inspection exposes ordered readable/locked `entries` and public `audiences` after
-the complete system pass, including when subsequent model replay fails. Scoped
-coverage does not validate hidden application semantics.
+A draft belongs to one group. Group operations commit immediately and throw while a draft
+has events. Call `stage` then `commit` to write immediately. Errors are ordinary `Error`s.
 
-Protocol and semantic failures are separate. Invalid, locked, incompatible and stale
-imports remain exportable inspection evidence. Projection is derived; storage is not
-trust. Ready exports are canonical; inspection exports retain original bytes.
+## Groups
 
-The [protocol](../../docs/concord/alpha-protocol.md),
-[standard profile](../../docs/concord/standard-profile.md) and
-[conformance contract](../../docs/concord/conformance.md) define the current wire,
-authority, encryption and acceptance behavior. Git retains previous implementations.
+Genesis creates the default group with its creator as admin. Anyone who can add to the
+file can create a group and becomes its only admin. Roles are `member` (read and write) and
+`admin` (also manages members); a group always keeps one admin.
+
+Each group's state is built only from its own events, so every member of a group computes
+the same state whatever other groups they are in. A new member receives every past key and
+reads the whole history. Removing a member gives the group a new key for future events;
+they keep what they already had. Removal from the default group does not remove anyone from
+other groups. A removed member is not told: their copy shows the group as it was when they
+last could read it.
+
+## What Concord guarantees
+
+- Anyone holding the file can verify its history is intact and signed by the keys it names.
+- A group's members can check who was allowed to make each change in that group.
+- Readers with the same group history, keys and model compute the same state for it.
+
+A signed commit that breaks a group's rules stays in the history as evidence, changes
+nothing, and appears in `rejected`. A document whose history fails Ledger verification does
+not open.
+
+## What the raw file can reveal
+
+Without keys, someone holding the file can see each commit's signer key (so an author's
+activity is linkable), its claimed time, the shape of the history, how many entries each
+commit has, ciphertext sizes, and how many people a key was wrapped to. Those can hint at
+the kind and volume of activity. Group IDs, models, membership, roles, event types and data
+are encrypted.
+
+## Rebase
+
+Two copies that both moved on from the same head have diverged; Concord never merges them.
+`rebase(remote, { published })` takes the other copy and the last head you published. It
+re-signs your own later commits on top of the remote, checking each against the remote's
+current rules, and returns the commits that no longer apply. It throws rather than discard
+someone else's unpublished commits, and while a draft is open.
+
+## Limits
+
+Readers try every key they hold on every entry, because entries carry no group label. Opening
+took about 90 ms with 10 groups and 330 ms with 30 in a local measurement, growing with groups
+times entries. Storage, sync, group names and UI belong to the application.
+
+License: ISC.

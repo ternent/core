@@ -1,11 +1,10 @@
 {
   "name": "@ternent/seal",
   "version": "0.5.0",
-  "description": "Deterministic artifact signing for Seal",
+  "description": "Detached Ed25519 proofs over content hashes",
   "keywords": [
-    "cli",
     "integrity",
-    "manifest",
+    "proof",
     "seal",
     "signature"
   ],
@@ -19,11 +18,7 @@
     "url": "git+https://github.com/ternent/core.git",
     "directory": "packages/seal"
   },
-  "bin": {
-    "seal": "./bin/seal"
-  },
   "files": [
-    "bin",
     "dist",
     "README.md",
     "llms.txt"
@@ -37,26 +32,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./proof": {
-      "types": "./dist/proof.d.ts",
-      "import": "./dist/proof.js"
-    },
-    "./artifact": {
-      "types": "./dist/artifact.d.ts",
-      "import": "./dist/artifact.js"
-    },
-    "./manifest": {
-      "types": "./dist/manifest.d.ts",
-      "import": "./dist/manifest.js"
-    },
-    "./crypto": {
-      "types": "./dist/crypto.d.ts",
-      "import": "./dist/crypto.js"
-    },
-    "./errors": {
-      "types": "./dist/errors.d.ts",
-      "import": "./dist/errors.js"
     }
   },
   "publishConfig": {
@@ -72,7 +47,7 @@
     "check": "pnpm --filter @ternent/seal... run build && pnpm run fmt:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:artifact"
   },
   "dependencies": {
-    "@ternent/armour": "workspace:^",
+    "@scure/base": "2.4.0",
     "@ternent/identity": "workspace:^"
   },
   "devDependencies": {

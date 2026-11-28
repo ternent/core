@@ -7,7 +7,6 @@ node_modules
 *.d.ts.map
 *.css.map
 *.html.map
-*.vue.map
 *.scss.map
 *.sass.map
 *.less.map

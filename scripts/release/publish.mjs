@@ -29,9 +29,9 @@ function failure(error, code, message) {
 }
 
 /**
- * Publish verified retained bytes. Hooks are mandatory; no default can certify a seal or consumers.
- * Journal/receipts stay outside the signed bundle and remote truth is rechecked on every retry.
- * @param {{plan:ReleasePlan,directory:string,registry:RegistryAdapter,verifySeal:(plan:ReleasePlan)=>Promise<void>,verifyConsumers:(plan:ReleasePlan)=>Promise<void>,journalPath?:string,expectedSourceSha?:string,now?:Date,attempts?:number,wait?:(ms:number)=>Promise<void>}} options
+ * Publish verified retained bytes. The consumer hook is mandatory; no default can certify consumers.
+ * Journal/receipts stay outside the release bundle and remote truth is rechecked on every retry.
+ * @param {{plan:ReleasePlan,directory:string,registry:RegistryAdapter,verifyConsumers:(plan:ReleasePlan)=>Promise<void>,journalPath?:string,expectedSourceSha?:string,now?:Date,attempts?:number,wait?:(ms:number)=>Promise<void>}} options
  */
 async function publishVerifiedRelease(options) {
   const now = options.now ?? new Date(),
@@ -45,17 +45,10 @@ async function publishVerifiedRelease(options) {
   );
   const channel = plan.channel;
   requireThat(
-    typeof options.verifySeal === "function" && typeof options.verifyConsumers === "function",
+    typeof options.verifyConsumers === "function",
     "HOST_CONFIGURATION",
-    "Seal and published-consumer verification hooks are required",
+    "The published-consumer verification hook is required",
   );
-  try {
-    await options.verifySeal(plan);
-  } catch {
-    const error = new ReleaseError("SEAL_INVALID", "Release seal verification failed");
-    error.phase = "seal";
-    throw error;
-  }
   validatePlan(plan, { directory, now });
   if (!plan.packages.length)
     return {
@@ -91,7 +84,7 @@ async function publishVerifiedRelease(options) {
   requireThat(
     local === ".." || local.startsWith(`..${sep}`) || isAbsolute(local),
     "PATH_INVALID",
-    "Journal must stay outside the signed bundle",
+    "Journal must stay outside the release bundle",
   );
   /** @type {any} */
   const journal = existsSync(journalPath)
@@ -246,11 +239,6 @@ async function publishVerifiedRelease(options) {
     }
     // Recheck all retained bytes and registry versions after the external consumer hook.
     validatePlan(plan, { directory, now });
-    try {
-      await options.verifySeal(plan);
-    } catch {
-      throw new ReleaseError("SEAL_INVALID", "Release seal verification failed before promotion");
-    }
     for (const pkg of plan.packages)
       requireThat(
         await observed(pkg),

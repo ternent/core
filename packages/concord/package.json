@@ -1,7 +1,7 @@
 {
   "name": "@ternent/concord",
   "version": "0.3.0",
-  "description": "Command-driven developer runtime for building non-custodial apps on @ternent/ledger",
+  "description": "Shared, signed, partly private documents built from an application's events",
   "license": "ISC",
   "repository": {
     "type": "git",
@@ -22,18 +22,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./protocol": {
-      "types": "./dist/protocol/index.d.ts",
-      "import": "./dist/protocol/index.js"
-    },
-    "./system": {
-      "types": "./dist/system/index.d.ts",
-      "import": "./dist/system/index.js"
-    },
-    "./testing": {
-      "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.js"
     }
   },
   "publishConfig": {
@@ -49,9 +37,11 @@
     "check": "pnpm --filter @ternent/concord... run build && pnpm run fmt:check && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run check:artifact"
   },
   "dependencies": {
+    "@scure/base": "2.4.0",
     "@ternent/armour": "workspace:^",
     "@ternent/identity": "workspace:^",
-    "@ternent/ledger": "workspace:^"
+    "@ternent/ledger": "workspace:^",
+    "age-encryption": "0.3.1"
   },
   "devDependencies": {
     "typescript": "npm:@typescript/typescript6@6.0.2",

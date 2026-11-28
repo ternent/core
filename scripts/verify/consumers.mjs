@@ -231,7 +231,7 @@ try {
       type: "module",
       dependencies: { "@ternent/identity": "999999.0.0-b13" },
     });
-    put("probes/range-package/index.js", 'export { generateSigner } from "@ternent/identity";\n');
+    put("probes/range-package/index.js", 'export { createIdentity } from "@ternent/identity";\n');
     const probePack = JSON.parse(
       pnpm(
         ["pack", "--json", "--pack-destination", join(consumer, "probes")],
@@ -351,31 +351,10 @@ try {
   checks.push(
     `${publishedBundle ? "fresh public-registry" : "temporary-registry"} names/versions resolve without sibling overrides; registry tarball digests, locked SRI and every resolved candidate copy match the packed bytes`,
   );
-  for (const name of [
-    "owner.document.json",
-    "owner.expected.json",
-    "groups.removed.document.json",
-    "groups.readmitted.document.json",
-    "groups.expected.json",
-  ])
-    cpSync(resolve(root, "docs/concord/vectors", name), join(consumer, name));
-  cpSync(
-    resolve(root, "packages/ledger/test/vectors/signed-log.json"),
-    join(consumer, "ledger-signed-log.json"),
-  );
-  put("ledger.mjs", readFileSync(resolve(root, "scripts/verify/ledger-consumer.txt"), "utf8"));
-  put("payload.mjs", readFileSync(resolve(root, "scripts/verify/payload-consumer.txt"), "utf8"));
-  put("storage.mjs", readFileSync(resolve(root, "scripts/verify/storage-consumer.txt"), "utf8"));
-  put("groups.mjs", readFileSync(resolve(root, "scripts/verify/groups-consumer.txt"), "utf8"));
-  put("concord.mjs", readFileSync(resolve(root, "scripts/verify/concord-consumer.txt"), "utf8"));
-  put(
-    "primitives.mjs",
-    readFileSync(resolve(root, "scripts/verify/primitives-consumer.txt"), "utf8"),
-  );
-  put(
-    "protocol-isolation.mjs",
-    readFileSync(resolve(root, "scripts/verify/protocol-isolation.txt"), "utf8"),
-  );
+  cpSync(resolve(root, "packages/ledger/test/vectors.json"), join(consumer, "ledger-vector.json"));
+  cpSync(resolve(root, "packages/concord/test/vector.json"), join(consumer, "concord-vector.json"));
+  put("consumer.mjs", readFileSync(resolve(root, "scripts/verify/consumer.txt"), "utf8"));
+  put("isolation.mjs", readFileSync(resolve(root, "scripts/verify/isolation.txt"), "utf8"));
   const runtimes = [process.execPath];
   for (const major of [22, 24]) {
     const executable = process.env[`CONCORD_NODE${major}`];
@@ -396,33 +375,14 @@ try {
     .map((executable) => execFileSync(executable, ["--version"], { encoding: "utf8" }).trim())
     .join(", ");
   for (const executable of runtimes) {
-    console.log(execFileSync(executable, ["ledger.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["payload.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["primitives.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["concord.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["groups.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["storage.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(
-      execFileSync(executable, ["protocol-isolation.mjs"], { cwd: consumer, encoding: "utf8" }),
-    );
+    console.log(execFileSync(executable, ["consumer.mjs"], { cwd: consumer, encoding: "utf8" }));
+    for (const name of Object.keys(candidates))
+      console.log(
+        execFileSync(executable, ["isolation.mjs", name], { cwd: consumer, encoding: "utf8" }),
+      );
   }
   checks.push(
-    `Identity, Armour and all Concord subpaths: lifecycle, draft batching, signed metadata and fixed vectors on ${versions}; protocol import isolation`,
-  );
-  checks.push(
-    `Independent group saved vectors, readable coverage, scoped authoring and retryable cross-group draft commits on ${versions}`,
-  );
-  checks.push(
-    `Identity mnemonic/serialization/signing and init-free Armour helper contracts on ${versions}`,
-  );
-  checks.push(
-    `External artifact storage, expected-head conflicts, retained forks and committed-only draft publication on ${versions}`,
-  );
-  checks.push(
-    `Standalone Ledger lifecycle, fixed vectors, declarations and import isolation on ${versions}`,
-  );
-  checks.push(
-    `Optional Armour payload codec, keyless Ledger verification and locked/readable decoding on ${versions}`,
+    `Identity, Seal, Armour, Ledger and Concord behaviour, saved Ledger and Concord vectors, and import isolation on ${versions}`,
   );
   put("tsconfig.json", {
     compilerOptions: {
@@ -438,28 +398,9 @@ try {
       lib: ["ES2022", "DOM"],
       types: ["node", "vite-plus/client"],
     },
-    include: [
-      "concord-types.ts",
-      "primitives-types.ts",
-      "groups-types.ts",
-      "storage-types.ts",
-      "ledger-types.ts",
-      "src/**/*.ts",
-      "vite.config.ts",
-      "feedback.ts",
-    ],
+    include: ["types.ts", "src/**/*.ts", "vite.config.ts", "feedback.ts"],
   });
-  put("ledger-types.ts", readFileSync(resolve(root, "scripts/verify/ledger-types.txt"), "utf8"));
-  put("groups-types.ts", readFileSync(resolve(root, "scripts/verify/groups-types.txt"), "utf8"));
-  put("storage-types.ts", readFileSync(resolve(root, "scripts/verify/storage-types.txt"), "utf8"));
-  put(
-    "primitives-types.ts",
-    readFileSync(resolve(root, "scripts/verify/primitives-types.txt"), "utf8"),
-  );
-  put(
-    "concord-types.ts",
-    'import {createDocument,openDocument} from "@ternent/concord";\nimport {createStandardSystemProfile} from "@ternent/concord/system";\nimport {registerModel} from "@ternent/concord/testing";\nimport {generateIdentity} from "@ternent/armour";\nconst identity=await generateIdentity();if(!identity.ok)throw new Error();\nconst created=await createDocument({model:registerModel,system:createStandardSystemProfile(),identity:identity.value});if(!created.ok)throw new Error();\nawait created.value.dispatch("set",{value:"typed"});\n// @ts-expect-error unknown command names are rejected.\nawait created.value.dispatch("missing",{});\n// @ts-expect-error command payload types survive publishing.\nawait created.value.dispatch("set",{value:42});\nconst opened=await openDocument({bytes:created.value.export(),model:registerModel,system:createStandardSystemProfile(),signer:identity.value});\nawait opened.dispatch("set",{value:"typed"});\n// @ts-expect-error open retains model command types.\nawait opened.dispatch("set",{value:42});\n',
-  );
+  put("types.ts", readFileSync(resolve(root, "scripts/verify/types.txt"), "utf8"));
   put(
     "index.html",
     '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Library consumer verification</title></head><body><main id="app"></main><script type="module" src="/src/main.ts"></script></body></html>',
@@ -523,7 +464,7 @@ export default defineConfig({
       await page.screenshot({ path: resolve(root, "artifacts/browser.png") });
       await page.close();
       checks.push(
-        "Chromium: standalone Ledger, Armour codecs, encrypted Concord and independent groups, storage, drafts, production CSS and Vue render interaction",
+        "Chromium: Identity, Seal, Armour, Ledger and an encrypted Concord group, production CSS and Vue render interaction",
       );
     } finally {
       await app.close();

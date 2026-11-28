@@ -36,26 +36,18 @@ installed package's declarations when its tarball has no guide.
 
 ## Shared contracts
 
-Signed committed history is authoritative; projections are derived. Local commits and
-storage publication are separate. Staged Ledger entries and Concord drafts stay in
-memory. Private identity capabilities are held outside the document; the host owns
-identity persistence, recovery and synchronization.
+Signed history is authoritative; application state is derived by replaying it. Staged
+events stay in memory until committed. Identities are held by the application, which owns
+their persistence and recovery, along with storage and sync of document bytes.
 
-Use the owning library's verification and cryptography rather than implementing them
-in the application. Documents never load executable code: hosts select trusted models
-and system implementations. Treat inspection evidence separately from trusted state.
+Use the owning library's verification and cryptography rather than implementing them in
+the application. Documents never load code: the application supplies its model.
 
-Snapshots have one selected head. Compare equal/ahead/behind/diverged/unrelated; never
-silently choose or combine divergent history. A storage adapter may implement atomic
-expected-head publication. After an explicit rejected write, retain local bytes and
-command intents, reopen the accepted snapshot and reissue the intended command under
-current authority. Reissue can fail validation; retain the work for resolution. This
-is host behavior, not an automatic retry or merge method in Concord. No runtime
-`merge`, `push`, `pull`, checkpoint, draft persistence or model-upgrade API exists.
+Copies have one head. Compare equal, ahead, behind, diverged or unrelated; never silently
+choose or combine diverged history. Concord's `rebase` reapplies your own unpublished
+commits onto another copy and returns what no longer applies.
 
 ## Further reading
 
-- [Concord vocabulary](CONTEXT.md): document, commit, projection, capability and audience definitions.
-- [Storage contract](docs/concord/storage-boundary.md): publication, conflicts and freshness anchors.
-- [Protocol](docs/concord/alpha-protocol.md): specialist wire, signatures and canonicalization.
+- [Vocabulary](CONTEXT.md): history, commit, document, model, event, group and role definitions.
 - [Contributor instructions](AGENTS.md): repository maintenance rather than application usage.

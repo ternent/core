@@ -3,18 +3,18 @@
 Identity, encryption, signed documents and standalone proofs for software where
 the host owns its data and storage.
 
-| Package                                 | Responsibility                                                            |
-| --------------------------------------- | ------------------------------------------------------------------------- |
-| [Identity](packages/identity/README.md) | Seed identities, signatures, recovery and key derivation                  |
-| [Armour](packages/armour/README.md)     | age encryption through the TypeScript implementation, typage              |
-| [Ledger](packages/ledger/README.md)     | Standalone signed log, staging, commits, verification and replay          |
-| [Concord](packages/concord/README.md)   | Commands, authority, encrypted groups and application replay above Ledger |
-| [Seal](packages/seal/README.md)         | Detached Ed25519 proofs over a content hash                               |
+| Package                                 | Responsibility                                                        |
+| --------------------------------------- | --------------------------------------------------------------------- |
+| [Identity](packages/identity/README.md) | One Ed25519 identity: create, back up, recover, sign and verify       |
+| [Seal](packages/seal/README.md)         | Detached Ed25519 proofs over a content hash                           |
+| [Armour](packages/armour/README.md)     | age encryption for identities, group keys and passphrases             |
+| [Ledger](packages/ledger/README.md)     | Signed, append-only history of JSON entries, verified on open         |
+| [Concord](packages/concord/README.md)   | Shared documents of application events with private, encrypted groups |
 
 These five independently usable libraries are the active workspace and release
-scope. Ledger owns the common signed container and history lifecycle. Concord
-composes commands, authority and encryption above it. Staging is in memory;
-consumers choose commit cadence and own any draft persistence or recovery.
+scope. Ledger owns signed history, Seal signs each commit, Armour encrypts, and
+Concord builds shared documents with private groups on top. Applications own
+storage, sync and UI. [CONTEXT.md](CONTEXT.md) defines the vocabulary.
 
 Agents building applications should start with [llms.txt](llms.txt), which links
 to each package’s consumer interface guide and working examples.
@@ -33,19 +33,10 @@ Node/browser consumer. The temporary Vue browser consumer uses ordinary render
 functions and CSS. See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites and
 focused checks. A configured check is not a release receipt.
 
-`packages/` owns the libraries, `scripts/verify/` owns repository acceptance,
-and `docs/` owns contracts and decisions. Root Vite+ and TypeScript base configs
-share repository defaults; each package declares its own entries and outputs.
-There is no portable tooling product or maintained application in core. UI is
-outside this release under [ADR 0017](docs/adr/0017-drop-ui-from-the-library-release.md).
-Workspace remains deferred until the libraries are stable and substantial demos
-exist. Demos should consume published libraries from outside core.
-
-Start with the [project brief](docs/concord/context.md),
-[alpha architecture](docs/concord/alpha-architecture.md) and
-[repository guide](docs/engineering/repository-hygiene.md). Signed history is
-authoritative; projections are derived, and storage publication is a separate step.
-Candidate-registry checks and the release planner/publisher are implemented. The first registry-backed alpha is published; the [release record](docs/engineering/release-and-deployment.md)
-identifies its versions and acceptance evidence.
+`packages/` owns the libraries and `scripts/` owns repository acceptance and release.
+Each package's README describes its interface and guarantees, and its `CLAUDE.md` the
+rules for changing it. `docs/` holds earlier designs and decisions as history; where it
+disagrees with a package README, the README is current. Workspace and UI are outside
+the release.
 
 ISC licensed. See [LICENSE](LICENSE).

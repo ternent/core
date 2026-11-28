@@ -1,0 +1,28 @@
+import { readFileSync } from "node:fs";
+import { isBuiltin, registerHooks } from "node:module";
+
+// Imports one installed library with Node built-ins blocked, and lets each Ternent package
+// import only the Ternent packages it declares. A library that needs Node, or reaches past
+// its own dependencies, fails here.
+const name = process.argv[2];
+const declared = new Map();
+function dependenciesOf(packageUrl) {
+  if (!declared.has(packageUrl)) {
+    const manifest = JSON.parse(readFileSync(new URL(`${packageUrl}/package.json`), "utf8"));
+    declared.set(packageUrl, new Set(Object.keys(manifest.dependencies ?? {})));
+  }
+  return declared.get(packageUrl);
+}
+registerHooks({
+  resolve(specifier, context, next) {
+    if (isBuiltin(specifier)) throw new Error(`${name} loads a Node built-in: ${specifier}`);
+    const target = specifier.match(/^@ternent\/[^/]+/)?.[0];
+    const parent = context.parentURL?.match(/^(.*\/node_modules\/(@ternent\/[^/]+))\//);
+    if (target && parent && !dependenciesOf(parent[1]).has(target)) {
+      throw new Error(`${parent[2]} imports undeclared ${target}`);
+    }
+    return next(specifier, context);
+  },
+});
+await import(name);
+console.log(`${name} imports without Node built-ins or undeclared Ternent packages`);

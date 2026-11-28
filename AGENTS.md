@@ -44,63 +44,44 @@ repeatable, and useful to both people and agents.
 
 ## Project context
 
-For architecture or migration work, read [the project brief](docs/concord/context.md).
-The accepted clean-rebuild target is
-[the alpha architecture](docs/concord/alpha-architecture.md), and canonical domain
-language is in [CONTEXT.md](CONTEXT.md). When current packages or their specifications
-conflict with that target, treat them as legacy evidence rather than requirements.
-Inspect the relevant package README, SPEC, types, and tests for the task at hand.
-Existing package `CLAUDE.md` files also contain architecture guidance; read them
-when touching that package. They are legacy documentation, not a requirement to
-use Claude. Check stale names and contradictions against actual exports and the
-user's intended contract.
+Each package's README states its interface and guarantees, and its `CLAUDE.md` the rules
+for changing it; read both before touching a package. [CONTEXT.md](CONTEXT.md) holds the
+vocabulary. `docs/` holds earlier designs and decisions as history: where it disagrees
+with a package README or the exports, the package is current.
 
-Keep these target responsibilities distinct:
+Keep these responsibilities distinct:
 
-- Ledger: the standalone signed log, common container, canonicalization, identifiers,
-  signatures, entry staging, commit construction, verification and ordered replay.
-- Concord runtime: compose Ledger with commands, authority, encryption and two-stage
-  replay. Retain command-intent drafts and previews; delegate signed history to Ledger.
-- System extensions: identities, capabilities, audiences, key distribution, and
-  decryption.
-- Application models: typed commands, domain events, validation, and reducers.
-- Storage adapters: reading, writing, and any adapter-specific synchronization.
-- Identity, Armour, and Seal: independently usable identity, encryption, and proof
-  primitives.
-- Armour integration with Ledger: explicit payload codecs; keep recipients, keys
-  and decryption outside Ledger's container and history lifecycle.
-- Framework adapters and UI: consumers above the runtime.
+- Identity: one identity, its backup and recovery, exact-byte signing and verification.
+- Seal: a detached proof over a content hash.
+- Armour: age encryption for identities, native group keys and passphrases.
+- Ledger: signed history, canonical bytes, commit and entry IDs, staging, verification
+  and comparison.
+- Concord: groups, membership, key epochs, authority and per-group replay of an
+  application's events, built on the other four.
+- Applications: models, storage, sync, group names and UI.
 
-Do not put application policy into the Concord runtime or system extensions, or
-duplicate the owning layer's cryptography and verification in consumers.
+Do not put application policy into Concord, or duplicate the owning layer's
+cryptography and verification in a consumer.
 
 ## Contracts to preserve
 
-- Signed history is authoritative; projection is derived. Storage does not
-  make a document trustworthy.
-- Immediate commit is the default authoring mode. Draft mode may group several commands
-  into an explicit commit. Storage publication is a separate operation.
-- Staged entries and pending command intents stay in memory. Consumers choose commit
-  cadence and own any draft autosave or recovery; libraries exchange committed history.
-  See [the draft persistence decision](docs/adr/0019-keep-draft-persistence-with-consumers.md).
-- Commit identifiers and signatures bind the canonical unsigned commit subject,
-  including parent linkage and ordered entry identifiers.
-- Invalid reachable committed history cannot produce trusted runtime state.
-- Replay is deterministic for identical ordered entries, capabilities, and conforming
-  pure model implementations. Reissuing a command with fresh keys or timestamps is not
-  replaying the same input.
-- System replay establishes authority and decryptability before application replay.
-  Publish state only after a successful complete pass.
-- Partial replay is not authoritative full reconstruction without genesis or
-  a valid checkpoint. Preserve read-only runtime behavior.
-- Bind actor claims to the signer. Keep historical grants distinct from active
-  membership; revocation cannot erase keys or plaintext already obtained.
-- A document snapshot has one selected head. Classify two snapshots as equal, ahead,
-  behind, or diverged; never silently combine or choose between divergent histories.
-  Alpha does not merge divergent histories. Retain both, ask a person to select one, or
-  author a new document that references both source heads.
-- Integrity does not establish freshness or completeness. Detect rollback or withholding
-  only against a remembered head or another external freshness anchor.
+- Signed history is authoritative; state is derived. Storage does not make a document
+  trustworthy.
+- Authoring is `stage` then `commit`; there is no immediate mode. Staged events stay in
+  memory, and applications own any draft recovery. Storage publication is separate.
+- Commit IDs and signatures bind the canonical commit body, its parent and its entries.
+- History that fails Ledger verification does not open.
+- A group's validity depends only on that group's history, so its members agree on its
+  state whatever else they can read. Enforce only rules the affected readers can verify.
+- Authority is checked before the model's `reduce`. A signed commit that fails either is
+  kept as evidence and changes nothing.
+- A key gains authority only through an accepted membership record.
+- Adding a member reveals the group's whole history; removal protects only future events.
+- Copies have one head and are compared, never silently merged. Rebase reapplies only
+  this identity's unpublished commits and returns what no longer applies.
+- Integrity does not establish freshness. Detect rollback or withholding only against a
+  remembered head.
+- State what the raw file can reveal, and claim no privacy beyond it.
 
 ## Verification and delivery
 
@@ -112,8 +93,8 @@ duplicate the owning layer's cryptography and verification in consumers.
 - For package or build changes, verify built public imports, declaration output,
   and dependency wiring as well as source tests. A successful build is insufficient
   evidence that a consumer can import the package.
-- For persistence changes, check reopen, staged-state handling, and the affected
-  failure or conflict paths. Run applicable type checks and builds.
+- For format changes, check reopen, the saved vectors and the affected failure paths.
+  Run applicable type checks and builds.
 - Report passing checks, existing failures, introduced failures, and unverified
   behavior separately. Do not weaken assertions to make a failure disappear.
 - Keep comments about local rationale. Put change history in the delivery report.

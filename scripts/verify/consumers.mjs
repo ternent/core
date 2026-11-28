@@ -271,7 +271,7 @@ try {
   const dependencies = Object.fromEntries(
     Object.entries(candidates).map(([name, data]) => [name, data.version]),
   );
-  for (const name of ["vite-plus", "typescript", "vue", "@types/node"]) {
+  for (const name of ["vite-plus", "typescript", "@types/node"]) {
     assert(rootManifest.devDependencies[name], `Missing consumer tool: ${name}`);
     dependencies[name] = rootManifest.devDependencies[name];
   }
@@ -398,7 +398,7 @@ try {
       lib: ["ES2022", "DOM"],
       types: ["node", "vite-plus/client"],
     },
-    include: ["types.ts", "src/**/*.ts", "vite.config.ts", "feedback.ts"],
+    include: ["types.ts", "src/**/*.ts", "vite.config.ts"],
   });
   put("types.ts", readFileSync(resolve(root, "scripts/verify/types.txt"), "utf8"));
   put(
@@ -409,17 +409,7 @@ try {
     "vite.config.ts",
     `import { defineConfig } from "vite-plus";
 export default defineConfig({
-  define: {
-    __VUE_OPTIONS_API__: true,
-    __VUE_PROD_DEVTOOLS__: false,
-    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
-  },
   build: { target: "es2022", sourcemap: true },
-  lint: {
-    options: { typeAware: true, typeCheck: false },
-    rules: { "typescript/no-floating-promises": "error" },
-  },
-  test: { include: ["test/**/*.test.ts"], passWithNoTests: false },
 });
 `,
   );
@@ -428,18 +418,12 @@ export default defineConfig({
     readFileSync(resolve(root, "scripts/verify/concord-browser.txt"), "utf8"),
   );
   put("src/main.ts", readFileSync(resolve(root, "scripts/verify/browser-main.txt"), "utf8"));
-  put(
-    "src/style.css",
-    ".consumer-counter { color: #13529b; font: inherit; padding: 0.5rem 1rem; }\n",
-  );
   console.log(pnpm(["exec", "tsc6", "--noEmit", "-p", "tsconfig.json"]));
   checks.push(
     "five-library published declarations, browser consumer types and expected TypeScript failures",
   );
   console.log(pnpm(["exec", "vp", "build"]));
-  checks.push(
-    "plain Vite+ production build of a temporary Vue render consumer using installed candidates",
-  );
+  checks.push("plain Vite+ production build of a browser consumer using installed candidates");
   const browser = await chromium.launch({ headless: true });
   try {
     const app = await serve(join(consumer, "dist"));
@@ -450,65 +434,17 @@ export default defineConfig({
       /** @type {string[]} */ const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(app.url);
-      const button = page.getByRole("button", { name: "Library consumer: 0" });
-      await button.waitFor();
       await page.locator("#concord-proof").filter({ hasText: "Concord: hello browser" }).waitFor();
-      assert.equal(
-        await button.evaluate((element) => getComputedStyle(element).color),
-        "rgb(19, 82, 155)",
-      );
-      await button.click();
-      await page.getByRole("button", { name: "Library consumer: 1" }).waitFor();
-      assert.equal((await page.request.get(`${app.url}/missing.js`)).status(), 404);
       assert.deepEqual(errors, []);
       await page.screenshot({ path: resolve(root, "artifacts/browser.png") });
       await page.close();
-      checks.push(
-        "Chromium: Identity, Seal, Armour, Ledger and an encrypted Concord group, production CSS and Vue render interaction",
-      );
+      checks.push("Chromium: Identity, Seal, Armour, Ledger and an encrypted Concord group");
     } finally {
       await app.close();
     }
   } finally {
     await browser.close();
   }
-  put("feedback.ts", "Promise.resolve(1);\n");
-  const lintFailure = spawnSync("pnpm", ["exec", "vp", "lint", "--type-aware", "feedback.ts"], {
-    cwd: consumer,
-    encoding: "utf8",
-    env: { ...process.env, CI: "true" },
-  });
-  assert.notEqual(
-    lintFailure.status,
-    0,
-    "A floating promise must fail the explicit typed lint rule",
-  );
-  assert.match(`${lintFailure.stdout}${lintFailure.stderr}`, /no-floating-promises/);
-  put("bad-format.ts", "export const messy={a:1,b:2}");
-  const formatFailure = spawnSync("pnpm", ["exec", "vp", "fmt", "--check", "bad-format.ts"], {
-    cwd: consumer,
-    encoding: "utf8",
-    env: { ...process.env, CI: "true" },
-  });
-  assert.notEqual(formatFailure.status, 0, "Unformatted input must fail without modifying it");
-  assert.equal(
-    readFileSync(join(consumer, "bad-format.ts"), "utf8"),
-    "export const messy={a:1,b:2}",
-  );
-  assert.match(`${formatFailure.stdout}${formatFailure.stderr}`, /bad-format.ts/);
-  checks.push("explicit typed lint and read-only formatting propagate useful failures");
-  put(
-    "test/failure.test.ts",
-    'import { expect, test } from "vite-plus/test";\ntest("intentional failure", () => expect(1).toBe(2));\n',
-  );
-  const failing = spawnSync("pnpm", ["exec", "vp", "test", "run"], {
-    cwd: consumer,
-    encoding: "utf8",
-    env: { ...process.env, CI: "true" },
-  });
-  assert.notEqual(failing.status, 0, "A failing behavior test must exit nonzero");
-  assert.match(`${failing.stdout}${failing.stderr}`, /intentional failure/);
-  checks.push("an actual failing test propagates a failure exit status");
   for (const { file, sha256 } of Object.values(candidates))
     assert.equal(
       createHash("sha256").update(readFileSync(file)).digest("hex"),

@@ -6,8 +6,7 @@ independent of work-specific agents, services, credentials, and workflows.
 
 ## Developer archetype: the toolchain engineer
 
-Adopt the [toolchain engineer profile](docs/engineering/developer-archetype.md).
-Treat the development feedback loop as part of the product: make checks fast,
+Work as a toolchain engineer. Treat the development feedback loop as part of the product: make checks fast,
 repeatable, and useful to both people and agents.
 
 - Prefer Oxfmt for formatting and Oxlint for JavaScript/TypeScript linting.
@@ -46,8 +45,7 @@ repeatable, and useful to both people and agents.
 
 Each package's README states its interface and guarantees, and its `CLAUDE.md` the rules
 for changing it; read both before touching a package. [CONTEXT.md](CONTEXT.md) holds the
-vocabulary. `docs/` holds earlier designs and decisions as history: where it disagrees
-with a package README or the exports, the package is current.
+vocabulary.
 
 Keep these responsibilities distinct:
 

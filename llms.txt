@@ -11,9 +11,7 @@
 - [Armour](packages/armour/llms.txt): encrypt and decrypt bytes with age for identities, groups and passphrases.
 - [Seal](packages/seal/llms.txt): sign and verify a detached proof over any bytes' hash.
 
-The active libraries are exactly the five above. Workspace and UI are outside this
-release, and Utils is retired. Use the published
-exports rather than historical workspace runtime/plugin examples.
+The active libraries are exactly the five above. Use their published exports.
 
 ## Installation and source of truth
 

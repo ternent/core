@@ -29,14 +29,11 @@ pnpm check
 
 The acceptance gate checks contracts, formatting, builds, lint, types and behavior,
 then validates exact tarballs with publint and installs them in an isolated
-Node/browser consumer. The temporary Vue browser consumer uses ordinary render
-functions and CSS. See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites and
+Node/browser consumer. See [CONTRIBUTING.md](CONTRIBUTING.md) for prerequisites and
 focused checks. A configured check is not a release receipt.
 
 `packages/` owns the libraries and `scripts/` owns repository acceptance and release.
 Each package's README describes its interface and guarantees, and its `CLAUDE.md` the
-rules for changing it. `docs/` holds earlier designs and decisions as history; where it
-disagrees with a package README, the README is current. Workspace and UI are outside
-the release.
+rules for changing it.
 
 ISC licensed. See [LICENSE](LICENSE).

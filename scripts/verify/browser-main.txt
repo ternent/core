@@ -1,22 +1,3 @@
-import { createApp, h, ref } from "vue";
-import "./style.css";
 import { proveConcord } from "./concord-proof.js";
 
-createApp({
-  setup() {
-    const count = ref(0);
-    return () =>
-      h(
-        "button",
-        {
-          type: "button",
-          class: "consumer-counter",
-          onClick: () => {
-            count.value++;
-          },
-        },
-        `Library consumer: ${count.value}`,
-      );
-  },
-}).mount("#app");
 void proveConcord();

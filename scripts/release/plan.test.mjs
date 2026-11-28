@@ -43,7 +43,7 @@ await test("planner freezes all five exact bytes, orders dependencies and binds 
   assert(!JSON.stringify(plan).includes("@ternent/private"));
 });
 
-await test("no intent is an explicit no-op while the signed bundle still carries all five candidates", (t) => {
+await test("no intent is an explicit no-op while the bundle still carries all five candidates", (t) => {
   const f = setup(t, { intent: false });
   const { status, plan } = createPlan(f.planOptions);
   assert.equal(status, "noop");

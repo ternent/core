@@ -9,10 +9,10 @@
 - [Ledger](packages/ledger/llms.txt): a signed, append-only history of JSON entries, verified on open, without Concord's application or permission rules.
 - [Identity](packages/identity/llms.txt): create, back up, restore or recover one identity; sign and verify bytes.
 - [Armour](packages/armour/llms.txt): encrypt and decrypt bytes with age for identities, groups and passphrases.
-- [Seal](packages/seal/llms.txt): sign and verify a detached proof over any bytes' hash; use the Node CLI.
+- [Seal](packages/seal/llms.txt): sign and verify a detached proof over any bytes' hash.
 
 The active libraries are exactly the five above. Workspace and UI are outside this
-release, and Utils and separate Seal CLI packages are retired. Use the published
+release, and Utils is retired. Use the published
 exports rather than historical workspace runtime/plugin examples.
 
 ## Installation and source of truth
@@ -23,8 +23,7 @@ before installing from an unreleased checkout, and commit the consumer lockfile.
 Install only the libraries the application uses. An unqualified package install selects
 npm's `latest` tag; `@next` selects the preview channel. Dist-tags and version stability
 are separate: check the resolved version, including any prerelease suffix, in the
-consumer lockfile. Libraries support Node 22.18+ and modern browsers; Seal’s CLI
-and filesystem operations require Node. Core development uses its own pinned toolchain.
+consumer lockfile. Libraries support Node 22.18+ and modern browsers. Core development uses its own pinned toolchain.
 
 The package guides link to their public README and declarations. The published
 `dist/*.d.ts` files define the installed interface; do not infer APIs from old examples

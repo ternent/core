@@ -1,19 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { fixture } from "./fixtures.mjs";
 import { createPlan } from "./plan.mjs";
-import { captureTools } from "./flow.mjs";
 import { sha256, writeJson } from "./shared.mjs";
 
 await test("release entrypoint rejects uncommitted intent and local publication", (t) => {
@@ -85,7 +77,6 @@ await test("production entrypoint records the origin and preserves candidates th
   }
   const directory = join(f.root, "artifacts/release");
   const { plan } = createPlan({ ...f.planOptions, sourceSha, directory, now: new Date() });
-  captureTools(process.cwd(), directory);
   const before = plan.packages.map((pkg) => sha256(readFileSync(join(directory, pkg.tarball))));
   const bin = join(f.root, "bin");
   mkdirSync(bin);

@@ -3,11 +3,9 @@ import {
   appendFileSync,
   cpSync,
   existsSync,
-  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -18,7 +16,6 @@ import { packageNames, requireThat, sha256, validateChannel } from "./shared.mjs
 
 const repository = "ternent/core";
 const apiRoot = `repos/${repository}`;
-const toolPackages = ["identity", "armour", "seal"];
 /** @typedef {{sourceSha:string,runId:number,artifactId:number,artifactDigest:string,requestedReleaseId:string}} Selection */
 /** @param {unknown} value */
 function identifier(value) {
@@ -212,49 +209,6 @@ export async function extractArtifact({ id, digest, directory, readArchive }) {
     writeFileSync(file, bytes, { flag: "wx" });
   }
 }
-/** @param {string} directory */
-function regularTree(directory) {
-  requireThat(
-    lstatSync(directory).isDirectory() && !lstatSync(directory).isSymbolicLink(),
-    "PATH_INVALID",
-    "Expected a regular tools directory",
-  );
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    requireThat(
-      !entry.isSymbolicLink() && (entry.isFile() || entry.isDirectory()),
-      "PATH_INVALID",
-      "Tools must contain regular files only",
-    );
-    if (entry.isDirectory()) regularTree(join(directory, entry.name));
-  }
-}
-/** Preserve the already-built verifier; no build/repack runs in the publisher.
- * @param {string} root @param {string} bundle
- */
-export function captureTools(root, bundle) {
-  for (const name of toolPackages) {
-    const source = join(root, "packages", name, "dist"),
-      target = join(bundle, "tools/packages", name, "dist");
-    regularTree(source);
-    requireThat(!existsSync(target), "ARTIFACT_EXISTS", "Verifier tools already captured");
-    cpSync(source, target, { recursive: true });
-  }
-}
-/** @param {string} root @param {string} bundle */
-export function restoreTools(root, bundle) {
-  for (const name of toolPackages) {
-    const source = join(bundle, "tools/packages", name, "dist"),
-      target = join(root, "packages", name, "dist");
-    requireThat(
-      existsSync(join(source, "index.js")),
-      "ARTIFACT_MISSING",
-      "Verified CLI tools were not retained",
-    );
-    regularTree(source);
-    rmSync(target, { recursive: true, force: true });
-    cpSync(source, target, { recursive: true });
-  }
-}
 /** @param {Selection} selection @param {any} plan */
 function bindPlan(selection, plan) {
   requireThat(
@@ -371,7 +325,6 @@ export async function stageRelease({ root, selection, resumeRunId, api = github,
       writeFileSync(join(root, "artifacts/release-receipt.json"), `${JSON.stringify(receipt)}\n`);
     }
     writeFileSync(join(root, "artifacts/release-origin.json"), `${JSON.stringify(handoff)}\n`);
-    restoreTools(root, directory);
     return { releaseId: plan.releaseId, resumed: Boolean(receipt) };
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -390,8 +343,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const command = process.argv[2],
       root = process.cwd();
-    if (command === "capture-tools") captureTools(root, resolve("artifacts/release"));
-    else if (command === "version-needed") {
+    if (command === "version-needed") {
       const temporary = mkdtempSync(join(tmpdir(), "ternent-changesets-status-"));
       try {
         const file = join(temporary, "status.json");
@@ -460,7 +412,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         outputs({
           "release-id": staged.releaseId,
           resumed: String(staged.resumed),
-          node: process.execPath,
         });
       }
     } else if (command === "collect") {

@@ -1,7 +1,7 @@
 # Working on Seal
 
-Seal is three functions and a two-command CLI. `src/index.ts` is the library and must
-stay browser-safe; `src/cli.ts` is the only Node code. Keep it that small.
+Seal is three functions in `src/index.ts`. It runs in browsers and Node and has no
+Node-only code. Keep it that small.
 
 ## What Seal owns
 

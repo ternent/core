@@ -46,15 +46,4 @@ The signature covers `UTF8("ternent-seal/v1") || 0x00 || JSON` of every field ex
 exactly these fields, a millisecond UTC `createdAt` and canonical unpadded base64url.
 `createdAt` is the signer's claim, not evidence of time.
 
-## CLI
-
-```sh
-SEAL_IDENTITY_FILE=identity.json seal sign --input release-manifest.json --out proof.json
-seal verify --proof proof.json --input release-manifest.json
-```
-
-`sign` reads an Identity backup from `SEAL_IDENTITY_FILE` and prints the proof
-unless `--out` is given. `verify` prints `{ valid, signatureValid, hashMatch }`.
-Exit codes: 0 success, 1 error, 2 invalid proof.
-
 License: ISC.

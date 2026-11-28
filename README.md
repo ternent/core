@@ -9,7 +9,7 @@ the host owns its data and storage.
 | [Armour](packages/armour/README.md)     | age encryption through the TypeScript implementation, typage              |
 | [Ledger](packages/ledger/README.md)     | Standalone signed log, staging, commits, verification and replay          |
 | [Concord](packages/concord/README.md)   | Commands, authority, encrypted groups and application replay above Ledger |
-| [Seal](packages/seal/README.md)         | Standalone proofs, encrypted artifacts, manifests and a Node CLI          |
+| [Seal](packages/seal/README.md)         | Detached Ed25519 proofs over a content hash                               |
 
 These five independently usable libraries are the active workspace and release
 scope. Ledger owns the common signed container and history lifecycle. Concord
@@ -45,8 +45,7 @@ Start with the [project brief](docs/concord/context.md),
 [alpha architecture](docs/concord/alpha-architecture.md) and
 [repository guide](docs/engineering/repository-hygiene.md). Signed history is
 authoritative; projections are derived, and storage publication is a separate step.
-Candidate-registry checks and the release planner/publisher are implemented. CI
-exercises Seal proofs over retained candidate bundles. The first registry-backed alpha is published; the [release record](docs/engineering/release-and-deployment.md)
+Candidate-registry checks and the release planner/publisher are implemented. The first registry-backed alpha is published; the [release record](docs/engineering/release-and-deployment.md)
 identifies its versions and acceptance evidence.
 
 ISC licensed. See [LICENSE](LICENSE).

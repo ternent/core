@@ -30,7 +30,7 @@ function failure(error, code, message) {
 
 /**
  * Publish verified retained bytes. The consumer hook is mandatory; no default can certify consumers.
- * Journal/receipts stay outside the signed bundle and remote truth is rechecked on every retry.
+ * Journal/receipts stay outside the release bundle and remote truth is rechecked on every retry.
  * @param {{plan:ReleasePlan,directory:string,registry:RegistryAdapter,verifyConsumers:(plan:ReleasePlan)=>Promise<void>,journalPath?:string,expectedSourceSha?:string,now?:Date,attempts?:number,wait?:(ms:number)=>Promise<void>}} options
  */
 async function publishVerifiedRelease(options) {
@@ -84,7 +84,7 @@ async function publishVerifiedRelease(options) {
   requireThat(
     local === ".." || local.startsWith(`..${sep}`) || isAbsolute(local),
     "PATH_INVALID",
-    "Journal must stay outside the signed bundle",
+    "Journal must stay outside the release bundle",
   );
   /** @type {any} */
   const journal = existsSync(journalPath)

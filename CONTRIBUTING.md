@@ -26,7 +26,7 @@ tests also need `age` 1.3.1; CI installs its checksum-verified official binary.
 | `pnpm --filter @ternent/concord check` | Build that package and its dependencies, then run its checks |
 | `pnpm check:artifact`                  | Exact packed consumers; requires built outputs and Chromium  |
 | `pnpm check`                           | Complete acceptance gate                                     |
-| `pnpm test:release`                    | Release plan, retry, integrity and Seal trust tests          |
+| `pnpm test:release`                    | Release plan, retry and integrity tests                      |
 | `pnpm release:version`                 | Review registry history, apply Changesets and record intent  |
 | `pnpm release:plan`                    | Freeze accepted tarballs and reports from committed source   |
 
@@ -66,8 +66,7 @@ of creating legacy archives; Git keeps history. UI and Workspace remain excluded
 See the [repository guide](docs/engineering/repository-hygiene.md) for ownership
 and check boundaries.
 
-The read-only CI workflow verifies candidates and exercises the pinned Seal Action
-on a retained release bundle with a disposable test identity. Separate version-PR
+The read-only CI workflow verifies candidates and retains a release bundle. Separate version-PR
 and production release workflows require explicit account setup and enablement.
 Review their [release contract and setup](docs/engineering/release-and-deployment.md)
 before enabling them. Public-registry acceptance remains outstanding; no workflow

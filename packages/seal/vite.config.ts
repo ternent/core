@@ -5,7 +5,6 @@ export default defineConfig({
   ...base,
   pack: {
     ...base.pack,
-    platform: "node",
-    entry: { index: "src/index.ts", cli: "src/cli.ts" },
+    entry: { index: "src/index.ts" },
   },
 });

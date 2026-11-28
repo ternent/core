@@ -303,7 +303,7 @@ await test("retry rejects a newer channel before writes even with a saved earlie
   assert(!f.calls.some((call) => writes.has(call[0])));
 });
 
-await test("failure context is structured and journals cannot be placed in the signed bundle", async (t) => {
+await test("failure context is structured and journals cannot be placed in the release bundle", async (t) => {
   const f = setup(t);
   f.registry.publish = async () => {
     throw Error("secret host detail");

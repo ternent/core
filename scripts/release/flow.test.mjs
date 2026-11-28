@@ -5,13 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { zipSync, strToU8 } from "fflate";
-import {
-  captureTools,
-  extractArtifact,
-  restoreTools,
-  selectRelease,
-  stageRelease,
-} from "./flow.mjs";
+import { extractArtifact, selectRelease, stageRelease } from "./flow.mjs";
 import { packageNames, sha256 } from "./shared.mjs";
 import { fixture } from "./fixtures.mjs";
 
@@ -55,11 +49,7 @@ function producerArchive() {
   return zipSync(
     Object.fromEntries([
       entry("release/release-plan.json", JSON.stringify(plan)),
-      entry("release/release-proof.json", "producer proof"),
       entry("release/candidates/candidate.tgz", "immutable candidate"),
-      ...["identity", "armour", "seal"].map((name) =>
-        entry(`release/tools/packages/${name}/dist/index.js`, "export const verified = true;"),
-      ),
     ]),
   );
 }
@@ -251,7 +241,7 @@ await test("archive digest and paths are checked before extraction; unsafe entri
   assert.equal(readFileSync(join(root, "good/release/plan.json"), "utf8"), "checked");
 });
 
-await test("staging restores captured verifier files without building or changing candidate bytes", async (t) => {
+await test("staging keeps candidate bytes and records the producer origin", async (t) => {
   const root = temporary(t),
     archive = producerArchive(),
     f = responses(archive);
@@ -267,10 +257,6 @@ await test("staging restores captured verifier files without building or changin
   assert.equal(
     readFileSync(join(root, "artifacts/release/candidates/candidate.tgz"), "utf8"),
     "immutable candidate",
-  );
-  assert.equal(
-    readFileSync(join(root, "packages/seal/dist/index.js"), "utf8"),
-    "export const verified = true;",
   );
   assert.equal(
     JSON.parse(readFileSync(join(root, "artifacts/release-origin.json"), "utf8")).sourceSha,
@@ -292,10 +278,10 @@ await test("a requested release ID cannot select another plan even from an other
     () => stageRelease({ root, selection, api: f.api, readArchive: async () => archive }),
     /selected source\/release/,
   );
-  assert(!existsSync(join(root, "packages/seal/dist/index.js")));
+  assert(!existsSync(join(root, "artifacts/release-origin.json")));
 });
 
-await test("retry handoff retains the existing signed bundle and publication journal", async (t) => {
+await test("retry handoff retains the existing bundle and publication journal", async (t) => {
   const root = temporary(t),
     archive = producerArchive(),
     f = responses(archive);
@@ -318,14 +304,11 @@ await test("retry handoff retains the existing signed bundle and publication jou
   const prior = zipSync(
     Object.fromEntries([
       entry("release/release-plan.json", JSON.stringify(priorPlan)),
-      entry("release/release-proof.json", "unchanged production proof"),
+      entry("release/retained.txt", "unchanged prior bundle file"),
       entry("release/release-origin.json", JSON.stringify(handoff)),
       entry(
         "release-receipt.json",
         JSON.stringify({ sourceSha, releaseId, status: "incomplete", attempt: 1 }),
-      ),
-      ...["identity", "armour", "seal"].map((name) =>
-        entry(`release/tools/packages/${name}/dist/index.js`, "export const verified = true;"),
       ),
     ]),
   );
@@ -361,8 +344,8 @@ await test("retry handoff retains the existing signed bundle and publication jou
   });
   assert.equal(result.resumed, true);
   assert.equal(
-    readFileSync(join(root, "artifacts/release/release-proof.json"), "utf8"),
-    "unchanged production proof",
+    readFileSync(join(root, "artifacts/release/retained.txt"), "utf8"),
+    "unchanged prior bundle file",
   );
   assert.equal(
     JSON.parse(readFileSync(join(root, "artifacts/release-receipt.json"), "utf8")).attempt,
@@ -379,21 +362,6 @@ await test("retry handoff retains the existing signed bundle and publication jou
         readArchive: async () => archive,
       }),
     /main workflows/,
-  );
-});
-
-await test("captured tools are separate from tarballs and restoring them never invokes a builder", (t) => {
-  const root = temporary(t),
-    bundle = join(root, "bundle");
-  mkdirSync(bundle);
-  for (const name of ["identity", "armour", "seal"])
-    put(join(root, "packages", name, "dist/index.js"), "original verifier");
-  captureTools(root, bundle);
-  put(join(root, "packages/seal/dist/index.js"), "changed local file");
-  restoreTools(root, bundle);
-  assert.equal(
-    readFileSync(join(root, "packages/seal/dist/index.js"), "utf8"),
-    "original verifier",
   );
 });
 

@@ -1,9 +1,3 @@
-import { verifySealProofAgainstBytes, type SealProofV2 } from "@ternent/seal/proof";
-import {
-  createSealArtifact,
-  verifySealArtifact,
-  decryptSealArtifactPayload,
-} from "@ternent/seal/artifact";
 import {
   createDocument,
   openDocument,
@@ -237,24 +231,6 @@ export async function proveConcord() {
     storedDocument.draft() !== null
   )
     throw new Error("browser stored snapshot reopen failed");
-  const sealFixture: { proof: SealProofV2; contentUtf8: string; identity: typeof hostIdentity } =
-    await (await fetch("/seal-proof.v2.json")).json();
-  const sealBytes = new TextEncoder().encode(sealFixture.contentUtf8);
-  if (!(await verifySealProofAgainstBytes(sealFixture.proof, sealBytes)).valid)
-    throw new Error("browser fixed Seal proof failed");
-  const sealed = await createSealArtifact({
-    signer: { identity: sealFixture.identity },
-    subjectPath: "browser.txt",
-    payload: sealBytes,
-    recipients: [await recipientFromIdentity(hostIdentity)],
-  });
-  const openedSeal = await decryptSealArtifactPayload({ artifact: sealed, identity: hostIdentity });
-  if (
-    !(await verifySealArtifact(sealed)).valid ||
-    openedSeal.length !== sealBytes.length ||
-    !openedSeal.every((byte, index) => byte === sealBytes[index])
-  )
-    throw new Error("browser Seal artifact roundtrip failed");
   const output = document.createElement("output");
   output.id = "concord-proof";
   output.textContent = "Concord: hello browser";

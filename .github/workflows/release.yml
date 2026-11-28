@@ -102,7 +102,7 @@ jobs:
           pnpm install --frozen-lockfile --ignore-scripts
           npm install --global npm@12.2.3 --ignore-scripts --registry=https://registry.npmjs.org/
       - run: pnpm exec playwright install --with-deps chromium
-      - name: Validate producer, download exact artifact and restore verifier tools
+      - name: Validate producer and download the exact artifact
         id: bundle
         run: node scripts/release/flow.mjs stage
       - name: Validate committed intent, source binding and retained bundle

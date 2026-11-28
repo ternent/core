@@ -3,7 +3,6 @@
   "version": "0.5.0",
   "description": "Detached Ed25519 proofs over content hashes",
   "keywords": [
-    "cli",
     "integrity",
     "proof",
     "seal",
@@ -19,11 +18,7 @@
     "url": "git+https://github.com/ternent/core.git",
     "directory": "packages/seal"
   },
-  "bin": {
-    "seal": "./bin/seal"
-  },
   "files": [
-    "bin",
     "dist",
     "README.md",
     "llms.txt"

@@ -61,8 +61,6 @@ jobs:
         run: pnpm check
       - name: Freeze the accepted release candidate bundle
         run: node scripts/release/cli.mjs verification-plan
-      - name: Retain the built release verifier tools
-        run: node scripts/release/flow.mjs capture-tools
       - name: Retain acceptance evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

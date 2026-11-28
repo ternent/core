@@ -359,18 +359,12 @@ try {
     "groups.expected.json",
   ])
     cpSync(resolve(root, "docs/concord/vectors", name), join(consumer, name));
-  cpSync(resolve(root, "docs/seal/vectors/proof.v2.json"), join(consumer, "seal-proof.v2.json"));
   cpSync(
     resolve(root, "packages/ledger/test/vectors/signed-log.json"),
     join(consumer, "ledger-signed-log.json"),
   );
   put("ledger.mjs", readFileSync(resolve(root, "scripts/verify/ledger-consumer.txt"), "utf8"));
   put("payload.mjs", readFileSync(resolve(root, "scripts/verify/payload-consumer.txt"), "utf8"));
-  put("seal.mjs", readFileSync(resolve(root, "scripts/verify/seal-consumer.txt"), "utf8"));
-  put(
-    "seal-isolation.mjs",
-    readFileSync(resolve(root, "scripts/verify/seal-isolation.txt"), "utf8"),
-  );
   put("storage.mjs", readFileSync(resolve(root, "scripts/verify/storage-consumer.txt"), "utf8"));
   put("groups.mjs", readFileSync(resolve(root, "scripts/verify/groups-consumer.txt"), "utf8"));
   put("concord.mjs", readFileSync(resolve(root, "scripts/verify/concord-consumer.txt"), "utf8"));
@@ -408,10 +402,6 @@ try {
     console.log(execFileSync(executable, ["concord.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["groups.mjs"], { cwd: consumer, encoding: "utf8" }));
     console.log(execFileSync(executable, ["storage.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(execFileSync(executable, ["seal.mjs"], { cwd: consumer, encoding: "utf8" }));
-    console.log(
-      execFileSync(executable, ["seal-isolation.mjs"], { cwd: consumer, encoding: "utf8" }),
-    );
     console.log(
       execFileSync(executable, ["protocol-isolation.mjs"], { cwd: consumer, encoding: "utf8" }),
     );
@@ -427,9 +417,6 @@ try {
   );
   checks.push(
     `External artifact storage, expected-head conflicts, retained forks and committed-only draft publication on ${versions}`,
-  );
-  checks.push(
-    `Seal installed public paths, fixed signature, artifact encryption, CLI/Action sequence, exits and Node-free library import graph on ${versions}`,
   );
   checks.push(
     `Standalone Ledger lifecycle, fixed vectors, declarations and import isolation on ${versions}`,
@@ -456,7 +443,6 @@ try {
       "primitives-types.ts",
       "groups-types.ts",
       "storage-types.ts",
-      "seal-types.ts",
       "ledger-types.ts",
       "src/**/*.ts",
       "vite.config.ts",
@@ -464,7 +450,6 @@ try {
     ],
   });
   put("ledger-types.ts", readFileSync(resolve(root, "scripts/verify/ledger-types.txt"), "utf8"));
-  put("seal-types.ts", readFileSync(resolve(root, "scripts/verify/seal-types.txt"), "utf8"));
   put("groups-types.ts", readFileSync(resolve(root, "scripts/verify/groups-types.txt"), "utf8"));
   put("storage-types.ts", readFileSync(resolve(root, "scripts/verify/storage-types.txt"), "utf8"));
   put(
@@ -496,10 +481,6 @@ export default defineConfig({
   test: { include: ["test/**/*.test.ts"], passWithNoTests: false },
 });
 `,
-  );
-  put(
-    "public/seal-proof.v2.json",
-    readFileSync(resolve(root, "docs/seal/vectors/proof.v2.json"), "utf8"),
   );
   put(
     "src/concord-proof.ts",
@@ -542,7 +523,7 @@ export default defineConfig({
       await page.screenshot({ path: resolve(root, "artifacts/browser.png") });
       await page.close();
       checks.push(
-        "Chromium: standalone Ledger, Armour codecs, fixed Seal proof/artifact, encrypted Concord and independent groups, storage, drafts, production CSS and Vue render interaction",
+        "Chromium: standalone Ledger, Armour codecs, encrypted Concord and independent groups, storage, drafts, production CSS and Vue render interaction",
       );
     } finally {
       await app.close();
